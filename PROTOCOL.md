@@ -1,115 +1,229 @@
-# MongoosePro JLR — Wire Protocol Documentation
+# MongoosePro JLR — protocol research
 
-Status: reverse-engineered via static analysis of the vendor's Windows J2534 DLL. Not yet
-validated against live USB traffic. Confirmed facts are cited to the decompiled source file
-they were derived from (`analysis/decompiled/*.c`); everything else is marked as a hypothesis.
+Updated 2026-09-13. Static evidence from the supplied DLL and kernel driver, cross-checked
+with x86/x64 assembly. **Linux discovery, device open/close and value queries now succeed.**
+See `docs/VALIDATION.md` and `analysis/captures/linux-*.trace` for the new hardware
+evidence. The static-research descriptions below describe their original evidence
+boundary; they do not override the newer validation record. No vehicle was attached.
+“Observed” below means code behavior; it does not claim hardware validation.
+Earlier speculative framing is archived in `analysis/history/PROTOCOL-before-deep-ghidra.md`.
 
-## 1. Device identification
+## 1. Transport and the previously missing initialization
 
-| Property | Value |
-|---|---|
-| Vendor | Drew Technologies Inc. (now OPUS IVS) |
-| Product | MongoosePro JLR (Jaguar/Land Rover) |
-| USB VID:PID | `18e1:0104` |
-| Linux enumeration | CDC-ACM, `/dev/ttyACM0` (interfaces `02:02:00` control + `0a:00:00` data) |
-| Windows driver files | `monpj432.dll` (32-bit, protocol logic), `dtmonpro.sys` (kernel driver, raw byte pipe only) |
+Device VID:PID `18e1:0104`. Linux exposes `/dev/ttyACM0`; prior captures showed writes reach
+bulk OUT 0x01 unchanged. Bulk IN is 0x82; interrupt IN is 0x83.
 
-## 2. Transport
+The Windows driver does more than expose bulk endpoints: **file creation sends a vendor
+USB control transfer**. `kernel_labeled/000179b4.c` registers `00017834` as file-create and
+`000178fc` as file-cleanup. Both call `000176e0`:
 
-The vendor DLL opens the device via Windows `SetupDiEnumDeviceInterfaces` → `CreateFileW`, then
-communicates with plain `ReadFile`/`WriteFile` (+ occasional `DeviceIoControl`). No Windows COMM
-API (`SetupComm`, `EscapeCommFunction`) is used. **Working hypothesis:** the kernel driver is just
-handing back a raw byte pipe over the USB CDC endpoints — equivalent to what Linux's `cdc_acm`
-already exposes as `/dev/ttyACM0`. If true, no custom Linux kernel driver is needed; a userspace
-client can talk directly over the tty. **Not yet empirically confirmed** — no live capture has been
-done.
+| Setup field | Create | Cleanup |
+|---|---|---|
+| bmRequestType | 0x40 | 0x40 |
+| bRequest | 0xdb | 0xdb |
+| wValue | 1 | 0 |
+| wIndex | 0 | 0 |
+| wLength | 0 | 0 |
 
-The internal framing class is named `cVFrameFIFO_wireframe` ("wireframe" protocol), and is shared
-between USB and Bluetooth transports (per string `"BT Serial port has seen:"`), meaning the
-application-layer protocol below is transport-agnostic.
+Setup bytes: `40 db 01 00 00 00 00 00` on create; value becomes zero on cleanup.
+Assembly at `17740`–`17782` zeroes the setup structure and passes it with no data buffer to
+WdfUsbTargetDeviceSendControlTransferSynchronously. See `analysis/disassembly/kernel_vendor_control.asm`.
+The create callback completes successfully without checking this helper's transfer result.
 
-## 3. Frame structure (partially confirmed)
+This is a concrete difference from opening a Linux tty, and a plausible missing prerequisite
+in earlier probes. The firmware meaning of the request and its necessity on this particular
+unit remain unverified. No control transfer was sent during this research.
 
-```
-+----------------+------------------+-----------------------+
-| 4 bytes        | 2 bytes          | 2 bytes                |
-| frame length   | opcode           | sequence / correlation |
-| (uint32)       | (see §4)         | id                     |
-+----------------+------------------+-----------------------+
-| ... payload (opcode-dependent) ...                         |
-+--------------------------------------------------------------+
-```
+Bulk path: `EvtIoWrite` at `00011df4` retrieves the original input memory, formats that same
+memory for a USB pipe write, and sends it. `EvtIoRead` at `00011870` similarly forwards output
+memory to a USB pipe read. Neither inspected path serializes, escapes, or checksums the body.
+Each rejects request lengths above 65536. The USB configuration code identifies bulk IN/OUT
+and interrupt pipes; the interrupt reader stores one received byte at device-context+0x28.
+Its meaning has not been established (`000123a8`, `00012444`, `00018560`).
 
-Confirmed:
-- **4-byte length prefix** precedes every frame. Source: `cVFrameFIFO::data_obtain`
-  (`analysis/decompiled/byaddr_1006c6e0_FUN_1006c6e0.c`) — reads 4 bytes off the ring buffer first,
-  as `nBytesInThisFrame`, validated against buffer capacity before proceeding ("Buffer is hosed..."
-  error path otherwise).
-- **Minimum valid frame** is 12 bytes for simple control responses
-  (`analysis/decompiled/strref_FUN_1006d810_1006d810.c`, rejects `< 0xc`), or 20 bytes for
-  responses expected to carry a data payload
-  (`analysis/decompiled/byaddr_1006d9b0_FUN_1006d9b0.c`, rejects `< 0x14`).
-- **Response correlation**: response-matching code in both of the above compares a 2-byte field at
-  (parsed) offset 0 and another 2-byte field at offset 6 against the original request before
-  accepting a frame as the matching response. Field at offset 0 is presumed to be the opcode
-  (`request_opcode | 0x8000`); field at offset 6 is presumed to be a per-request sequence id.
-- **Header construction on send** (seen identically in three separate call sites building an
-  outgoing `cIoctl` (0x11) frame — `analysis/decompiled/strref_FUN_1002a700_1002a700.c`,
-  `analysis/decompiled/strref_FUN_1001b800_1001b800.c`): the header is built from:
-  - a 2-byte opcode field (`0x11` = `cIoctl` in the observed cases)
-  - a 2-byte field holding a fixed global constant (differs by call site — possibly a sub-command
-    or protocol-version tag, not yet identified)
-  - a 1-byte incrementing sequence counter (persisted per-device-instance, at a fixed struct offset
-    `+0xc288` relative to a device context pointer)
-  - a 2-byte reserved/zero field
-  - followed by opcode-specific payload bytes
+Kernel API names were resolved using table base 0x141c0, eight-byte entries, count 396, and
+Microsoft's [KMDF function indexes](https://github.com/microsoft/Windows-Driver-Frameworks/blob/main/src/publicinc/wdf/kmdf/1.15/wdffuncenum.h).
+The binary binds KMDF 1.9; the available 1.15 header's relevant indexes are corroborated by
+call shapes and callback registrations. File callback ordering is documented in Microsoft's
+[WDF_FILEOBJECT_CONFIG](https://github.com/microsoft/Windows-Driver-Frameworks/blob/main/src/publicinc/wdf/kmdf/1.15/wdfdevice.h).
 
-**Not yet found:** exact wire byte order (the struct-offset evidence above is post-parsing, not
-guaranteed to be identical to the raw bytes on the wire), and the checksum algorithm.
+## 2. Framing and common body
 
-### 3.1 Sharper header structure, from `cVFrameFIFO::data_obtain` (2026-09-12)
+All offsets in body tables exclude the four-byte transport prefix. Multi-byte stores are little-endian.
 
-`FUN_1006b670`/`FUN_1006b480`/`FUN_1006b450` (previously listed as unidentified) turned out to be
-generic circular-buffer plumbing (cursor-advance-with-wraparound, wraparound memcpy) — not the
-serializer. But tracing their caller `FUN_1006c6e0`, confirmed by an embedded string literal to be
-`cVFrameFIFO::data_obtain` (the plain-response reader), gives a firmer header layout. Reading a
-plain (non-data-carrying) response frame consumes exactly 12 bytes, structured as three consecutive
-4-byte reads:
+| Wire offset | Size | Value |
+|---|---|---|
+| 0 | 2 | Body length N |
+| 2 | 2 | N XOR 0x51e6 |
+| 4 | N | Body |
 
-```
-+----------------+------------------+------------------------+
-| 4 bytes        | 4 bytes          | 4 bytes                |
-| nBytesInThisFrame | field A       | field B                |
-| (validated:    | (returned to     | (read into a local var,|
-|  available >=  |  the caller)     |  never returned —      |
-|  N + 8)         |                  |  candidate: checksum   |
-|                 |                  |  or reserved)          |
-+----------------+------------------+------------------------+
-```
+`1006e180` copies the body unchanged and sends N+4 bytes through `1006a420` to WriteFile
+at `1006a473`. Initialization at `1006ae00` sets the XOR constant; `1006dd43` establishes
+its subobject offset. Message batching uses the same prefix. This is a length check, not a
+checksum over the body. No body checksum is added in the traced control or message senders.
 
-- **Field A** (bytes 4–7) is copied into the caller-supplied output buffer as a single contiguous
-  4-byte block — likely the combined opcode (2 bytes) + sequence/correlation id (2 bytes) from the
-  §3 hypothesis above, now confirmed to move as one unit rather than two independently-handled
-  fields.
-- **Field B** (bytes 8–11) is read but **discarded within `data_obtain` itself** — never appears in
-  the function's return value. Best guess is a checksum or reserved field, but this is unconfirmed.
-- This 12-byte reader is for the generic/plain response case. The sibling function requiring a
-  20-byte minimum (`byaddr_1006d9b0` — presumably payload-carrying responses) wasn't re-examined in
-  this pass; the extra 8 bytes there most likely cover the `nBytesInThisFrame`-sized payload for
-  opcodes that carry data, but that's not yet confirmed either.
+Receive worker `1006e480` reads up to 8192 bytes and feeds `1006b1c0`, which accumulates bytes
+in a ring buffer. It accepts 1 <= N <= 0x1800, checks the XOR, waits for all N+4 bytes, dispatches
+the body, and consumes the frame. Invalid headers advance by one byte to seek synchronization.
+It therefore handles fragmented and concatenated frames; USB packet boundaries are not frame boundaries.
 
-**Wall hit:** determining exactly where field B is sourced from (to settle checksum-vs-discarded)
-requires tracing a `this`-like pointer that Ghidra's own decompiler failed to resolve across two
-calls to the write-cursor helper (`FUN_1006b480`) inside `data_obtain` — shown as `in_EAX`/
-`unaff_EBX` in the decompiled C, meaning Ghidra's automated analysis gave up, not just "hasn't gotten
-to it yet". Further progress here needs manual register-flow tracing in the interactive Ghidra GUI
-(a much slower, hands-on workflow), or real hardware ground truth. See `NOTES.md`'s "Deeper Ghidra
-dig on the ring-buffer helpers" entry for the full trace.
+| Body offset | Size | Observed field |
+|---|---|---|
+| 0 | 2 | Routing word A; device requests use 1, channel requests use a channel word |
+| 2 | 2 | Routing word B; traced requests normally use 0 |
+| 4 | 2 | Opcode |
+| 6 | 2 | Sequence; control sender callers widen a nonzero byte counter |
+| 8 | 2 | Zero in simple requests; used by some other message types |
+| 10 | 2 | Not explicitly initialized by inspected simple-request builders |
+| 12 onward | variable | Command-specific data |
+
+Routing A/B look like destination/source identifiers, but those names remain an inference.
+Do not silently assume bytes 10–11 are zero: no explicit store initializes them in the
+inspected simple builders. No interpretation of these bytes is established.
+
+### Response queue and matching — corrected
+
+`10043610` reads opcode at body+4 and routes ordinary responses unchanged to `1006c5e0`.
+After correcting register signatures, `1006c660` clearly inserts:
+
+`LE32(N) | N body bytes | LE32(N)`
+
+`1006c6e0` returns the body and consumes N+8 internal bytes. The trailing word is a duplicate
+length, **not a wire checksum**. `1006b480` computes a new cursor into caller-provided storage;
+it does not commit the FIFO write cursor. Earlier helper descriptions were incorrect.
+
+Both response matchers compare **response body+0 with request body+2**, and compare sequence
+at body+6. Neither inspected matcher compares opcode with request_opcode|0x8000. Dispatch
+already restricts which message types enter the queue. `1006d9b0` requires at least 20 returned
+bytes and constructs a deadline about ten seconds ahead. The simpler `1006d810` requires 12.
+
+For general responses inspected through the open and configuration callers:
+- Body+12: 32-bit status.
+- Body+16: additional response metadata; a length interpretation is not yet generalized.
+- Body+20: returned command data where present.
+
+Sources: `deep_transport/`, `receive/`, `refined_fifo/`, `open_transport/10043610.c`, and
+`open_sequence/1006d9b0.c`. `RefineFifoSignatures.java` reproduces the in-memory corrections
+with `-readOnly`; the original Ghidra database remains unchanged.
+
+## 3. Opening sequence and simple requests
+
+New-context hardware initialization: enumerate device interface -> exclusive overlapped
+CreateFileW -> reset events -> mark running -> pthread_create(receive worker). The function
+pointer at 0x100a3170 resolves to `pthread_create`, with entry point `1006e480`.
+CreateFile triggers the kernel vendor request described above.
+
+The observed normal-open path in `100500c0` then sends:
+
+| Step | Function | Opcode | Body bytes | Accepted response status |
+|---|---|---|---|---|
+| Start firmware | 1003e820 | 0x0103 | 12 | 0 or 7; meaning of 7 unresolved |
+| Open device | 1003ea00 | 0x0003 | 12 | 0 |
+| Read board info | 1003f9c0 | 0x0109 | 12 | 0 |
+
+Open status 0x020a is explicitly reported as missing voltage on the vehicle connector.
+This shows vehicle power can matter; it does not explain the earlier lack of all responses.
+
+A separate discovery path (`1004a3f0`) initializes transport, sends Echo (`1003f030`, 0x0100),
+then GetBoardInfo (`1003f160`). It conditionally starts firmware and reads board info again.
+Thus cOpenDevice is not necessary for every information query in the vendor implementation.
+Echo uses the simpler response matcher and logs a possible dropped first response if it times out.
+
+Static cOpenDevice buffer:
+
+`0c 00 ea 51 01 00 00 00 03 00 SS 00 00 00 ?? ??`
+
+SS is the nonzero sequence byte; ?? means uninitialized/unknown bytes, not wildcards to transmit.
+Echo changes the opcode bytes to `00 01`; GetBoardInfo uses `09 01`. These are construction
+examples, not hardware-validated probe instructions.
+
+Sources: `open_sequence/`, `open_transport/`, `usb_open/`, `message_decode/1004a3f0.c`,
+`senders/1003f030.c`, `senders/1003f160.c`, and saved disassembly.
+
+### Channel and configuration requests
+
+| Function | Opcode | Body size | Fields after common header |
+|---|---|---|---|
+| 1000b3c0 | 0x0006 open channel | 20 | +12 u32 caller argument; +16 u32 caller argument |
+| 1000b690 | 0x0007 close channel | 12 | None |
+| 1000dd00 | 0x000c get value | 16 | +12 u32 selector |
+| 1000de10 | 0x000b set value | 20 | +12 u32 selector; +16 u32 value |
+| 10040240 | 0x0013 get string | 16 | +12 u32 selector; returned string read at response+24 |
+| 1000daf0 | 0x0011 ioctl | 16 | +12 u32 2: clear TX |
+| 1000dbf0 | 0x0011 ioctl | 16 | +12 u32 3: clear RX |
+| 1002a700 | 0x0011 ioctl | 17 | +12 u32 0; +16 initialization address byte (5-baud init) |
+
+Open-channel argument semantics and the source of channel IDs still need tracing through
+protocol-specific constructors; do not substitute SAE protocol IDs or assume flag/baud order.
+`1000b320` additionally calls the pin-control sender after channel open. Channel creation is
+therefore more than issuing opcode 6 alone.
+
+### Raw outbound and inbound messages
+
+`1006b090` constructs cOutboundData (0x0008) from the vendor's PASSTHRU_MSG-shaped input:
+
+| Body offset | Size | Outbound value |
+|---|---|---|
+| 0 | 2 | Selected channel word |
+| 2 | 2 | 0 |
+| 4 | 2 | 8 |
+| 6 | 2 | Caller argument (sequence field) |
+| 8 | 2 | Caller argument |
+| 10 | 2 | No explicit store in this builder |
+| 12 | 4 | Input message+8 (TxFlags) |
+| 16 | 4 | Caller argument; meaning unresolved |
+| 20 | 2 | Input message+16 (DataSize, truncated to a word) |
+| 22 | 2 | Input message+20 (ExtraDataIndex, low word) |
+| 24 | DataSize | Input message data at +24 |
+
+Body length is DataSize+24; total transfer frame is DataSize+28. `1006b120` is a variant
+selecting between channel words using the input protocol field. `1006e2e0`/`1006e3b0`
+concatenate frames into the transport buffer, allowing one WriteFile to contain multiple frames.
+
+For ordinary inbound data (opcode 9), dispatcher `10043610` forwards body+12 to the channel
+callback. `1000e4c0` -> `1000b790` decodes:
+
+| Body offset | Size | Inbound value |
+|---|---|---|
+| 12 | 4 | Receive status, masked by a channel-specific virtual method |
+| 16 | 4 | Timestamp copied into the application message |
+| 20 | 2 | Not consumed by this decoder |
+| 22 | 2 | DataSize |
+| 24 | DataSize | Message data |
+
+The decoder sets TxFlags=0 and ExtraDataIndex=DataSize, caps the copied data at 0x1020,
+and queues an application message. Timestamp units and protocol-specific status masks remain
+unverified. The opcode 10 indication path has separate handling.
+
+**ISO15765 is not wholly delegated to firmware.** The DLL contains host-side receive
+reassembly: `10021790` dispatches single/first/consecutive frames; `10021280` checks the
+four-bit sequence and copies fragments until the announced length is met. Wrong sequence
+resets receive state. `10021070` contains first-frame/flow-control handling; standard and
+extended-address paths differ. A raw CAN client and a complete J2534 ISO15765 implementation
+therefore have different scope. See `isotp/` and `message_payload/`.
+
+### Filters and periodic messages
+
+Table operations carry a table selector at body+12; opcode 0x0d is not exclusively filters.
+Observed selectors: 0/1 pass/block filters, 2 flow filter, 3 functional addresses, 4 periodic
+messages, 5 repeat messages. These are wire table selectors, not J2534 enum values.
+
+Normal pass/block builder `1000e600` sends N=20+mask_size+pattern_size:
++12 u32 table selector 0/1; +16 u16 masked TxFlags (0x100); +18 u8 type 1/2;
++19 u8 pattern size; +20 mask bytes then pattern bytes. The size comes from an 8-bit store,
+so upstream constraints must be checked before implementing arbitrary-size inputs.
+
+Periodic builder `1000d220`: +12 u32 4; +16 u32 caller interval argument; +20 u32 message
+TxFlags; +24 u8 DataSize; +25 message data. N=25+DataSize. The request sequence is also saved
+for asynchronous response bookkeeping. Flow filters and repeat builders were extracted but
+are not yet fully specified; see `senders/10021970.c` and `senders/1000d5d0.c`.
 
 ## 4. Command/response opcode table
 
 Source: `analysis/decompiled/strref_FUN_1003b080_1003b080.c` (a pure opcode→name lookup function,
-fully decompiled with no ambiguity). Every response opcode = request opcode `| 0x8000`.
+fully decompiled with no ambiguity). Named command-specific response opcodes below
+use request opcode `| 0x8000`. General responses also exist; matching uses routing
+and sequence after dispatcher filtering, not this arithmetic rule.
 
 | Opcode | Name | Opcode | Name |
 |---|---|---|---|
@@ -146,6 +260,15 @@ fully decompiled with no ambiguity). Every response opcode = request opcode `| 0
 | 0x108 | cBoardSleep | 0x8111 | cCheckCRNResp |
 | | | 0x8112 | cUpdateBTModuleResp |
 
+**Observed on hardware but absent from the lookup table:** `0x8100`, the `| 0x8000`
+response to `0x100 cEchoPacket`. `analysis/captures/linux-discovery-20260912T2030.trace`
+contains `...000081010000...` — opcode `0x8100`, sequence 1, carrying a **12-byte** body
+rather than the 20-byte general response. `src/session.cpp` therefore accepts `0x8100`
+and lowers its minimum accepted body length for opcode `0x100`. The table above is a
+faithful transcription of the vendor name-lookup function, which simply has no name
+string at `0x8100`/`0x8101`; that gap is an omission in the vendor table, not evidence
+the opcode is invalid. Do not "correct" the decoder to match the table.
+
 ### Mapping to the J2534 API
 
 | J2534 export | Wire opcode |
@@ -155,10 +278,10 @@ fully decompiled with no ambiguity). Every response opcode = request opcode `| 0
 | `PassThruConnect` | `cOpenChannel` |
 | `PassThruDisconnect` | `cCloseChannel` |
 | `PassThruWriteMsgs` | `cOutboundData` |
-| `PassThruReadMsgs` | `cInboundData` (async, via `cIndication`?) |
+| `PassThruReadMsgs` | Queued `cInboundData`; indications have separate handling |
 | `PassThruStartMsgFilter` | `cTableAddEntry` |
 | `PassThruStopMsgFilter` | `cTableRemoveEntry` |
-| `PassThruIoctl` | `cIoctl` |
+| `PassThruIoctl` | Dispatches to get/set value, table operations, or `cIoctl`, depending on operation |
 | `PassThruSetProgrammingVoltage` | `cSetPin` |
 
 ## 5. J2534 ConnectFlags (standard, from `strref_FUN_100384d0_100384d0.c`)
@@ -189,69 +312,46 @@ ISO15765_BS/STMIN, etc.) plus Drew Tech vendor extensions starting at `0x1000000
 
 Also `0x10008 DT_PULLUP_VALUE`. See the decompiled file for the complete standard-range table.
 
-## 7. Standard protocol behavior (not proprietary, no need to reverse further)
+## 7. Firmware-assisted K-line initialization
 
 ISO9141/ISO14230 5-baud slow-init handshakes (`analysis/decompiled/strref_FUN_1002a700_1002a700.c`,
 `analysis/decompiled/strref_FUN_1001b800_1001b800.c`) are implemented as a single high-level
 `cIoctl` (0x11) call to the adapter — the time-critical K-line bit-banging (send 0x33 at 5 baud,
 receive sync byte 0x55, receive two key bytes, send inverted key byte, receive inverted address)
-happens in the adapter's own onboard firmware, not over the wire protocol. This is public SAE
-standard behavior, already documented for decades — no reverse-engineering needed here.
+is delegated to the adapter firmware by the inspected DLL path. The host command layout and
+response handling still need implementation and hardware validation. This finding concerns
+K-line initialization; it does not imply ISO15765 reassembly is wholly firmware-managed.
 
-## 8. Open questions / next steps
+## 8. Remaining work and validation boundary
 
-1. **Exact raw byte order and offsets** of the frame header — current evidence comes from parsed
-   in-memory structs, not confirmed against actual wire bytes.
-2. **Checksum algorithm** — location unknown; `CHECKSUM_DISABLED` flag implies one exists.
-3. **Payload structure** for `cOutboundData`/`cInboundData` (the actual diagnostic message frames)
-   and `cTableAddEntry` (message filter definitions) — not yet examined.
-4. **`cIndication`** — likely the async/unsolicited notification opcode used for `PassThruReadMsgs`
-   callback delivery; not yet examined.
+Highest-value hardware check: reproduce the observed vendor-create control transfer, then the
+DLL's discovery Echo/GetBoardInfo flow while capturing USB. This requires a new, narrowly scoped
+probe; the old sweep script does not implement the corrected protocol or vendor initialization.
+Do not treat its old candidate frames as valid. No probing was performed in this investigation.
 
-### Live probing result (2026-09-12) — transport confirmed, header layout still wrong
+Further static work remains:
+- Resolve channel-ID allocation, the two open-channel arguments, and pin-routing configuration.
+- Identify semantics of body+8/+10, response+16, timestamp units, and per-protocol status masks.
+- Complete ISO15765 transmit/flow-control timing and filter-ID mappings before claiming J2534 support.
+- Check the firmware behavior of vendor request 0xdb and power requirements against real traffic.
 
-Built a probe tool (`analysis/probe.py`) and captured USB traffic (`usbmon` + tshark,
-`analysis/captures/probe_session_2026-09-12.pcapng`) while sending hand-built candidate frames
-directly to `/dev/ttyACM0`. Note: this was our own probe talking to the adapter, **not** a capture
-of the real Windows driver — no working Windows/Wine environment is available to produce that (see
-`NOTES.md` "Ruled out"). Results:
+Additional kernel IOCTLs decoded in `kernel_labeled/00018b9c.c`:
+0x55006000 returns USB configuration descriptor; 0x55006018 returns two 32-bit ones;
+0x5500601c queries USB string index 3 in language 0x0409; 0x5500a004 enters a reset helper;
+0x5500a00c issues vendor request 0xda. These are distinct from the file-create 0xdb operation
+and are not prerequisites established for ordinary bulk messages.
 
-- **Transport hypothesis confirmed**: bytes written to `/dev/ttyACM0` appear byte-for-byte identical
-  on the wire as bulk-OUT packets (EP `0x01`), no CDC-ACM mangling. Every transfer completed with
-  `URB status: Success (0)` at the USB level regardless of content.
-- **Zero application-layer responses** to ~20 variants of `cOpenDevice`/`cEchoPacket`/
-  `cGetBoardStatus`/`cGetBoardInfo`/`cGetDeviceConfiguration` (both byte orders, both length-prefix
-  interpretations, 9600/115200 baud) — no reply frame, no error string, no unsolicited data even
-  when passively listening. The header layout in §3 above is therefore still unconfirmed; something
-  about field order, an extra constant, or a required checksum is missing.
-- Checked `analysis/decompiled/PassThruOpen.c` hoping it would contain the frame serializer — it
-  doesn't; that function is pure Windows-side device discovery (SetupAPI name matching), not wire
-  framing. The real serializer is still inside the unlabeled ring-buffer helpers
-  (`FUN_1006b670`/`FUN_1006b480`/`FUN_1006b450`).
-- **Paused deliberately** rather than continuing blind guessing: a wrong-but-plausible opcode value
-  could alias a destructive command (`cReflashBoard` 0x10a, `cWriteSerialNumber` 0x10b,
-  `cUnprotectBootloader` 0x10c, `cJumpToFirmware` 0x103 are all one field-offset guess away from the
-  region being probed).
+## 9. Reproduction and evidence
 
-**Recommended next step (undecided as of this writing):** either (a) targeted Ghidra decompilation
-of the three ring-buffer helper functions above to find the real serializer/checksum before sending
-anything else, or (b) get access to a real Windows install (physical or VM with USB passthrough) to
-capture the genuine vendor driver's traffic. USB capture tooling on this Linux box is fully set up
-and permanent (no sudo/pkexec needed) — see `NOTES.md` for the setup details.
+- `analysis/ExtractSenders.java`: all 47 direct control-sender callers, C plus assembly.
+- `analysis/ExtractOpenSequence.java`: selected functions and caller-reference indexes.
+- `analysis/RefineFifoSignatures.java`: assembly-derived custom register storage; exports refined C.
+- `analysis/ExtractInbound.java`: channel vtable candidates and callback decompilation. Multiple
+  inheritance means entries need call-site checks; the inventory alone does not identify a callback.
+- `analysis/ExtractKernel.java` and `LabelKernelWdf.java`: 55 kernel functions and WDF table labels.
+- `analysis/decompiled/`: exported evidence; `analysis/disassembly/`: focused objdump verification.
+- `analysis/SENDERS.md`: sender navigation index; `analysis/REPRODUCE.md`: commands and provenance.
 
-## 9. Source material index
-
-- `vendor/driver/monpj432.dll` — the analyzed binary (32-bit PE, unstripped C++ symbols)
-- `analysis/ghidra_project/` — Ghidra project with full auto-analysis
-- `analysis/ExtractProtocol.java` — Ghidra script: decompiles named J2534 exports + all functions
-  referencing protocol-relevant strings
-- `analysis/ExtractByAddress.java` — Ghidra script: decompiles specific functions by address (for
-  following call chains)
-- `analysis/decompiled/*.c` — all decompiler output (26 files)
-- `analysis/ExtractRingBuffer.java` — Ghidra script: decompiles the ring-buffer helper functions
-  plus their callers/callees, with a raw `.asm` dump alongside each as a decompiler-failure fallback
-- `analysis/decompiled/ringbuffer/` — output of the above, including `cVFrameFIFO::data_obtain`
-- `analysis/probe.py` — Linux-side probe tool: sends candidate frames to `/dev/ttyACM0` and prints
-  the response, for empirical testing of frame-layout hypotheses against the real firmware
-- `analysis/captures/` — `usbmon`/tshark USB capture(s) from probe sessions
-- `NOTES.md` — informal running research log (this file is the cleaned-up reference derived from it)
+The original DLL Ghidra project was read-only throughout. Corrected signatures and labels are
+reproducible script operations, not permanent edits to that original project. The kernel driver
+was imported into a separate project. No binary patching, firmware writing, or hardware I/O occurred.
