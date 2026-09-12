@@ -63,6 +63,7 @@ tools and documentation; vendor files and research binaries are excluded.
 - [Protocol reference](PROTOCOL.md) and [research status](NOTES.md)
 - [Ghidra reproduction](analysis/REPRODUCE.md) and [sender index](analysis/SENDERS.md)
 
-The old `analysis/probe.py` is a historical speculative experiment, not the driver.
+The old probe script is a historical speculative experiment, not the driver; it is
+kept at `analysis/history/probe.py`.
 The next vehicle target is a 2017 Volvo XC60 D5 AWD. Reference captures will be made
 on a separate Windows laptop; no vehicle was connected during current testing.

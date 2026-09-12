@@ -40,8 +40,10 @@ hardware exchanges. No device commands were sent during the deep Ghidra investig
 
 Unknowns include channel allocation and open arguments, pin routing, header bytes 10–11,
 timestamp units, status masks, and complete ISO15765 transmit/flow-control behavior.
-The old `analysis/probe.py` sweeps guessed frames and does not implement the corrected
-protocol or vendor initialization; it is a historical experiment, not a current client.
+The old probe script (`analysis/history/probe.py`) sweeps guessed frames and does not
+implement the corrected protocol or vendor initialization; it is a historical experiment,
+not a current client. The archived notes under `analysis/history/` still refer to it at
+its original `analysis/probe.py` path, which is left intact so the record stays faithful.
 
 ## Research milestones
 
