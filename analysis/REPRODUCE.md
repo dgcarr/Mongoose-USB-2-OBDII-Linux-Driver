@@ -2,6 +2,16 @@
 
 Run from the repository root. Ghidra 12.1.2 was used through the Snap headless launcher.
 
+The Ghidra project is **not** stored in this repository: it is a ~20 MB regenerable
+database. Recreate it once from the hash-pinned vendor DLL below, then run the
+extraction commands against it. `analysis/ghidra_project/` and `analysis/ghidra_*.log`
+are gitignored so a re-run does not commit them back.
+
+```sh
+mkdir -p analysis/ghidra_project
+/snap/bin/ghidra.analyzeHeadless analysis/ghidra_project MongooseJLR -import vendor/driver/monpj432.dll
+```
+
 ```sh
 /snap/bin/ghidra.analyzeHeadless analysis/ghidra_project MongooseJLR -process monpj432.dll -readOnly -noanalysis -scriptPath "$PWD/analysis" -postScript ExtractSenders.java "$PWD/analysis/decompiled/senders"
 /snap/bin/ghidra.analyzeHeadless analysis/ghidra_project MongooseJLR -process monpj432.dll -readOnly -noanalysis -scriptPath "$PWD/analysis" -postScript RefineFifoSignatures.java "$PWD/analysis/decompiled/refined_fifo"
