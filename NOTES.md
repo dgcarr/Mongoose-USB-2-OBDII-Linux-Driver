@@ -189,3 +189,59 @@ chosen between:
 - Reusable probe script: `analysis/probe.py` — sends a configurable sweep of opcode/endian/length
   variants over `/dev/ttyACM0` and prints whatever comes back; extend `OPCODES` there for further
   hypothesis testing once a better frame layout candidate is found.
+
+## Deeper Ghidra dig on the ring-buffer helpers (2026-09-12, later same day)
+
+Went back into Ghidra (`analysis/ExtractRingBuffer.java`, headless, output in
+`analysis/decompiled/ringbuffer/`) specifically targeting the three previously-unlabeled helper
+functions (`FUN_1006b670`/`FUN_1006b480`/`FUN_1006b450`) plus their callers and callees, hoping one
+of them was the frame serializer/checksum.
+
+**They aren't.** All three turned out to be generic circular-buffer plumbing with no
+protocol-specific logic at all:
+- `FUN_1006b450` — advance the FIFO read cursor by N bytes, wrapping at the buffer boundary,
+  decrementing an "available bytes" counter.
+- `FUN_1006b480` — advance/commit the write cursor by N bytes, same wraparound pattern, resets to
+  head on hitting capacity.
+- `FUN_1006b670` — memcpy-with-wraparound: copies bytes out of a circular source range into a
+  linear destination buffer, recording `{base, tag, bytesWritten}` into an output struct.
+
+### But this surfaced a genuinely new, useful function: `cVFrameFIFO::data_obtain`
+
+One of the callers pulled in by the script, `FUN_1006c6e0`, turned out to be a **fully-named,
+previously-undecompiled function** — confirmed by an embedded string literal
+(`"cVFrameFIFO::data_obtain"`) passed to an exception constructor. This is the plain-response frame
+reader, and reading through its logic (cross-checked against the raw `.asm` at
+`analysis/decompiled/ringbuffer/caller_of_1006b480_FUN_1006c6e0_1006c6e0.asm`) gives a much sharper
+picture of the frame header than we had before:
+
+1. Reads **4 bytes**: `nBytesInThisFrame`. Validated as `available >= nBytesInThisFrame + 8` before
+   proceeding — this is exactly where the documented 12-byte minimum frame size comes from
+   (4-byte length field + this required 8 more bytes with `nBytesInThisFrame == 0`).
+2. Reads **4 more bytes** ("field A") and copies them into the *caller-supplied* output buffter —
+   i.e. this is data the higher-level code actually gets to see. Strong candidate: the combined
+   2-byte opcode + 2-byte correlation/sequence field from the original hypothesis in `PROTOCOL.md`
+   §3, now confirmed to be a single contiguous 4-byte block rather than two separately-handled
+   2-byte fields.
+3. Reads **4 more bytes** ("field B") into a purely local stack variable that is **never returned
+   to the caller** — discarded (at least as far as this function's return value goes). Candidate:
+   a checksum, or a reserved/padding field. This is where nBytesInThisFrame-worth of actual payload
+   would presumably follow for opcodes that carry one, but this generic reader only handles the
+   fixed 12-byte envelope — variable-length payload handling is presumably in the sibling function
+   (`byaddr_1006d9b0`, the one requiring 20-byte minimum frames) that wasn't re-examined this pass.
+
+### Hit a real wall, not just "haven't looked yet"
+Tried to pin down exactly *where* field B is read from (to determine whether it's checksum-validated
+somewhere we can't see, or genuinely just discarded) by tracing the raw assembly around the second
+and third `CALL 0x1006b480` inside `data_obtain`. Both calls rely on a `this`-like pointer that's
+loaded into `EAX`/`ECX` from a point **earlier in the function that Ghidra's own decompiler failed
+to resolve** (shown as `in_EAX`/`unaff_EBX` in the pseudocode — Ghidra explicitly gives up tracking
+these, not just "hasn't been decompiled yet"). This is a genuine dead end for headless/scripted
+Ghidra analysis; going further would mean manual register-flow tracing inside the interactive
+Ghidra GUI, which is a fundamentally slower, hands-on workflow rather than more automated
+decompilation.
+
+**Decision:** stopped here rather than push into manual GUI-based tracing. The frame-header
+hypothesis is meaningfully sharper than before (see updated `PROTOCOL.md` §3), but the field-B
+checksum question remains open, gated on either manual interactive Ghidra work or real hardware
+ground truth (live Windows driver capture, still not available — see above).

@@ -65,10 +65,46 @@ Confirmed:
   - followed by opcode-specific payload bytes
 
 **Not yet found:** exact wire byte order (the struct-offset evidence above is post-parsing, not
-guaranteed to be identical to the raw bytes on the wire), and the checksum algorithm (a
-`CHECKSUM_DISABLED` connect flag exists, implying one is normally applied, but the calculation
-itself lives in still-unidentified ring-buffer helper functions `FUN_1006b670`/`FUN_1006b480`/
-`FUN_1006b450`).
+guaranteed to be identical to the raw bytes on the wire), and the checksum algorithm.
+
+### 3.1 Sharper header structure, from `cVFrameFIFO::data_obtain` (2026-09-12)
+
+`FUN_1006b670`/`FUN_1006b480`/`FUN_1006b450` (previously listed as unidentified) turned out to be
+generic circular-buffer plumbing (cursor-advance-with-wraparound, wraparound memcpy) — not the
+serializer. But tracing their caller `FUN_1006c6e0`, confirmed by an embedded string literal to be
+`cVFrameFIFO::data_obtain` (the plain-response reader), gives a firmer header layout. Reading a
+plain (non-data-carrying) response frame consumes exactly 12 bytes, structured as three consecutive
+4-byte reads:
+
+```
++----------------+------------------+------------------------+
+| 4 bytes        | 4 bytes          | 4 bytes                |
+| nBytesInThisFrame | field A       | field B                |
+| (validated:    | (returned to     | (read into a local var,|
+|  available >=  |  the caller)     |  never returned —      |
+|  N + 8)         |                  |  candidate: checksum   |
+|                 |                  |  or reserved)          |
++----------------+------------------+------------------------+
+```
+
+- **Field A** (bytes 4–7) is copied into the caller-supplied output buffer as a single contiguous
+  4-byte block — likely the combined opcode (2 bytes) + sequence/correlation id (2 bytes) from the
+  §3 hypothesis above, now confirmed to move as one unit rather than two independently-handled
+  fields.
+- **Field B** (bytes 8–11) is read but **discarded within `data_obtain` itself** — never appears in
+  the function's return value. Best guess is a checksum or reserved field, but this is unconfirmed.
+- This 12-byte reader is for the generic/plain response case. The sibling function requiring a
+  20-byte minimum (`byaddr_1006d9b0` — presumably payload-carrying responses) wasn't re-examined in
+  this pass; the extra 8 bytes there most likely cover the `nBytesInThisFrame`-sized payload for
+  opcodes that carry data, but that's not yet confirmed either.
+
+**Wall hit:** determining exactly where field B is sourced from (to settle checksum-vs-discarded)
+requires tracing a `this`-like pointer that Ghidra's own decompiler failed to resolve across two
+calls to the write-cursor helper (`FUN_1006b480`) inside `data_obtain` — shown as `in_EAX`/
+`unaff_EBX` in the decompiled C, meaning Ghidra's automated analysis gave up, not just "hasn't gotten
+to it yet". Further progress here needs manual register-flow tracing in the interactive Ghidra GUI
+(a much slower, hands-on workflow), or real hardware ground truth. See `NOTES.md`'s "Deeper Ghidra
+dig on the ring-buffer helpers" entry for the full trace.
 
 ## 4. Command/response opcode table
 
@@ -212,6 +248,9 @@ and permanent (no sudo/pkexec needed) — see `NOTES.md` for the setup details.
 - `analysis/ExtractByAddress.java` — Ghidra script: decompiles specific functions by address (for
   following call chains)
 - `analysis/decompiled/*.c` — all decompiler output (26 files)
+- `analysis/ExtractRingBuffer.java` — Ghidra script: decompiles the ring-buffer helper functions
+  plus their callers/callees, with a raw `.asm` dump alongside each as a decompiler-failure fallback
+- `analysis/decompiled/ringbuffer/` — output of the above, including `cVFrameFIFO::data_obtain`
 - `analysis/probe.py` — Linux-side probe tool: sends candidate frames to `/dev/ttyACM0` and prints
   the response, for empirical testing of frame-layout hypotheses against the real firmware
 - `analysis/captures/` — `usbmon`/tshark USB capture(s) from probe sessions
