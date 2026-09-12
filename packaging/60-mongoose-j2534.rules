@@ -1,0 +1,2 @@
+# MongoosePro JLR only. Install into /etc/udev/rules.d/ then reconnect adapter.
+SUBSYSTEM=="usb", ENV{DEVTYPE}=="usb_device", ATTR{idVendor}=="18e1", ATTR{idProduct}=="0104", MODE="0660", GROUP="plugdev", TAG+="uaccess", ENV{ID_MM_DEVICE_IGNORE}="1"

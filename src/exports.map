@@ -1,0 +1,9 @@
+MONGOOSE_0 {
+  global:
+    PassThruOpen; PassThruClose; PassThruConnect; PassThruDisconnect;
+    PassThruReadMsgs; PassThruWriteMsgs; PassThruStartPeriodicMsg;
+    PassThruStopPeriodicMsg; PassThruStartMsgFilter; PassThruStopMsgFilter;
+    PassThruSetProgrammingVoltage; PassThruReadVersion; PassThruGetLastError;
+    PassThruIoctl;
+  local: *;
+};
