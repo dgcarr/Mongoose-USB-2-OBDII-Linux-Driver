@@ -103,16 +103,18 @@ void timeout_and_cancel() {
     error(ERR_DEVICE_NOT_CONNECTED, [&] { partial.command(3); });
 }
 void write_failure_paths() {
-    // An expired budget stops before the wire, so nothing is ambiguous and the
-    // session must survive. A 1 ms request always lands here: the remainder is
-    // strictly under a millisecond and truncates to zero.
+    // The smallest accepted budget must still reach the wire. The remainder of a 1 ms
+    // request is strictly under a millisecond, so it has to round up: truncating would
+    // hand libusb a zero, which means "no timeout" rather than "expired".
     auto source = std::make_unique<Mock>(); auto *mock = source.get(); Session session(std::move(source));
     bool wrote = false;
     mock->write = [&](auto wire) { wrote = true; mock->receive(response(0x8003, le16(wire, 10))); };
-    error(ERR_TIMEOUT, [&] { session.command(3, {}, 1ms); });
-    CHECK(!wrote);
-    CHECK(Session::status(session.command(3)) == 0);
+    CHECK(Session::status(session.command(3, {}, 1ms)) == 0);
     CHECK(wrote);
+    CHECK(Session::status(session.command(3)) == 0); // and the session is not poisoned
+    // The remaining pre-write expiry branch (deadline genuinely passed before the write)
+    // needs a lock-acquisition race to reach, so it is not asserted deterministically
+    // here; what it must never do is set failure_, since nothing reached the wire.
     // A root cause reported by the transport outranks the generic write-failure text.
     auto broken_source = std::make_unique<Mock>(); auto *broken = broken_source.get();
     Session unplugged(std::move(broken_source));

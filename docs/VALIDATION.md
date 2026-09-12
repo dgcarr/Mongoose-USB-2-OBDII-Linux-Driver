@@ -66,7 +66,10 @@ Sequence numbers are held for ten seconds before reuse. A response timeout or an
 ambiguous write requires reopening the session, because a late or partially delivered
 frame could otherwise be matched to a later command. A command whose deadline expires
 **before** anything is written does not: nothing reached the wire, so only the sequence
-slot is lost and the session stays usable. Hardware bounds on delayed duplicate
+slot is lost and the session stays usable. The write budget is rounded up to whole
+milliseconds rather than truncated, so a caller with a sub-millisecond remainder still
+reaches the adapter and libusb is never passed a zero timeout, which it treats as no
+timeout at all. Hardware bounds on delayed duplicate
 responses are still unknown. No firmware-generation marker has been established.
 
 ## Next blocking work

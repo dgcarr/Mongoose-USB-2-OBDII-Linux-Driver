@@ -56,14 +56,19 @@ Bytes Session::command(uint16_t opcode, std::span<const uint8_t> payload,
     pending_ = sequence_; minimum_ = opcode == 0x100 ? 12 : 20; response_.reset();
     used_[sequence_] = now;
     state.unlock();
-    // Sub-millisecond remainders truncate to zero here, and zero means "no timeout" to
-    // libusb, so an expired budget must not reach the write. Nothing has left the host
-    // on this path, so only the sequence slot is lost; the session stays usable.
-    const auto remaining = std::chrono::duration_cast<std::chrono::milliseconds>(deadline-std::chrono::steady_clock::now());
-    if (remaining.count() <= 0) {
+    // Compare at full clock resolution: a caller that still has time left must not be
+    // failed just because the remainder truncates to zero whole milliseconds.
+    const auto left = deadline - std::chrono::steady_clock::now();
+    if (left <= std::chrono::steady_clock::duration::zero()) {
+        // Nothing has left the host on this path, so only the sequence slot is lost;
+        // the session stays usable.
         state.lock(); pending_ = 0;
         throw Error(ERR_TIMEOUT, "command deadline expired before write");
     }
+    // Zero means "no timeout" to libusb, so a sub-millisecond remainder must round up
+    // rather than down. The write may therefore overrun the deadline by under 1 ms;
+    // the response wait below still honours the exact deadline.
+    const auto remaining = std::chrono::ceil<std::chrono::milliseconds>(left);
     try {
         transport_->send(wire, static_cast<unsigned>(remaining.count()));
     } catch (...) {

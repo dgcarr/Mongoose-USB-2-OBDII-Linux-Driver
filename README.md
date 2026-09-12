@@ -50,9 +50,10 @@ new group membership may require login again. No global CDC blacklist is needed.
 One process may own an adapter at a time. Normal cleanup releases interfaces and
 reattaches CDC. A response timeout invalidates the session; close and reopen before
 retrying. A command that expires before its write reaches the wire returns `ERR_TIMEOUT`
-without invalidating the session. Note that a 1 ms command timeout always expires that
-way, because the remaining budget truncates to whole milliseconds; 2 ms is the smallest
-timeout that can reach the adapter.
+without invalidating the session. Every accepted timeout, down to the 1 ms minimum,
+reaches the adapter: the write budget rounds up to whole milliseconds so libusb is never
+handed a zero, which it would read as "no timeout". A write may therefore overrun the
+deadline by under a millisecond; the wait for the response honours it exactly.
 
 `cpack --config build/CPackConfig.cmake` packages only installed library, headers,
 tools and documentation; vendor files and research binaries are excluded.
