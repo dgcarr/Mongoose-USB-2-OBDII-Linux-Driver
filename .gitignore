@@ -3,3 +3,5 @@
 # Regenerable Ghidra database and run logs; see analysis/REPRODUCE.md to recreate.
 /analysis/ghidra_project/
 /analysis/ghidra_*.log
+__pycache__/
+*.pyc

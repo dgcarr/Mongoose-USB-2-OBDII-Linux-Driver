@@ -9,6 +9,29 @@ The 04.04 version string identifies the target interface, not a compliance claim
 Adapter 18e1:0104, serial AOLHE0000003666A, USB only; user confirmed no vehicle attached.
 
 - Vendor control 0xdb value 1 succeeded; Echo and GetBoardInfo returned valid frames.
+- **0xdb is not required.** After `USBDEVFS_RESET` (clearing any latched firmware state),
+  Echo, GetBoardInfo and GetString all succeeded over plain `/dev/ttyACM*` under `cdc_acm`
+  with no control transfer sent. Frames parsed with zero resync slides at lengths
+  12/44/168/604 bytes. Reproduce: `analysis/probes/reset_test.py`.
+- GetString returned `AOLHE0000003666A`, byte-identical to the USB `iSerial` descriptor.
+- Response+16 is a device microsecond counter; `cOpenDevice` returns it as zero, i.e. the
+  command resets the device clock.
+- Failed commands return NUL-terminated ASCII at body+20, e.g. status 0x0203
+  `cGetValue: Invalid message length.` and status 0x0007
+  `ProcessCommand: Unknown/Unhandled Command`.
+- `cGetValue` requires a body of exactly four bytes (the selector).
+- `cGetDeviceConfiguration` (0x04) is not implemented by this firmware (status 7).
+- Response opcodes 0x8101 and 0x8107 observed, extending the 0x8100 note.
+- `cResetBoard` returns status 0 with text `FW RESET!!` and restarts the adapter **into the
+  bootloader** (status 2). `cJumpToFirmware` returns it to firmware (status 1). Both
+  transitions exercised repeatedly and are non-destructive; this is the vendor open path.
+- The bootloader answers Echo/GetBoardStatus/GetBoardInfo/GetString/CheckCRN but rejects
+  GetStats and OpenDevice with status 1 `eNotSupported` (`Invalid or Unhandled command type`).
+- Board header resolved: body+8 board type 5, +9 board status, +20 bootloader version,
+  +24 firmware version — the last two match the earlier selector 0x2a/0x2b readings.
+- `cSetBoardLed` and `cSyncClock` return no response (fire-and-forget).
+- Not executed: `cReflashBoard`, `cUnprotectBootloader`, `cWriteSerialNumber`,
+  `cUpdateBTModule`, `cSetBoardID`, `cBoardSleep`.
 - StartFirmware/OpenDevice/GetBoardInfo/CloseDevice succeeded.
 - StartFirmware status 7 includes the text `Board already in firmware`.
 - Cleanup control 0xdb value 0 succeeded; both interfaces returned to cdc_acm.

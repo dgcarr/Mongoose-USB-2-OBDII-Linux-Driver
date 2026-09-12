@@ -30,9 +30,11 @@ Assembly at `17740`–`17782` zeroes the setup structure and passes it with no d
 WdfUsbTargetDeviceSendControlTransferSynchronously. See `analysis/disassembly/kernel_vendor_control.asm`.
 The create callback completes successfully without checking this helper's transfer result.
 
-This is a concrete difference from opening a Linux tty, and a plausible missing prerequisite
-in earlier probes. The firmware meaning of the request and its necessity on this particular
-unit remain unverified. No control transfer was sent during this research.
+This is a concrete difference from opening a Linux tty. It was previously suspected to be a
+missing prerequisite for the earlier silent probes. **It is not** — section 7a records a
+hardware test in which the device answered normally over plain `cdc_acm` after a USB reset
+with no control transfer of any kind. The firmware meaning of the request remains unverified;
+the most likely reading is file-handle open/close bookkeeping.
 
 Bulk path: `EvtIoWrite` at `00011df4` retrieves the original input memory, formats that same
 memory for a USB pipe write, and sends it. `EvtIoRead` at `00011870` similarly forwards output
@@ -77,9 +79,11 @@ It therefore handles fragmented and concatenated frames; USB packet boundaries a
 | 10 | 2 | Not explicitly initialized by inspected simple-request builders |
 | 12 onward | variable | Command-specific data |
 
-Routing A/B look like destination/source identifiers, but those names remain an inference.
+Routing A/B **are** destination/source identifiers: confirmed in section 7a from `.rdata`
+constants, the `board-PC` / `board-1`…`board-8` node names, and a hardware round trip in which
+the response swaps the two words. PC is node 0; boards are 1–8.
 Do not silently assume bytes 10–11 are zero: no explicit store initializes them in the
-inspected simple builders. No interpretation of these bytes is established.
+inspected simple builders, in either the `cCheckCRN` or `cOutboundData` builder.
 
 ### Response queue and matching — corrected
 
@@ -99,8 +103,8 @@ bytes and constructs a deadline about ten seconds ahead. The simpler `1006d810` 
 
 For general responses inspected through the open and configuration callers:
 - Body+12: 32-bit status.
-- Body+16: additional response metadata; a length interpretation is not yet generalized.
-- Body+20: returned command data where present.
+- Body+16: **device microsecond counter**, reset to zero by `cOpenDevice` (section 7a).
+- Body+20: returned command data where present, or NUL-terminated ASCII error text on failure.
 
 Sources: `deep_transport/`, `receive/`, `refined_fifo/`, `open_transport/10043610.c`, and
 `open_sequence/1006d9b0.c`. `RefineFifoSignatures.java` reproduces the in-memory corrections
@@ -322,18 +326,197 @@ is delegated to the adapter firmware by the inspected DLL path. The host command
 response handling still need implementation and hardware validation. This finding concerns
 K-line initialization; it does not imply ISO15765 reassembly is wholly firmware-managed.
 
+## 7a. Independent hardware pass — corrections and confirmations (2026-09-13)
+
+A second reverse-engineering pass was run from the vendor binaries alone (Ghidra 12.1.2
+headless, machine-extracted switch tables) and then checked against the adapter over
+**plain `cdc_acm`**. No vehicle attached. Probe scripts: `analysis/probes/` (see its README; the shared protocol lives in
+`mongoose_wire.py`, and `Device.call()` refuses flash/identity writes unless explicitly
+overridden).
+Only read-only opcodes were issued; reflash, bootloader, serial-write, board-ID,
+sleep, reset and jump-to-firmware were deliberately excluded.
+
+### Vendor control request 0xdb is **not** a prerequisite — corrected
+
+Sections 1 and 8 treat the file-create request `40 db 01 00 00 00 00 00` as a plausible
+missing initialization step. It is not required for the command/response layer.
+
+Test: `USBDEVFS_RESET` was issued on the device (forcing re-enumeration and clearing any
+firmware state a previous libusb session may have latched), `cdc_acm` re-bound both
+interfaces, and commands were then sent to `/dev/ttyACM*` with **no control transfer of
+any kind**. Echo, GetBoardInfo and GetString all answered correctly on the first attempt
+with zero resync slides. Reproduce with `analysis/probes/reset_test.py`.
+
+Consequence: a Linux client does not need libusb, interface detachment, udev rules or
+root — an ordinary `/dev/ttyACM*` reader/writer with `dialout` membership is sufficient.
+The request is most likely the Windows driver telling the firmware that a file handle was
+opened (`wValue` 1) or closed (`wValue` 0). This finding covers the message layer that was
+exercised; it does not speak to bus traffic or programming voltage.
+
+### Routing words A/B are destination/source — confirmed, no longer an inference
+
+Three independent lines of evidence:
+
+* The `cCheckCRN` builder loads body+0 and body+2 from `.rdata` constants `1` and `0`
+  (`0x100806c8`, `0x100806c4`); the `cOutboundData` builder loads body+0 from a channel word.
+* The DLL contains the node names `board-PC` and `board-1` … `board-8`, matching PC = 0,
+  boards = 1…8, alongside `cSetBoardID`.
+* On hardware every response swaps them: request `dst=1 src=0` → response `dst=0 src=1`.
+
+### Response body+16 is a device microsecond counter — resolves an open item
+
+Sections 2 and 8 list `response+16` and "timestamp units" as unresolved. Across probes
+separated by a fixed 0.8 s read window the field advanced
+1,602,688 → 2,404,388 → 4,007,488, i.e. ≈801,700 per 0.8 s: **microseconds**.
+
+`cOpenDevice` returns this field as `0`, so the command **resets the device clock**; a
+cold adapter reports its uptime instead (≈4.02×10⁹ µs ≈ 67 min on an idle unit). This is
+the origin used for J2534 message timestamps.
+
+### Firmware returns self-documenting errors
+
+Failed responses carry NUL-terminated ASCII beginning at body+20. Observed:
+
+| Status | Text |
+|---|---|
+| 0x0007 | `ProcessCommand: Unknown/Unhandled Command` |
+| 0x0203 | `cGetValue: Invalid message length.` |
+| 0x0003 | `cGetValue: Unsupported or Invalid Resource` |
+| 0x0007 | `cGetData: Unsupported or Invalid data type` |
+
+This generalizes the previously unresolved "status 7": it is a generic failure whose
+explanatory text is in the body, consistent with the `Board already in firmware` text
+already recorded for StartFirmware in `docs/VALIDATION.md`.
+
+### Response opcodes absent from the name table
+
+The table in section 4 is incomplete for responses to the 0x1xx range. Confirmed on the
+wire, in addition to the already-noted `0x8100`: **`0x8101` cGetBoardStatusResp** and
+**`0x8107` cGetStatsResp**. All three were predicted by `request | 0x8000` before being
+observed, so that rule holds for generating response opcodes even though the DLL's
+*matchers* do not use it (they filter by dispatch, then routing and sequence).
+
+### Hardware-observed command details
+
+* `cGetValue` (0x0c): body must be **exactly** a 4-byte selector — 2 bytes or 8 bytes both
+  return `Invalid message length`. Selector 1 succeeded; the rest returned
+  `Unsupported or Invalid Resource` with no channel open.
+* `cGetString` (0x13): returned `AOLHE0000003666A`, byte-identical to the USB `iSerial`.
+* `cGetBoardStatus` (0x101) returns a 28-byte body that is exactly the **first 28 bytes**
+  of the 168-byte `cGetBoardInfo` (0x109) body — a shared board header:
+
+      +0  u32 status 0        +12 u32 45236 (0xB0B4)   +20 00 08 01 01
+      +4  u32 timestamp       +16 u32 21976 (0x55D8)   +24 00 10 01 01
+      +8  05 01 01 01
+
+  Bytes +20 and +24 are consistent with the firmware 1.1.16.0 and bootloader 1.1.8.0
+  values already recorded in `docs/VALIDATION.md` (`00 10 01 01`, `00 08 01 01`),
+  which identifies those two words. The `0xB0B4` / `0x55D8` fields remain unnamed.
+* `cGetDeviceConfiguration` (0x04) is **not implemented** by this firmware — it returns
+  status 7 `Unknown/Unhandled Command`.
+
+### Board state machine — `cResetBoard` drops to the bootloader
+
+Hardware sequence, adapter only, no vehicle (`analysis/probes/probe_boardstate.py`):
+
+| Step | Result |
+|---|---|
+| `cGetBoardStatus` | type 5, status **1 FIRMWARE**, bootloader 1.1.8.0, firmware 1.1.16.0 |
+| `cResetBoard` (0x102) | status 0, body text `FW RESET!!`, then USB re-enumeration |
+| `cGetBoardStatus` | type 5, status **2 BOOTLOADER** |
+| `cJumpToFirmware` (0x103) | status 0 |
+| `cGetBoardStatus` | type 5, status **1 FIRMWARE** — fully recovered |
+
+`cResetBoard` therefore restarts **into the bootloader**, which is exactly why the vendor's
+open path (section 3) issues `cJumpToFirmware` as step 1 and tolerates its "already in
+firmware" status. Both transitions are non-destructive and were exercised repeatedly.
+
+The bootloader implements a **reduced command set**. `cEchoPacket`, `cGetBoardStatus`,
+`cGetBoardInfo`, `cGetString` and `cCheckCRN` answer normally; `cGetStats` and `cOpenDevice`
+return status 1 `eNotSupported` with the text `Invalid or Unhandled command type`. The
+firmware instead returns status 7 `eFailed` / `ProcessCommand: Unknown/Unhandled Command`
+for commands it does not implement, so the status code distinguishes the two modes.
+
+Board header (body+8 of `cGetBoardStatus` / `cGetBoardInfo`), now resolved:
+
+    +8  u8  board type      5
+    +9  u8  board status    1 FIRMWARE / 2 BOOTLOADER / 3 SLEEP / 0 UNKNOWN
+    +10 u8, +11 u8          0x01 0x01
+    +12 u32 0x0000B0B4      unnamed
+    +16 u32 0x000055D8      unnamed
+    +20 u32 bootloader version   0x01010800 = 1.1.8.0
+    +24 u32 firmware version     0x01011000 = 1.1.16.0
+
+The two version words match the values `docs/VALIDATION.md` previously retrieved through
+selectors 0x2a and 0x2b, which identifies them.
+
+`cSetBoardLed` (0x105) and `cSyncClock` (0x106) return no response at all, consistent with
+their absence from the response half of the opcode table — they are fire-and-forget.
+
+### Firmware images are embedded in the DLL
+
+`monpj432.dll` carries both images as `RT_RCDATA` resources (extract with
+`analysis/extract_firmware.py`):
+
+| Resource | Bytes | Header name | Version |
+|---|---|---|---|
+| 5005 | 112780 | `MongoosePro Jaguar Firmware` | 0x01011000 = 1.1.16.0 |
+| 5006 | 19876 | `MongoosePro Jaguar Bootloader` | 0x01010800 = 1.1.8.0 |
+
+Image header: `u32 header_size (0x6c) | u16 image_type (1 bootloader, 2 firmware) |
+u16 board_type (5) | u32 version | char name[] (NUL padded)`, then a high-entropy payload
+(compressed or encrypted; not decoded). The versions and board type match the attached
+adapter exactly, so the shipped images are the ones it is running.
+
+### Reflash protocol — static layout, not executed
+
+`FUN_1003f480` (`reflash start`) builds `cReflashBoard` (0x10a):
+
+    +0  u16 dst = 1            +12 u32 subcommand = 1 (start)
+    +2  u16 src = 0            +16 u32 image/board selector (switch over caller arg, 1..8)
+    +4  u16 opcode = 0x10a     +20 u32 caller argument (image size)
+    +6  u16 sequence           +24 ... image bytes
+    +8  u16 0
+
+`FUN_1003f770` is the continue phase ("Waiting for reflash continue response"); `FUN_10040b40`
+drives the loop and logs `reflash start` / `reflash loop done` / `reflash complete!`.
+Failures use the 0x03xx status band (`eReflashWrongBoardType`, `eReflashInvalidImage`,
+`eReflashNoResponse`, `eReflashInvalidState`, `eReflashInvalidParameter`).
+
+**This layout is not settled.** The length handed to `frame_send` is `n + 0x1c`, while the
+image `memcpy` lands at payload+24, leaving four bytes unaccounted for. That discrepancy must
+be resolved before any write is attempted — an off-by-four in a flash-write frame is precisely
+the error that corrupts an image. **No reflash, bootloader-unprotect, serial-number write or
+Bluetooth-module update has been executed.**
+
+### Enumerations
+
+Sections 5–6 describe the SConfig and IOCTL lists in prose and point at decompiled files.
+The complete machine-extracted tables are now in [analysis/ENUMS.md](analysis/ENUMS.md):
+95 SConfig parameter IDs, 44 IOCTL IDs, 27 J2534 error codes, **27 protocol IDs**,
+27 channel capability IDs, 75 device capability IDs and the **66 wire status/indication
+codes** of `FUN_10037c10`. That last table names every status observed on the wire —
+`0x0203 eInvalidMsgLength`, `0x0001 eNotSupported`, `0x0007 eFailed` — and identifies the
+previously unexplained open status `0x020a` as **`eVbattLoss`**. Its `0x01xx` band is the
+`cIndication` code space: the dispatcher's `body+12 == 0x106` test is **`iMsgTxDone`**. The protocol-ID table is the one
+section 3 warns about substituting from the SAE spec; the adapter's own values are
+`CAN = 5`, `ISO15765 = 6`, with pin-select variants `CAN_PS = 0x8004`,
+`ISO15765_PS = 0x8005` — the pair relevant to the 2017 Volvo XC60.
+
 ## 8. Remaining work and validation boundary
 
-Highest-value hardware check: reproduce the observed vendor-create control transfer, then the
-DLL's discovery Echo/GetBoardInfo flow while capturing USB. This requires a new, narrowly scoped
-probe; the old sweep script does not implement the corrected protocol or vendor initialization.
-Do not treat its old candidate frames as valid. No probing was performed in this investigation.
+The discovery Echo/GetBoardInfo flow has since been reproduced on hardware without the
+vendor-create control transfer (section 7a, `analysis/probes/`). The old sweep script does not
+implement the corrected protocol; do not treat its candidate frames as valid.
+Highest-value remaining hardware check is channel open and bus traffic against a vehicle.
 
 Further static work remains:
 - Resolve channel-ID allocation, the two open-channel arguments, and pin-routing configuration.
-- Identify semantics of body+8/+10, response+16, timestamp units, and per-protocol status masks.
+- Identify semantics of body+8/+10 and per-protocol status masks.
+  (`response+16` and timestamp units are resolved in section 7a: microseconds, zeroed by `cOpenDevice`.)
 - Complete ISO15765 transmit/flow-control timing and filter-ID mappings before claiming J2534 support.
-- Check the firmware behavior of vendor request 0xdb and power requirements against real traffic.
+- Power requirements against real traffic. (Vendor request `0xdb` is resolved in section 7a:
+  it is **not** required for the message layer.)
 
 Additional kernel IOCTLs decoded in `kernel_labeled/00018b9c.c`:
 0x55006000 returns USB configuration descriptor; 0x55006018 returns two 32-bit ones;
