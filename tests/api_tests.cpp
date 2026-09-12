@@ -4,8 +4,10 @@
 #include <iostream>
 #include <cstring>
 namespace mongoose {
-// Link-time injection in this test executable only; production always uses USB.
-std::unique_ptr<Transport> usb_transport(const std::string &, Trace) {
+// Link-time injection in this test executable only; production resolves a real backend.
+// Only device acquisition is stubbed -- parse_selector below is the production parser,
+// so the invalid-name case still exercises real code.
+std::unique_ptr<Transport> open_transport(const Selector &, Trace) {
     std::deque<Exchange> exchanges;
     uint16_t seq = 0;
     for (uint16_t opcode : std::array<uint16_t, 6>{0x103, 3, 0x109, 0xc, 0xc, 5}) {

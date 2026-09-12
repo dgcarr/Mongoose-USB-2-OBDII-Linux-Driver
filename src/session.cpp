@@ -65,9 +65,10 @@ Bytes Session::command(uint16_t opcode, std::span<const uint8_t> payload,
         state.lock(); pending_ = 0;
         throw Error(ERR_TIMEOUT, "command deadline expired before write");
     }
-    // Zero means "no timeout" to libusb, so a sub-millisecond remainder must round up
-    // rather than down. The write may therefore overrun the deadline by under 1 ms;
-    // the response wait below still honours the exact deadline.
+    // Zero is out of contract for every transport -- libusb reads it as "no timeout",
+    // poll(2) as "expire immediately" -- so a sub-millisecond remainder rounds up rather
+    // than down. The write may therefore overrun the deadline by under 1 ms; the
+    // response wait below still honours the exact deadline.
     const auto remaining = std::chrono::ceil<std::chrono::milliseconds>(left);
     try {
         transport_->send(wire, static_cast<unsigned>(remaining.count()));
@@ -75,7 +76,7 @@ Bytes Session::command(uint16_t opcode, std::span<const uint8_t> payload,
         // A write may have been partially delivered, so the session must be reopened.
         // Keep any root cause the transport already reported; it is more specific.
         state.lock(); pending_ = 0;
-        if (failure_.empty()) failure_ = "USB write failed; reopen before retrying";
+        if (failure_.empty()) failure_ = "write failed; reopen before retrying";
         throw;
     }
     state.lock();

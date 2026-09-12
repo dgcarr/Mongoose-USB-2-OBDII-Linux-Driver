@@ -59,7 +59,10 @@ and interrupt bytes. Use unique file names per experiment.
 For an independent USB capture, use Wireshark/dumpcap on the matching `usbmonN`
 interface. Membership in `wireshark` must be active in the capturing process (a new
 login may be needed). This session's capture access remained unavailable, so saved
-hardware traces are from the libusb layer. Capture success is not implied by a trace.
+hardware traces are from the libusb layer. A cdc_acm trace records only `OUT` and
+`IN`: there is no vendor control request, and the CDC notification endpoint is
+consumed by the kernel, so `CONTROL`, `CONTROL_RESULT_n` and `INTERRUPT` never
+appear. Capture success is not implied by a trace.
 
 Replay format is `OUT hex` followed by one or more `IN hex` chunks. Comments start
 with `#`. Preserve chunk boundaries. Only feed request/response traffic appropriate

@@ -59,6 +59,10 @@ its original `analysis/probe.py` path, which is left intact so the record stays 
 - `FUN_10037c10` is the complete wire status/indication space (66 codes), which names
   `0x020a eVbattLoss` and the `cIndication` code band (`0x106 iMsgTxDone`).
 
+- The driver now ships a cdc_acm transport as its default backend; the libusb one is
+  retained behind the `usb:` selector. The vendor `0xdb` request only matters to the
+  libusb path, so validating it is no longer on the critical path.
+
 ## Research milestones
 
 | Date | Result |

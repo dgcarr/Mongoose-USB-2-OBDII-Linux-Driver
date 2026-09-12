@@ -45,11 +45,45 @@ Adapter 18e1:0104, serial AOLHE0000003666A, USB only; user confirmed no vehicle 
 - Open succeeded without vehicle power on this unit. The vendor's missing-voltage
   error path must not be interpreted as a universal open prerequisite.
 
-Evidence: `analysis/captures/linux-*.trace`. These are timestamped libusb application
-transfer logs, **not usbmon pcaps**. Original traces are retained. Replay fixtures
+Evidence: `analysis/captures/linux-*.trace`. These are timestamped application
+transfer logs from the libusb backend, **not usbmon pcaps**. A cdc_acm trace has a
+smaller vocabulary -- `OUT` and `IN` only, with no `CONTROL`/`CONTROL_RESULT_n` and no
+`INTERRUPT`, since the CDC notification endpoint is consumed by the kernel. Original traces are retained. Replay fixtures
 strip only timestamps and control records; no successful response was synthesized.
 The earlier `linux-inspect-...trace` contains only open/close, before the inspection
 mode was corrected; `linux-values-...trace` is the actual value-query capture.
+
+## Transports
+
+The **cdc_acm backend is the default** and needs no libusb, no interface detaching, no
+root and no udev rule for access. The libusb backend remains selectable with `usb:` as
+a fallback while vehicle traffic is unvalidated. `-DMONGOOSE_LIBUSB=OFF` builds and
+passes the full suite with no libusb present.
+
+Hardware results over cdc_acm, adapter only, no vehicle -- directly comparable with the
+libusb figures above:
+
+- `--list` resolves `/dev/ttyACM3 serial=AOLHE0000003666A access=ok`, correctly ignoring
+  three unrelated CDC-ACM devices on the same host.
+- `--discover`, `--open-close` and `--inspect` all succeed. StartFirmware returns status
+  7 `Board already in firmware`; firmware selector 0x2b returns `0x01011000` (1.1.16.0)
+  and bootloader 0x2a returns `0x01010800` (1.1.8.0) -- identical to the libusb run.
+- Traces contain only `OUT`/`IN` records and no decoder resync.
+- 40 consecutive open/close cycles, zero failures, ~100 ms each.
+- Command round-trip measured at ~0.15 ms, well inside the 1 ms minimum budget.
+- ASan/UBSan and ThreadSanitizer builds are clean, including live hardware runs that
+  exercise the reader thread and the `stop()` eventfd wakeup.
+- Exclusivity: `flock` plus `TIOCEXCL` means a second instance, and any unrelated
+  opener such as `dd`, fails with `EBUSY` -> `ERR_DEVICE_IN_USE`; the lock clears on
+  close with no stale state.
+- **Not measured:** `cdc_acm` throttling under sustained inbound traffic. The libusb
+  path used two outstanding 8 KB URBs; the tty path goes through the n_tty flip buffer,
+  which throttles rather than drops when the reader lags. Vehicle traffic is where this
+  would first matter, so parity is not claimed.
+- **Not exercised:** the partial-write retry loop. No read-only opcode produces a frame
+  near the 0x1800 limit, so the loop ships covered only by inspection. A single
+  6144-byte write was observed to complete in one call on an idle buffer.
+- The two backends do not mutually exclude each other; see README.
 
 ## Capability matrix
 
@@ -91,8 +125,9 @@ frame could otherwise be matched to a later command. A command whose deadline ex
 **before** anything is written does not: nothing reached the wire, so only the sequence
 slot is lost and the session stays usable. The write budget is rounded up to whole
 milliseconds rather than truncated, so a caller with a sub-millisecond remainder still
-reaches the adapter and libusb is never passed a zero timeout, which it treats as no
-timeout at all. Hardware bounds on delayed duplicate
+reaches the adapter and no backend is ever passed a zero timeout. Zero is out of
+contract for both: libusb treats it as no timeout at all, `poll(2)` as expire
+immediately. `core_tests` now asserts the transport sees at least 1 ms. Hardware bounds on delayed duplicate
 responses are still unknown. No firmware-generation marker has been established.
 
 ## Next blocking work

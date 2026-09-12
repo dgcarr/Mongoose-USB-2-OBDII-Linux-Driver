@@ -21,8 +21,11 @@ struct Mock : Transport {
     Failure failure;
     std::function<void(std::span<const uint8_t>)> write;
     std::atomic<bool> stopped{false};
+    unsigned last_timeout = 0;
     void start(Receiver r, Failure f) override { receive = std::move(r); failure = std::move(f); }
-    void send(std::span<const uint8_t> data, unsigned) override { if (write) write(data); }
+    void send(std::span<const uint8_t> data, unsigned timeout) override {
+        last_timeout = timeout; if (write) write(data);
+    }
     void stop() override { stopped = true; }
 };
 void codec_tests() {
@@ -104,13 +107,15 @@ void timeout_and_cancel() {
 }
 void write_failure_paths() {
     // The smallest accepted budget must still reach the wire. The remainder of a 1 ms
-    // request is strictly under a millisecond, so it has to round up: truncating would
-    // hand libusb a zero, which means "no timeout" rather than "expired".
+    // request is strictly under a millisecond, so it has to round up: zero is out of
+    // contract for every transport -- libusb reads it as "no timeout" and poll(2) as
+    // "expire immediately" -- and neither is what an unexpired caller asked for.
     auto source = std::make_unique<Mock>(); auto *mock = source.get(); Session session(std::move(source));
     bool wrote = false;
     mock->write = [&](auto wire) { wrote = true; mock->receive(response(0x8003, le16(wire, 10))); };
     CHECK(Session::status(session.command(3, {}, 1ms)) == 0);
     CHECK(wrote);
+    CHECK(mock->last_timeout >= 1); // the transport contract: never hand a backend zero
     CHECK(Session::status(session.command(3)) == 0); // and the session is not poisoned
     // The remaining pre-write expiry branch (deadline genuinely passed before the write)
     // needs a lock-acquisition race to reach, so it is not asserted deterministically
@@ -145,8 +150,27 @@ void concurrent_commands() {
     for (int i = 0; i < 20; ++i) operations.push_back(std::async(std::launch::async, [&] { CHECK(Session::status(session.command(3)) == 0); }));
     for (auto &operation : operations) operation.get();
 }
+void selector_tests() {
+    // Defaults and the historic serial: form, which tools/client.c still passes.
+    CHECK(parse_selector("").backend == Backend::Tty);
+    CHECK(parse_selector("").serial.empty() && parse_selector("").path.empty());
+    CHECK(parse_selector("serial:ABC").backend == Backend::Tty);
+    CHECK(parse_selector("serial:ABC").serial == "ABC");
+    CHECK(parse_selector("tty:").backend == Backend::Tty);
+    CHECK(parse_selector("tty:serial:ABC").serial == "ABC");
+    CHECK(parse_selector("tty:/dev/ttyACM3").path == "/dev/ttyACM3");
+    CHECK(parse_selector("tty:/dev/ttyACM3").serial.empty());
+    CHECK(parse_selector("usb:").backend == Backend::Usb);
+    CHECK(parse_selector("usb:serial:ABC").backend == Backend::Usb);
+    CHECK(parse_selector("usb:serial:ABC").serial == "ABC");
+    // Rejections: unknown prefix, empty serial, a path where no namespace exists,
+    // and traversal in a node path.
+    for (const char *bad : {"not-a-selector", "serial:", "tty:serial:", "usb:/dev/ttyACM3",
+                            "tty:relative", "tty:/dev/../etc/passwd"})
+        error(ERR_FAILED, [&] { parse_selector(bad); });
+}
 int main() {
-    try { codec_tests(); session_tests(); timeout_and_cancel(); write_failure_paths(); replay_tests(); concurrent_commands();
-        std::cout << "codec, correlation, quarantine, cancellation, write failures, replay, concurrency passed\n"; return 0;
+    try { selector_tests(); codec_tests(); session_tests(); timeout_and_cancel(); write_failure_paths(); replay_tests(); concurrent_commands();
+        std::cout << "selectors, codec, correlation, quarantine, cancellation, write failures, replay, concurrency passed\n"; return 0;
     } catch (const std::exception &e) { std::cerr << e.what() << '\n'; return 1; }
 }

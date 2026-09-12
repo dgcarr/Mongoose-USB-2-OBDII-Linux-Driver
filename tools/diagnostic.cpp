@@ -18,16 +18,17 @@ void require_status(const mongoose::Bytes &body, bool start = false) {
 }
 int main(int argc, char **argv) {
     try {
-        std::string mode, serial, replay_path, trace_path;
+        std::string mode, serial, device_selector, replay_path, trace_path;
         unsigned timeout = 10000;
         for (int i = 1; i < argc; ++i) {
             const std::string arg = argv[i];
             if (arg == "--list" || arg == "--discover" || arg == "--open-close" || arg == "--inspect") {
                 if (!mode.empty()) throw std::invalid_argument("choose exactly one mode");
                 mode = arg;
-            } else if ((arg == "--serial" || arg == "--replay" || arg == "--trace" || arg == "--timeout-ms") && i+1 < argc) {
+            } else if ((arg == "--serial" || arg == "--device" || arg == "--replay" || arg == "--trace" || arg == "--timeout-ms") && i+1 < argc) {
                 const std::string value = argv[++i];
                 if (arg == "--serial") serial = value;
+                if (arg == "--device") device_selector = value;
                 if (arg == "--replay") replay_path = value;
                 if (arg == "--trace") trace_path = value;
                 if (arg == "--timeout-ms") {
@@ -36,18 +37,31 @@ int main(int argc, char **argv) {
                     timeout = static_cast<unsigned>(parsed);
                 }
             } else {
-                std::cerr << "Usage: mongoose-diag --list|--discover|--open-close|--inspect [--serial SERIAL] [--trace FILE] [--timeout-ms 10000] [--replay FILE]\n";
+                std::cerr << "Usage: mongoose-diag --list|--discover|--open-close|--inspect "
+                             "[--device SELECTOR] [--serial SERIAL] [--trace FILE] [--timeout-ms 10000] [--replay FILE]\n"
+                             "  SELECTOR: serial:S | tty:[serial:S|/dev/ttyACMn] | usb:[serial:S]  (default: tty)\n";
                 return arg == "--help" ? 0 : 2;
             }
         }
         if (mode.empty()) throw std::invalid_argument("an explicit mode is required");
         if (mode == "--list") {
-            if (!replay_path.empty() || !trace_path.empty() || !serial.empty()) throw std::invalid_argument("--list takes no device or file options");
-            for (const auto &device : mongoose::usb_devices())
-                std::cout << device.location << " serial=" << device.serial << " access=" << (device.error.empty() ? "ok" : device.error) << '\n';
+            if (!replay_path.empty() || !trace_path.empty() || !serial.empty() || !device_selector.empty())
+                throw std::invalid_argument("--list takes no device or file options");
+            for (const auto backend : {mongoose::Backend::Tty, mongoose::Backend::Usb}) {
+                const char *label = backend == mongoose::Backend::Tty ? "tty" : "usb";
+                try {
+                    for (const auto &device : mongoose::list_devices(backend))
+                        std::cout << label << ' ' << device.location << " serial=" << device.serial
+                                  << " access=" << (device.error.empty() ? "ok" : device.error) << '\n';
+                } catch (const mongoose::Error &) {
+                    // A build without libusb simply has no usb section to report.
+                }
+            }
             return 0;
         }
         if (!replay_path.empty() && (!serial.empty() || !trace_path.empty()))
+            throw std::invalid_argument("replay cannot be combined with hardware options");
+        if (!replay_path.empty() && !device_selector.empty())
             throw std::invalid_argument("replay cannot be combined with hardware options");
         std::ofstream trace;
         if (!trace_path.empty()) {
@@ -71,7 +85,14 @@ int main(int argc, char **argv) {
             std::ifstream input(replay_path);
             if (!input) throw std::runtime_error("cannot open replay");
             auto source = mongoose::Replay::read(input); replay = source.get(); transport = std::move(source);
-        } else transport = mongoose::usb_transport(serial, logger);
+        } else {
+            // --serial is sugar for serial:S; --device takes the full selector grammar.
+            if (!serial.empty() && !device_selector.empty())
+                throw std::invalid_argument("use either --serial or --device, not both");
+            const std::string name = !device_selector.empty() ? device_selector
+                                   : serial.empty() ? std::string() : "serial:" + serial;
+            transport = mongoose::open_transport(mongoose::parse_selector(name), logger);
+        }
         mongoose::Session session(std::move(transport));
         std::exception_ptr failure;
         bool opened = false;
@@ -104,7 +125,7 @@ int main(int argc, char **argv) {
             }
         }
         try { session.close(); } catch (const std::exception &e) {
-            std::cerr << "USB cleanup: " << e.what() << '\n';
+            std::cerr << "transport cleanup: " << e.what() << '\n';
             if (!failure) failure = std::current_exception();
         }
         if (failure) std::rethrow_exception(failure);

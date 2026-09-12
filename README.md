@@ -1,10 +1,12 @@
 # MongoosePro JLR Linux driver
 
-Experimental native C++20/libusb J2534 library for USB `18e1:0104`.
+Experimental native C++20 J2534 library for USB `18e1:0104`, talking to the adapter as
+an ordinary `cdc_acm` serial device.
 **Linux discovery and device open/close now work on the adapter. Vehicle diagnostics
 are not implemented yet.** See [validation and remaining work](docs/VALIDATION.md).
 
-Implemented: scoped USB ownership, asynchronous reception, validated length/XOR
+Implemented: two transports (cdc_acm by default, libusb optional), scoped device
+ownership, asynchronous reception, validated length/XOR
 framing, serialized commands, startup/cleanup, native Open/Close/ReadVersion,
 voltage-reading IOCTLs, replay tests and all 14 core ABI exports. Connect and other
 unfinished operations return errors; exports alone do not mean protocol support.
@@ -12,7 +14,8 @@ unfinished operations return errors; exports alone do not mean protocol support.
 ## Build and test
 
 ```sh
-sudo apt-get install cmake ninja-build g++ libusb-1.0-0-dev
+sudo apt-get install cmake ninja-build g++
+sudo apt-get install libusb-1.0-0-dev   # optional: only for the libusb backend
 cmake -S . -B build -G Ninja
 cmake --build build
 ctest --test-dir build --output-on-failure
@@ -45,15 +48,45 @@ sudo udevadm control --reload-rules
 sudo ldconfig
 ```
 
-Reconnect the adapter. The narrow rule grants `plugdev` and active-seat access;
-new group membership may require login again. No global CDC blacklist is needed.
-One process may own an adapter at a time. Normal cleanup releases interfaces and
-reattaches CDC. A response timeout invalidates the session; close and reopen before
+`-DMONGOOSE_LIBUSB=OFF` builds a cdc_acm-only driver that configures and tests with no
+libusb installed at all.
+
+## Selecting a device
+
+`PassThruOpen`'s name, and `mongoose-diag --device`, take:
+
+| Selector | Meaning |
+|---|---|
+| `NULL` / omitted | cdc_acm, the single connected adapter |
+| `serial:S` | cdc_acm, matched by USB serial |
+| `tty:/dev/ttyACM0` | cdc_acm, explicit node |
+| `usb:` or `usb:serial:S` | libusb backend |
+
+There is no automatic fallback between backends: falling back would silently detach
+`cdc_acm` and make failures irreproducible.
+
+Reconnect the adapter. The default cdc_acm backend needs **no permissions setup**:
+`/dev/ttyACM*` is already `root:dialout 0660` and systemd adds an ACL for the active
+local user, so membership of `dialout` is only needed for headless or remote sessions.
+The udev rule no longer grants access at all -- its sole job is keeping ModemManager
+from probing the adapter's CDC port. Install it wherever ModemManager runs: without it
+MM may send AT commands to the adapter on plug-in. The framer resyncs, so this degrades
+rather than breaks, but it is worth avoiding. The libusb backend still needs raw USB
+access and therefore its own rule; it is a fallback, not the normal path.
+
+One process may own an adapter at a time: the cdc_acm backend takes both `flock` and
+`TIOCEXCL`, so a second instance -- or `minicom`, or a stray probe -- fails with
+`ERR_DEVICE_IN_USE`. The two backends do **not** exclude each other, because they lock
+different objects. Running both against one adapter is unsupported: libusb detaches
+`cdc_acm`, so the libusb side wins and the tty session fails with a disconnect.
+
+A response timeout invalidates the session; close and reopen before
 retrying. A command that expires before its write reaches the wire returns `ERR_TIMEOUT`
 without invalidating the session. Every accepted timeout, down to the 1 ms minimum,
-reaches the adapter: the write budget rounds up to whole milliseconds so libusb is never
-handed a zero, which it would read as "no timeout". A write may therefore overrun the
-deadline by under a millisecond; the wait for the response honours it exactly.
+reaches the adapter: the write budget rounds up to whole milliseconds, because zero is
+out of contract for every transport -- libusb reads it as "no timeout" and `poll(2)` as
+"expire immediately". A write may therefore overrun the deadline by under a millisecond;
+the wait for the response honours it exactly.
 
 `cpack --config build/CPackConfig.cmake` packages only installed library, headers,
 tools and documentation; vendor files and research binaries are excluded.

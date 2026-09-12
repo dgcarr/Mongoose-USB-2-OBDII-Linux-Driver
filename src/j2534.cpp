@@ -55,15 +55,14 @@ extern "C" {
 int32_t J2534_CALL PassThruOpen(void *name, uint32_t *id) {
     return guarded([&] {
         required(id); *id = 0;
-        std::string serial;
+        Selector selector;  // defaults to the cdc_acm backend and any single adapter
         if (name) {
             const char *text = static_cast<const char *>(name);
             const size_t size = strnlen(text, 256);
-            if (size == 256 || size <= 7 || std::strncmp(text, "serial:", 7) != 0)
-                throw Error(ERR_FAILED, "Open name must be NULL or serial:<USB serial>");
-            serial.assign(text+7, size-7);
+            if (size == 256) throw Error(ERR_FAILED, "Open name is not NUL-terminated");
+            selector = parse_selector(std::string_view(text, size));
         }
-        auto session = std::make_shared<Session>(usb_transport(serial));
+        auto session = std::make_shared<Session>(open_transport(selector));
         accepted(session->command(0x103), true);
         accepted(session->command(3));
         try {

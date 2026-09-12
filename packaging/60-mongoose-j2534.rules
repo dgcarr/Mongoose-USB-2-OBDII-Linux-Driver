@@ -1,2 +1,8 @@
-# MongoosePro JLR only. Install into /etc/udev/rules.d/ then reconnect adapter.
-SUBSYSTEM=="usb", ENV{DEVTYPE}=="usb_device", ATTR{idVendor}=="18e1", ATTR{idProduct}=="0104", MODE="0660", GROUP="plugdev", TAG+="uaccess", ENV{ID_MM_DEVICE_IGNORE}="1"
+# MongoosePro JLR only. Install into /etc/udev/rules.d/ then reconnect the adapter.
+#
+# The driver's default cdc_acm backend needs no permission clauses: /dev/ttyACM* is
+# already root:dialout 0660, and systemd's own uaccess rule adds an ACL for the active
+# local user. This rule exists solely to keep ModemManager from probing the adapter's
+# CDC port and injecting AT commands when it is plugged in. It must match the tty, not
+# the usb_device, for ModemManager to honour it. The 60- prefix sorts ahead of 77-mm-*.
+SUBSYSTEM=="tty", SUBSYSTEMS=="usb", ATTRS{idVendor}=="18e1", ATTRS{idProduct}=="0104", ENV{ID_MM_DEVICE_IGNORE}="1"
