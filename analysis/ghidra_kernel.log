@@ -1,0 +1,124 @@
+Picked up _JAVA_OPTIONS: -Duser.home=/home/dgcarr/snap/ghidra/47 -Djava.io.tmpdir=/home/dgcarr/snap/ghidra/47/tmp -Dapplication.tempdir=/home/dgcarr/snap/ghidra/47/tmp -Dapplication.cachedir=/home/dgcarr/snap/ghidra/47/tmp
+Picked up _JAVA_OPTIONS: -Duser.home=/home/dgcarr/snap/ghidra/47 -Djava.io.tmpdir=/home/dgcarr/snap/ghidra/47/tmp -Dapplication.tempdir=/home/dgcarr/snap/ghidra/47/tmp -Dapplication.cachedir=/home/dgcarr/snap/ghidra/47/tmp
+Picked up _JAVA_OPTIONS: -Duser.home=/home/dgcarr/snap/ghidra/47 -Djava.io.tmpdir=/home/dgcarr/snap/ghidra/47/tmp -Dapplication.tempdir=/home/dgcarr/snap/ghidra/47/tmp -Dapplication.cachedir=/home/dgcarr/snap/ghidra/47/tmp
+Picked up _JAVA_OPTIONS: -Duser.home=/home/dgcarr/snap/ghidra/47 -Djava.io.tmpdir=/home/dgcarr/snap/ghidra/47/tmp -Dapplication.tempdir=/home/dgcarr/snap/ghidra/47/tmp -Dapplication.cachedir=/home/dgcarr/snap/ghidra/47/tmp
+openjdk version "21.0.11" 2026-04-21
+OpenJDK Runtime Environment (build 21.0.11+10-1-22.04.2-Ubuntu)
+OpenJDK 64-Bit Server VM (build 21.0.11+10-1-22.04.2-Ubuntu, mixed mode)
+INFO  Using log config file: jar:file:/snap/ghidra/47/ghidra/Ghidra/Framework/Generic/lib/Generic.jar!/generic.log4j.xml (LoggingInitialization)  
+INFO  Using log file: /home/dgcarr/snap/ghidra/47/.config/ghidra/ghidra_12.1.2_PUBLIC/application.log (LoggingInitialization)  
+INFO  Loading user preferences: /home/dgcarr/snap/ghidra/47/.config/ghidra/ghidra_12.1.2_PUBLIC/preferences (Preferences)  
+INFO  Searching for classes... (ClassSearcher)  
+INFO  Class search complete (1110 ms) (ClassSearcher)  
+INFO  Initializing SSL Context (DefaultSSLContextInitializer)  
+INFO  Initializing Random Number Generator... (SecureRandomFactory)  
+INFO  Random Number Generator initialization complete: NativePRNGNonBlocking (SecureRandomFactory)  
+INFO  Trust manager disabled, cacerts have not been set (DefaultTrustManagerFactory)  
+ERROR Failed to get java FileStore for path /home/dgcarr/snap/ghidra/47/tmp/ghidra/fscache2, will be unable to check free/available space. (FileCache)  
+INFO  Headless startup complete (2210 ms) (AnalyzeHeadless)  
+INFO  Class searcher loaded 59 extension points (20 false positives) (ClassSearcher)  
+INFO  HEADLESS Script Paths:
+    /snap/ghidra/47/ghidra/Ghidra/Features/FunctionID/ghidra_scripts
+    /snap/ghidra/47/ghidra/Ghidra/Features/WildcardAssembler/ghidra_scripts
+    /snap/ghidra/47/ghidra/Ghidra/Features/BytePatterns/ghidra_scripts
+    /snap/ghidra/47/ghidra/Ghidra/Features/Decompiler/ghidra_scripts
+    /snap/ghidra/47/ghidra/Ghidra/Features/Base/ghidra_scripts
+    /snap/ghidra/47/ghidra/Ghidra/Debug/Debugger-rmi-trace/ghidra_scripts
+    /snap/ghidra/47/ghidra/Ghidra/Features/DecompilerDependent/ghidra_scripts
+    /snap/ghidra/47/ghidra/Ghidra/Features/SwiftDemangler/ghidra_scripts
+    /snap/ghidra/47/ghidra/Ghidra/Features/PDB/ghidra_scripts
+    /snap/ghidra/47/ghidra/Ghidra/Processors/DATA/ghidra_scripts
+    /snap/ghidra/47/ghidra/Ghidra/Features/SystemEmulation/ghidra_scripts
+    /snap/ghidra/47/ghidra/Ghidra/Processors/JVM/ghidra_scripts
+    /snap/ghidra/47/ghidra/Ghidra/Debug/Debugger/ghidra_scripts
+    /snap/ghidra/47/ghidra/Ghidra/Features/BSim/ghidra_scripts
+    /snap/ghidra/47/ghidra/Ghidra/Processors/PIC/ghidra_scripts
+    /snap/ghidra/47/ghidra/Ghidra/Processors/Atmel/ghidra_scripts
+    /snap/ghidra/47/ghidra/Ghidra/Processors/8051/ghidra_scripts
+    /home/dgcarr/mongoose_driver/analysis
+    /snap/ghidra/47/ghidra/Ghidra/Features/PyGhidra/ghidra_scripts
+    /snap/ghidra/47/ghidra/Ghidra/Features/VersionTracking/ghidra_scripts
+    /snap/ghidra/47/ghidra/Ghidra/Features/MicrosoftCodeAnalyzer/ghidra_scripts
+    /snap/ghidra/47/ghidra/Ghidra/Features/FileFormats/ghidra_scripts
+    /snap/ghidra/47/ghidra/Ghidra/Features/GnuDemangler/ghidra_scripts (HeadlessAnalyzer)  
+INFO  HEADLESS: execution starts (HeadlessAnalyzer)  
+INFO  Creating project: /home/dgcarr/snap/ghidra/common/mongoose-kernel-research/KernelTransport (HeadlessAnalyzer)  
+INFO  Creating project: /home/dgcarr/snap/ghidra/common/mongoose-kernel-research/KernelTransport (DefaultProject)  
+INFO  REPORT: Processing input files:  (HeadlessAnalyzer)  
+INFO       project: /home/dgcarr/snap/ghidra/common/mongoose-kernel-research/KernelTransport (HeadlessAnalyzer)  
+INFO  IMPORTING: file:///home/dgcarr/mongoose_driver/vendor/driver/dtmonpro.sys (HeadlessAnalyzer)  
+INFO  Using Loader: Portable Executable (PE) (ProgramLoader)  
+INFO  Using Language/Compiler: x86:LE:64:default:windows (ProgramLoader)  
+INFO  Using Library Search Path: [., /bin, /lib, /lib64, /lib/x86_64-linux-gnu, /lib/aarch64-linux-gnu, /usr/bin, /usr/lib, /usr/X11R6/bin, /usr/X11R6/lib, /var/lib/snapd/lib/gl, /var/lib/snapd/lib/gl32, /snap/ghidra/47/lib, /snap/ghidra/47/usr/lib, /snap/ghidra/47/usr/lib/x86_64-linux-gnu, /usr/java/packages/lib, /usr/lib/x86_64-linux-gnu/jni, /usr/lib/x86_64-linux-gnu, /usr/lib/jni] (ProgramLoader)  
+INFO  Additional info:
+Loading file:///home/dgcarr/mongoose_driver/vendor/driver/dtmonpro.sys?MD5=3c575b71af66242c115633e36a231d4d...
+------------------------------------------------
+
+Searching 13 paths for library NTOSKRNL.EXE...
+Library not found.
+------------------------------------------------
+
+Searching 13 paths for library WDFLDR.SYS...
+Library not found.
+------------------------------------------------
+
+Linking the External Programs of 'dtmonpro.sys' to imported libraries...
+  [NTOSKRNL.EXE] -> not found in project
+  [WDFLDR.SYS] -> not found in project
+------------------------------------------------
+
+ (ProgramLoader)  
+INFO  IMPORTING: Loaded 0 additional files (HeadlessAnalyzer)  
+INFO  ANALYZING all memory and code: file:///home/dgcarr/mongoose_driver/vendor/driver/dtmonpro.sys (HeadlessAnalyzer)  
+WARN  Ignoring leading '_' chars on no-return name '___raise_securityfailure' specified in file: /snap/ghidra/47/ghidra/Ghidra/Features/Base/data/PEFunctionsThatDoNotReturn (NoReturnFunctionAnalyzer)  
+WARN  Ignoring leading '_' chars on no-return name '___report_rangecheckfailure' specified in file: /snap/ghidra/47/ghidra/Ghidra/Features/Base/data/PEFunctionsThatDoNotReturn (NoReturnFunctionAnalyzer)  
+INFO  Skipping PDB processing: failed to locate PDB file in configured locations (PdbUniversalAnalyzer)  
+INFO  Use a script to set the PDB file location. I.e.,
+    PdbAnalyzer.setPdbFileOption(currentProgram, new File("/path/to/pdb/file.pdb")); or
+    PdbUniversalAnalyzer.setPdbFileOption(currentProgram, new File("/path/to/pdb/file.pdb"));
+Or set the symbol server search configuration using:    PdbPlugin.saveSymbolServerServiceConfig(...);
+ This must be done using a pre-script (prior to analysis). (PdbUniversalAnalyzer)  
+INFO  Packed database cache: /home/dgcarr/snap/ghidra/47/tmp/ghidra/packed-db-cache (PackedDatabaseCache)  
+INFO  Applied data type archive: windows_vs12_64 (ApplyDataArchiveAnalyzer)  
+INFO  -----------------------------------------------------
+    ASCII Strings                              0.365 secs
+    Apply Data Archives                        1.229 secs
+    Call Convention ID                         0.002 secs
+    Call-Fixup Installer                       0.002 secs
+    Create Address Tables                      0.011 secs
+    Create Function                            0.007 secs
+    Data Reference                             0.036 secs
+    Decompiler Parameter ID                    0.980 secs
+    Decompiler Switch Analysis                 0.539 secs
+    Demangler Microsoft                        0.013 secs
+    Disassemble Entry Points                   0.375 secs
+    Embedded Media                             0.005 secs
+    External Entry References                  0.000 secs
+    Function ID                                1.090 secs
+    Function Start Search                      0.008 secs
+    Non-Returning Functions - Discovered       0.019 secs
+    Non-Returning Functions - Known            0.003 secs
+    PDB Universal                              0.011 secs
+    Reference                                  0.044 secs
+    Scalar Operand References                  0.102 secs
+    Shared Return Calls                        0.018 secs
+    Stack                                      0.174 secs
+    Subroutine References                      0.015 secs
+    Subroutine References - One Time           0.002 secs
+    Windows x86 PE Exception Handling          0.005 secs
+    Windows x86 PE RTTI Analyzer               0.005 secs
+    Windows x86 Thread Environment Block (TEB) Analyzer     0.029 secs
+    WindowsResourceReference                   2.825 secs
+    x86 Constant Reference Analyzer            0.265 secs
+-----------------------------------------------------
+     Total Time   8 secs
+-----------------------------------------------------
+ (AutoAnalysisManager)  
+INFO  REPORT: Analysis succeeded for file: file:///home/dgcarr/mongoose_driver/vendor/driver/dtmonpro.sys (HeadlessAnalyzer)  
+INFO  REPORT: Execute script: ExtractKernel.java '/home/dgcarr/mongoose_driver/analysis/decompiled/kernel'  (HeadlessAnalyzer)  
+INFO  SCRIPT: /home/dgcarr/mongoose_driver/analysis/ExtractKernel.java (HeadlessAnalyzer)  
+INFO  ANALYZING changes made by post scripts: file:///home/dgcarr/mongoose_driver/vendor/driver/dtmonpro.sys (HeadlessAnalyzer)  
+INFO  REPORT: Post-analysis succeeded for file: file:///home/dgcarr/mongoose_driver/vendor/driver/dtmonpro.sys (HeadlessAnalyzer)  
+INFO  /dtmonpro.sys: file created (dgcarr) (LocalFileSystem)  
+INFO  REPORT: Save succeeded for: /dtmonpro.sys (KernelTransport:/dtmonpro.sys) (HeadlessAnalyzer)  
+INFO  REPORT: Import succeeded (HeadlessAnalyzer)  
