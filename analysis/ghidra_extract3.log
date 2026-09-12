@@ -1,0 +1,107 @@
+openjdk version "26.0.2.1" 2026-08-18
+OpenJDK Runtime Environment (build 26.0.2.1)
+OpenJDK 64-Bit Server VM (build 26.0.2.1, mixed mode)
+INFO  Using log config file: jar:file:/opt/ghidra/Ghidra/Framework/Generic/lib/Generic.jar!/generic.log4j.xml (LoggingInitialization)  
+INFO  Using log file: /home/dgcarr/.config/ghidra/ghidra_12.1.2_DEV/application.log (LoggingInitialization)  
+INFO  Loading user preferences: /home/dgcarr/.config/ghidra/ghidra_12.1.2_DEV/preferences (Preferences)  
+INFO  Searching for classes... (ClassSearcher)  
+INFO  Class search complete (1929 ms) (ClassSearcher)  
+WARNING: Final field name in class ghidra.util.charset.CharsetInfo has been mutated reflectively by class com.google.gson.internal.bind.ReflectiveTypeAdapterFactory$2 in unnamed module @4738a206 (file:/opt/ghidra/Ghidra/Framework/Generic/lib/gson-2.13.2.jar)
+WARNING: Use --enable-final-field-mutation=ALL-UNNAMED to avoid a warning
+WARNING: Mutating final fields will be blocked in a future release unless final field mutation is enabled
+INFO  Initializing SSL Context (DefaultSSLContextInitializer)  
+INFO  Initializing Random Number Generator... (SecureRandomFactory)  
+INFO  Random Number Generator initialization complete: NativePRNGNonBlocking (SecureRandomFactory)  
+INFO  Trust manager disabled, cacerts have not been set (DefaultTrustManagerFactory)  
+INFO  Headless startup complete (6148 ms) (AnalyzeHeadless)  
+INFO  Class searcher loaded 59 extension points (20 false positives) (ClassSearcher)  
+WARNING: A terminally deprecated method in sun.misc.Unsafe has been called
+WARNING: sun.misc.Unsafe::staticFieldOffset has been called by org.apache.felix.framework.util.SecureAction (file:/opt/ghidra/Ghidra/Features/Base/lib/org.apache.felix.framework-7.0.5.jar)
+WARNING: Please consider reporting this to the maintainers of class org.apache.felix.framework.util.SecureAction
+WARNING: sun.misc.Unsafe::staticFieldOffset will be removed in a future release
+INFO  HEADLESS Script Paths:
+    /opt/ghidra/Ghidra/Features/SystemEmulation/ghidra_scripts
+    /opt/ghidra/Ghidra/Features/GnuDemangler/ghidra_scripts
+    /opt/ghidra/Ghidra/Features/WildcardAssembler/ghidra_scripts
+    /opt/ghidra/Ghidra/Processors/DATA/ghidra_scripts
+    /opt/ghidra/Ghidra/Features/DecompilerDependent/ghidra_scripts
+    /opt/ghidra/Ghidra/Processors/JVM/ghidra_scripts
+    /opt/ghidra/Ghidra/Debug/Debugger-rmi-trace/ghidra_scripts
+    /opt/ghidra/Ghidra/Features/MicrosoftCodeAnalyzer/ghidra_scripts
+    /opt/ghidra/Ghidra/Features/VersionTracking/ghidra_scripts
+    /opt/ghidra/Ghidra/Features/PyGhidra/ghidra_scripts
+    /opt/ghidra/Ghidra/Features/SwiftDemangler/ghidra_scripts
+    /opt/ghidra/Ghidra/Features/Base/ghidra_scripts
+    /opt/ghidra/Ghidra/Processors/Atmel/ghidra_scripts
+    /opt/ghidra/Ghidra/Debug/Debugger/ghidra_scripts
+    /opt/ghidra/Ghidra/Features/Decompiler/ghidra_scripts
+    /opt/ghidra/Ghidra/Features/FunctionID/ghidra_scripts
+    /home/dgcarr/mongoose_driver/analysis
+    /opt/ghidra/Ghidra/Features/PDB/ghidra_scripts
+    /opt/ghidra/Ghidra/Processors/8051/ghidra_scripts
+    /opt/ghidra/Ghidra/Processors/PIC/ghidra_scripts
+    /opt/ghidra/Ghidra/Features/FileFormats/ghidra_scripts
+    /opt/ghidra/Ghidra/Features/BSim/ghidra_scripts
+    /opt/ghidra/Ghidra/Features/BytePatterns/ghidra_scripts (HeadlessAnalyzer)  
+INFO  HEADLESS: execution starts (HeadlessAnalyzer)  
+INFO  Opening existing project: /home/dgcarr/mongoose_driver/analysis/ghidra_project/MongooseJLR (HeadlessAnalyzer)  
+INFO  Opening project: /home/dgcarr/mongoose_driver/analysis/ghidra_project/MongooseJLR (HeadlessProject)  
+INFO  REPORT: Processing project file: /monpj432.dll (HeadlessAnalyzer)  
+INFO  ANALYZING all memory and code: /monpj432.dll (HeadlessAnalyzer)  
+WARN  Ignoring leading '_' chars on no-return name '___raise_securityfailure' specified in file: /opt/ghidra/Ghidra/Features/Base/data/PEFunctionsThatDoNotReturn (NoReturnFunctionAnalyzer)  
+WARN  Ignoring leading '_' chars on no-return name '___report_rangecheckfailure' specified in file: /opt/ghidra/Ghidra/Features/Base/data/PEFunctionsThatDoNotReturn (NoReturnFunctionAnalyzer)  
+INFO  Skipping PDB processing: failed to locate PDB file in configured locations (PdbUniversalAnalyzer)  
+INFO  Use a script to set the PDB file location. I.e.,
+    PdbAnalyzer.setPdbFileOption(currentProgram, new File("/path/to/pdb/file.pdb")); or
+    PdbUniversalAnalyzer.setPdbFileOption(currentProgram, new File("/path/to/pdb/file.pdb"));
+Or set the symbol server search configuration using:    PdbPlugin.saveSymbolServerServiceConfig(...);
+ This must be done using a pre-script (prior to analysis). (PdbUniversalAnalyzer)  
+INFO  Packed database cache: /home/dgcarr/.cache/ghidra/packed-db-cache (PackedDatabaseCache)  
+INFO  Applied data type archive: windows_vs12_32 (ApplyDataArchiveAnalyzer)  
+INFO  -----------------------------------------------------
+    ASCII Strings                              1.626 secs
+    Apply Data Archives                        1.623 secs
+    Call Convention ID                         0.331 secs
+    Call-Fixup Installer                       0.120 secs
+    Create Address Tables                      0.628 secs
+    Create Function                            0.000 secs
+    Data Reference                             0.491 secs
+    Decompiler Switch Analysis                33.957 secs
+    Demangler Microsoft                        0.717 secs
+    Disassemble Entry Points                   0.911 secs
+    Embedded Media                             0.196 secs
+    External Entry References                  0.002 secs
+    Function ID                                4.856 secs
+    Function Start Pre Search                  0.145 secs
+    Function Start Search                      1.549 secs
+    Function Start Search After Code           0.600 secs
+    Function Start Search After Data           0.506 secs
+    Non-Returning Functions - Discovered       2.293 secs
+    Non-Returning Functions - Known            0.227 secs
+    PDB Universal                              0.054 secs
+    Reference                                  1.114 secs
+    Scalar Operand References                  4.259 secs
+    Shared Return Calls                        1.573 secs
+    Stack                                      3.245 secs
+    Subroutine References                      1.574 secs
+    Windows x86 PE Exception Handling          1.280 secs
+    Windows x86 PE RTTI Analyzer               0.000 secs
+    Windows x86 Thread Environment Block (TEB) Analyzer     0.000 secs
+    WindowsResourceReference                   0.813 secs
+    X86 Function Callee Purge                  0.180 secs
+    x86 Constant Reference Analyzer           14.182 secs
+-----------------------------------------------------
+     Total Time   79 secs
+-----------------------------------------------------
+ (AutoAnalysisManager)  
+INFO  REPORT: Analysis succeeded for file: /monpj432.dll (HeadlessAnalyzer)  
+INFO  REPORT: Execute script: ExtractByAddress.java  (HeadlessAnalyzer)  
+INFO  SCRIPT: /home/dgcarr/mongoose_driver/analysis/ExtractByAddress.java (HeadlessAnalyzer)  
+INFO  ExtractByAddress.java> wrote /home/dgcarr/mongoose_driver/analysis/decompiled/byaddr_1006c6e0_FUN_1006c6e0.c (GhidraScript)  
+INFO  ExtractByAddress.java> wrote /home/dgcarr/mongoose_driver/analysis/decompiled/byaddr_1006d9b0_FUN_1006d9b0.c (GhidraScript)  
+INFO  ExtractByAddress.java> wrote /home/dgcarr/mongoose_driver/analysis/decompiled/byaddr_1002a700_FUN_1002a700.c (GhidraScript)  
+INFO  ExtractByAddress.java> wrote /home/dgcarr/mongoose_driver/analysis/decompiled/byaddr_1003b080_FUN_1003b080.c (GhidraScript)  
+INFO  ExtractByAddress.java> wrote /home/dgcarr/mongoose_driver/analysis/decompiled/byaddr_1001b800_FUN_1001b800.c (GhidraScript)  
+INFO  ANALYZING changes made by post scripts: /monpj432.dll (HeadlessAnalyzer)  
+INFO  REPORT: Post-analysis succeeded for file: /monpj432.dll (HeadlessAnalyzer)  
+INFO  REPORT: Save succeeded for processed file: /monpj432.dll (HeadlessAnalyzer)  
