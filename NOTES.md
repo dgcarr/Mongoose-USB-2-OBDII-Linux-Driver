@@ -3,7 +3,8 @@
 Updated 2026-09-13. The current technical reference is [PROTOCOL.md](PROTOCOL.md).
 Implementation update: Linux discovery, open/close, firmware version and voltage
 queries, CAN channel setup, CAN pass filters and raw CAN transmit now succeed on the
-USB-only adapter, and ReadMsgs drains a host receive queue. See
+USB-only adapter, ReadMsgs drains a host receive queue, and ISO15765 multi-frame
+responses reassemble offline against the captured VIN exchange. See
 [current validation](docs/VALIDATION.md) and `analysis/captures/linux-*.trace`. With no
 bus attached, no filter has ever been asked to pass a frame, and the single frame ever
 transmitted was queued without confirmation that it left the controller. Windows reference captures on a
@@ -92,9 +93,12 @@ now divides by what the bench can actually settle.
    311500 msg/s with zero loss, about 127x the Windows D4 baseline, and exercises the
    partial-write path for the first time. It does not cover the cdc_acm URB path, so
    adapter parity is still unproven.
-4. Build the ISO15765 host reassembler offline against the captured VIN exchange.
-5. Vehicle-blocked: that filters filter, that transmits transmit, ISO15765 timing, the
-   other protocol engines, and the 100-cycle and one-hour soak gates.
+4. Resolved: the ISO15765 host reassembler reproduces the captured VIN exchange byte for
+   byte, following the vendor's own dispatch including its kill-on-sequence-gap rule.
+   The channel itself stays unsupported, since its timing parameters need a vehicle.
+5. Vehicle-blocked, and now the whole remaining list: that filters filter, that transmits
+   transmit, ISO15765 timing, cdc_acm throughput parity, the other protocol engines, and
+   the 100-cycle and one-hour soak gates.
 
 See [reproduction instructions](analysis/REPRODUCE.md) and the
 [sender index](analysis/SENDERS.md) for the saved evidence and Ghidra scripts.

@@ -205,7 +205,8 @@ unverified. The opcode 10 indication path has separate handling.
 **ISO15765 is not wholly delegated to firmware.** The DLL contains host-side receive
 reassembly: `10021790` dispatches single/first/consecutive frames; `10021280` checks the
 four-bit sequence and copies fragments until the announced length is met. Wrong sequence
-resets receive state. `10021070` contains first-frame/flow-control handling; standard and
+resets receive state. This is implemented in `src/isotp.cpp` and reproduces the captured
+VIN exchange byte for byte; see `docs/VALIDATION.md`. `10021070` contains first-frame/flow-control handling; standard and
 extended-address paths differ. A raw CAN client and a complete J2534 ISO15765 implementation
 therefore have different scope. See `isotp/` and `message_payload/`.
 

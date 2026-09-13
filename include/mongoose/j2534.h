@@ -39,6 +39,10 @@ enum { GET_CONFIG = 1, SET_CONFIG = 2, READ_VBATT = 3, FIVE_BAUD_INIT = 4,
        CLEAR_PERIODIC_MSGS = 9, CLEAR_MSG_FILTERS = 10, READ_PROG_VOLTAGE = 14 };
 enum { DATA_RATE = 1, LOOPBACK = 3, CAN_29BIT_ID = 0x100,
        ISO15765_FRAME_PAD = 0x40, ISO15765_ADDR_TYPE = 0x80 };
+/* RxStatus bits. START_OF_MESSAGE is the ISO15765 first-frame indication, observed as
+ * RxStatus 2 in the vendor capture of a multi-frame VIN response. */
+enum { TX_MSG_TYPE = 0x01, START_OF_MESSAGE = 0x02, RX_BREAK = 0x04, TX_DONE = 0x08,
+       ISO15765_PADDING_ERROR = 0x10 };
 J2534_API int32_t J2534_CALL PassThruOpen(void *name, uint32_t *device);
 J2534_API int32_t J2534_CALL PassThruClose(uint32_t device);
 J2534_API int32_t J2534_CALL PassThruConnect(uint32_t device, uint32_t protocol, uint32_t flags, uint32_t baud, uint32_t *channel);

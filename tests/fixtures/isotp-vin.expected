@@ -1,0 +1,3 @@
+# Outputs the reassembler must produce, in order. status 2 is START_OF_MESSAGE.
+status=2 data=000007e8
+status=0 data=000007e8490201524544414354454456494e303030303030

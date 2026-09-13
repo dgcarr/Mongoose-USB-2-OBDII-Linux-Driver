@@ -103,7 +103,8 @@ libusb figures above:
 | CAN receive queue / ReadMsgs | Captured vendor frames | Yes | Host-queue path only; no bus traffic yet seen |
 | CAN PASS filters | Captured vendor frames | Yes | Adapter accepts and acknowledges; filtering effect unproven |
 | CAN transmit / WriteMsgs | Captured vendor frames | Yes | Queues on the bench; a timed write correctly reports nothing sent |
-| ISO15765 | Captured host reassembly / firmware flow control | No | Windows reference only; timing variations pending |
+| ISO15765 receive reassembly | Captured host reassembly / firmware flow control | Yes | Reproduces the captured VIN exchange offline |
+| ISO15765 channel / timing | Captured host reassembly / firmware flow control | No | Windows reference only; timing variations pending |
 | K-line / J1850PWM | Partial | No | Suitable hardware required |
 | BLOCK filters / periodic / configuration | Partial | No | Pending |
 | Programming-voltage output | Partial | No | Pending electrical validation |
@@ -379,27 +380,77 @@ reader thread runs.
 
 Evidence: `analysis/captures/linux-pty-load-20260913T123404Z.*`.
 
+## ISO15765 receive reassembly (2026-09-13)
+
+The responsibility split is settled by capture: the adapter generates flow control on its
+own -- it reports the FC frame as already transmitted and the host never sends one --
+while the DLL reassembles. Reassembly is therefore a pure function of the inbound frame
+sequence, with no timing loop and no wire traffic, which is the whole reason it can be
+finished and proven correct with no vehicle.
+
+`src/isotp.cpp` follows the vendor's own dispatch rather than the ISO standard in the
+abstract: `10021790` routes on the PCI type and on whether a segmented receive is already
+in progress, `10020fc0` handles single frames, `10021070` first frames, and `10021280`
+consecutive frames. The behaviour that matters:
+
+- A sequence gap **discards the whole partial message** rather than stitching a hole into
+  it -- the vendor logs `ISO15765 SequenceNum got %d expected %d, killing receive` and
+  clears its state.
+- A first frame arriving mid-assembly abandons the partial message and starts over.
+- A single frame arriving mid-assembly is delivered and **leaves the partial message
+  intact**, so later consecutive frames still complete it. That looks wrong and is what
+  the vendor does; it is reproduced deliberately and marked as such in the code.
+- A first frame announcing fewer than 8 bytes is rejected: a message that fits in a
+  single frame must not be segmented.
+- Content beyond the announced length is trimmed, so a padded final frame cannot
+  lengthen the message.
+
+Tested against the captured mode 09 PID 02 VIN exchange, byte for byte: three
+`cInboundData` frames with PCI `10 14`, `21`, `22` produce one `START_OF_MESSAGE`
+indication and one 24-byte message -- four identifier bytes plus the 20 announced --
+matching what the vendor API returned. Fixtures are the captured bytes, not invented
+ones.
+
+Two deliberate divergences, both recorded in the code. The vendor copies a single frame's
+announced length without checking the frame carries it, which reads past a short frame;
+we reject instead, because delivering the difference means handing the caller whatever
+followed in memory. And extended addressing is absent: the vendor shifts every offset by
+one byte for it, but no capture exercises that path, and untested reassembly is worse
+than none.
+
+`PassThruConnect(ISO15765, ...)` still returns `ERR_NOT_SUPPORTED`. The reassembler is
+the part that can be proven offline; wiring up the channel means STmin, block size and
+N_Bs, which nothing on the bench can exercise.
+
 ## Next blocking work
 
-Pass filters and the receive queue are implemented and hardware-accepted, which
-retires the first two items this list used to carry. What is left splits cleanly into
-work the bench can finish and work that needs a vehicle.
-
-Bench-reachable, with the adapter on USB alone:
-
-1. Build the ISO15765 host-side reassembler against the captured VIN exchange. The
-   responsibility split is known: firmware generates flow control, the host reassembles.
+Every item this list carried that the bench could reach is now done: pass filters and the
+receive queue, the filter-table probe, CAN transmit and its delivery reporting, the
+sequence-number ceiling, sustained receive with back-pressure, and ISO15765 reassembly.
+What is left needs a vehicle, and saying so is the point of this section -- none of it can
+be closed by more work on a desk.
 
 Vehicle-blocked:
 
-5. Prove filters actually filter, transmit actually transmits, and received frames
-   decode end to end. None of that can be shown without bus traffic.
-6. ISO15765 timing — STmin, block size and N_Bs remain untested and unvaried.
-7. Complete remaining protocol engines, periodic messages and IOCTLs with suitable
-   vehicles/fixtures. C3/C4 are settled for this adapter: only one CAN-family
-   channel can be open; further chan-field semantics cannot be inferred here.
-8. Run 100 hardware cycles and a one-hour diagnostic soak once bus support exists.
+1. Prove filters actually filter, transmit actually transmits, and received frames decode
+   end to end. Everything above establishes that the adapter accepts our frames and that
+   the host handles what comes back; none of it shows a message crossing a bus.
+2. Confirm that a timed `WriteMsgs` reports success on a live bus. The Windows captures
+   show one `iMsgTxDone` per transmit, so it should; on the bench it correctly reports
+   that nothing was sent.
+3. ISO15765 timing -- STmin, block size and N_Bs remain untested and unvaried -- and
+   wiring the reassembler to a live ISO15765 channel, which those parameters gate.
+4. `cdc_acm` throughput parity. The pty harness bounds the host side at 311500 msg/s, but
+   the URB path between adapter and kernel is untested under load.
+5. Complete remaining protocol engines, periodic messages and IOCTLs with suitable
+   vehicles/fixtures. C3/C4 are settled for this adapter: only one CAN-family channel can
+   be open; further chan-field semantics cannot be inferred here.
+6. Run 100 hardware cycles and a one-hour diagnostic soak once bus support exists.
    Three USB-only channel cycles and synthetic lifecycle tests do not satisfy these gates.
+
+Bench work that remains possible but was deliberately not done: the filter-table maximum
+(stopping short of allocator exhaustion), the channel IOCTLs for clearing buffers, and
+extended-address ISO15765 reassembly, which no capture exercises.
 
 Electrical testing and full J2534 conformance remain outstanding. Firmware
 updating, Wine and SocketCAN are out of scope.

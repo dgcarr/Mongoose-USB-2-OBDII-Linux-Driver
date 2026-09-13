@@ -1,5 +1,6 @@
 #include "codec.hpp"
 #include "can.hpp"
+#include "isotp.hpp"
 #include <algorithm>
 #include <cstdlib>
 extern "C" int LLVMFuzzerTestOneInput(const uint8_t *data, size_t size) {
@@ -29,6 +30,15 @@ extern "C" int LLVMFuzzerTestOneInput(const uint8_t *data, size_t size) {
             const auto payload = mongoose::can_transmit(outbound, outbound.TxFlags, data[2]);
             if (payload.size() != size_t{12} + outbound.DataSize) std::abort();
         } catch (const mongoose::Error &) {}
+    }
+    // Reassembly consumes attacker-shaped frame sequences: lengths, sequence numbers and
+    // truncation all come from the wire, and a partial message persists across frames.
+    mongoose::IsoTpReassembler reassembler;
+    for (size_t offset = 0; offset + 1 < size;) {
+        const size_t length = std::min(size-offset-1, static_cast<size_t>(1+(data[offset] & 0x1f)));
+        for (const auto &output : reassembler.feed(std::span(data+offset+1, length)))
+            if (output.data.size() > 4 + mongoose::IsoTpReassembler::max_message) std::abort();
+        offset += 1 + length;
     }
     PASSTHRU_MSG message{};
     uint32_t count = 0;

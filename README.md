@@ -11,8 +11,11 @@ ownership, asynchronous reception, validated length/XOR
 framing, serialized commands, startup/cleanup, native Open/Close/ReadVersion,
 voltage-reading IOCTLs, CAN Connect/Disconnect, CAN PASS filters, a CAN receive queue
 behind ReadMsgs, raw CAN transmit through WriteMsgs, replay tests and all 14 core ABI
-exports. CAN supports flags 0 or CAN_29BIT_ID, with one channel per adapter. Periodic
-messages, BLOCK filters and ISO15765 remain unsupported.
+exports, and host-side ISO15765 receive reassembly. CAN supports flags 0 or
+CAN_29BIT_ID, with one channel per adapter. Periodic messages, BLOCK filters and the
+ISO15765 channel itself remain unsupported: the reassembler is proven against captured
+frames, but connecting a live ISO15765 channel needs timing parameters no bench can
+exercise.
 
 Everything above has been exercised only on a bench with no bus. Filters have been
 accepted by the adapter but never given a frame to act on, ReadMsgs has never returned a

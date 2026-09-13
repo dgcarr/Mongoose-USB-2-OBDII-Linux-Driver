@@ -1,0 +1,8 @@
+# The mode 09 PID 02 VIN response, exactly as captured in
+# analysis/captures/windows/20260913T161953-e2-obd-mode09-pid02-vin/wire.pcap.
+# Each line is one cInboundData payload: four big-endian CAN ID bytes, then CAN data.
+# PCI bytes are intact on the wire -- 10 14 first frame, 21 and 22 consecutive -- which
+# is what shows the adapter does not reassemble. The VIN itself was redacted at capture.
+000007e81014490201524544
+000007e82141435445445649
+000007e8224e303030303030
