@@ -1,0 +1,2 @@
+utc_100ns=134337543213848215 step line=2: version 9999
+utc_100ns=134337543213858218 ReadVersion result=26 error=DeviceID 9999 is invalid

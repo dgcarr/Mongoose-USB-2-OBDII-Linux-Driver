@@ -1,0 +1,8 @@
+utc_100ns=134337542251067285 step line=3: open dev
+utc_100ns=134337542251573013 Open result=0 error=
+device=1
+utc_100ns=134337542271697201 step line=4: version dev
+utc_100ns=134337542271717440 ReadVersion result=0 error=
+firmware=MongoosePro JLR FW:1.1.16.0 BL:1.1.8.0 SN: AOLHE0000003666A driver=MongoosePro JLR J2534 Library v1.1.16.0 api=04.04
+utc_100ns=134337542291828009 step line=5: close dev
+utc_100ns=134337542291997728 Close result=0 error=

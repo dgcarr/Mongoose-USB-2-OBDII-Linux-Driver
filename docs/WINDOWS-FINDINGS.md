@@ -196,6 +196,93 @@ the single most important thing to get right in a portable implementation.
 engine running, consistent with an alternator on charge. The Linux bench result of
 `0` from `cGetValue` selector 3 was a no-vehicle reading, not a broken selector.
 
+## B2 — PassThruReadVersion
+
+Capture: `20260913T162339-b2-version`. The API returns
+
+```
+firmware = MongoosePro JLR FW:1.1.16.0 BL:1.1.8.0 SN: AOLHE0000003666A
+driver   = MongoosePro JLR J2534 Library v1.1.16.0
+api      = 04.04
+```
+
+and that string is assembled **DLL-side** from three wire commands:
+
+| command | request | response |
+|---|---|---|
+| `cGetValue` selector `0x2b` | `2b000000` | `00100101` = `0x01011000` = 1.1.16.0 |
+| `cGetValue` selector `0x2a` | `2a000000` | `00080101` = `0x01010800` = 1.1.8.0 |
+| `cGetString` selector `0` | `00000000` | `AOLHE0000003666A\0` |
+
+All three match the Linux bench results in `docs/VALIDATION.md` exactly, now
+confirmed from the vendor side. The `driver` and `api` strings never touch the
+wire — they are DLL constants.
+
+## B3/B4 — Error paths and exclusivity
+
+| stimulus | J2534 result | vendor text | wire traffic |
+|---|---|---|---|
+| `PassThruClose` twice | 26 `ERR_INVALID_DEVICE_ID` | `DeviceID 1 is invalid` | none |
+| `PassThruReadVersion(9999)` | 26 `ERR_INVALID_DEVICE_ID` | `DeviceID 9999 is invalid` | **none** |
+| `PassThruReadMsgs(9999)` | 2 `ERR_INVALID_CHANNEL_ID` | `ChannelID 9999 is invalid` | **none** |
+| `PassThruOpen` twice, one process | 14 `ERR_DEVICE_IN_USE` | `'MongoosePro JLR #003666 (in use)' is valid but in-use` | — |
+| `PassThruOpen` from a second process | 14 `ERR_DEVICE_IN_USE` | same | — |
+
+Two things follow.
+
+- **Handle validation is entirely DLL-side.** The invalid-device and
+  invalid-channel cases produced *no pcap at all* — not an error round trip, no
+  traffic whatsoever. A portable implementation must reject bad handles locally
+  rather than asking the device.
+- **Exclusivity is real and cross-process**, and the vendor reports it as
+  `ERR_DEVICE_IN_USE` naming the serial. This is the behaviour `src/tty.cpp`
+  approximates with `flock` + `TIOCEXCL`, so that approach matches vendor
+  semantics rather than merely being defensible.
+
+Device handles **increment and are not reused**: three open/close cycles in one
+process returned device 1, 2, then 3 (`20260913T162358-b1-open-close-x3`). J2534
+channel IDs behaved differently, staying at 2 across connect/disconnect.
+
+## B7 — Opcode census
+
+Across all 15 captures, every opcode seen is either named in
+`PROTOCOL.md:232-265` or is one of the two filter ops identified above:
+
+```
+cOpenDevice 32   cCloseDevice 32   cOpenChannel 16   cCloseChannel 16
+cOutboundData 4  cInboundData 9873 cIndication 3     cGetValue 40
+0x000d 8         0x000e 8          cSetPin 16        cGetString 2
+cEchoPacket 32   cJumpToFirmware 32 cGetBoardInfo 64 cCheckCRN 32
+```
+
+`dst`/`src` took exactly three values — `0x0001` (device level, 266 frames),
+`0x0501` (CAN, 9897) and `0x0601` (ISO15765, 47) — with no exceptions, which is
+strong support for the `(protocol << 8) | board` rule rather than a coincidence
+of two samples.
+
+**No destructive opcode appeared in any capture.** `cReflashBoard` (`0x10a`),
+`cWriteSerialNumber` (`0x10b`), `cUnprotectBootloader` (`0x10c`) and
+`cUpdateBTModule` (`0x112`) have a combined count of zero, so ordinary vendor
+operation never approaches them. That was one of the plan's stop conditions and
+it is worth restating: nothing observed here risks the adapter.
+
+## A3 — Vendor debug log: negative result
+
+`DebugEnable` was set on the vendor's PassThru key as both `REG_DWORD 1` and
+`REG_SZ "1"`, and a full open/version/close cycle was run under each.
+`C:\DrewTech` was **never created** and no log file appeared anywhere.
+
+So the `DebugEnable` string is not, by itself, the gate for the logging
+facility whose format string and diagnostics are visible in `monpj432.dll`. The
+value may be read from a different key, combined with another condition, or be
+dead code in this build. The registry value has been removed and the key restored
+to its original state; `analysis/captures/windows/passthru-key-backup.reg` holds
+the pre-test export. Pursuing this further means disassembling the `DebugEnable`
+reference rather than guessing at more value types.
+
+This route is closed unless that disassembly says otherwise. It cost little and
+the captures do not depend on it.
+
 ## Open after this round
 
 `cGetValue` selector `0x2f`; the leading `1` of `cSetPin`; the three-transfer

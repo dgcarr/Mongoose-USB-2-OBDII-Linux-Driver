@@ -1,0 +1,15 @@
+utc_100ns=134337542434972952 step line=3: open dev
+utc_100ns=134337542435426651 Open result=0 error=
+device=1
+utc_100ns=134337542455530626 step line=4: close dev
+utc_100ns=134337542455684308 Close result=0 error=
+utc_100ns=134337542475814565 step line=5: open dev
+utc_100ns=134337542476218087 Open result=0 error=
+device=2
+utc_100ns=134337542496377663 step line=6: close dev
+utc_100ns=134337542496532912 Close result=0 error=
+utc_100ns=134337542516554220 step line=7: open dev
+utc_100ns=134337542516931302 Open result=0 error=
+device=3
+utc_100ns=134337542536985389 step line=8: close dev
+utc_100ns=134337542537142819 Close result=0 error=

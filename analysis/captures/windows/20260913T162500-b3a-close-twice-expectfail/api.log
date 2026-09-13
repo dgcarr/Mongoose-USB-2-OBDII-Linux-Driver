@@ -1,0 +1,7 @@
+utc_100ns=134337543052345334 step line=2: open dev
+utc_100ns=134337543052879170 Open result=0 error=
+device=1
+utc_100ns=134337543072983449 step line=3: close dev
+utc_100ns=134337543073142211 Close result=0 error=
+utc_100ns=134337543093150283 step line=4: close dev
+utc_100ns=134337543093150283 Close result=26 error=DeviceID 1 is invalid

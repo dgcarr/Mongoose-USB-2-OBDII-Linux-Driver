@@ -1,0 +1,5 @@
+utc_100ns=134337542677966759 step line=3: open dev1
+utc_100ns=134337542678444842 Open result=0 error=
+device=1
+utc_100ns=134337542698506826 step line=4: open dev2
+utc_100ns=134337542698531696 Open result=14 error='MongoosePro JLR #003666 (in use)' is valid but in-use. Close the other softwar
