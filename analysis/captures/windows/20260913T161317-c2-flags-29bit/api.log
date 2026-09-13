@@ -1,0 +1,11 @@
+utc_100ns=134337536028665548 step line=2: open dev
+utc_100ns=134337536029154984 Open result=0 error=
+device=1
+utc_100ns=134337536049201449 step line=3: connect dev CAN CAN_29BIT_ID 500000 chan
+connect protocol=5 flags=256 baud=500000
+utc_100ns=134337536049226594 Connect result=0 error=
+channel=2
+utc_100ns=134337536069293947 step line=4: disconnect chan
+utc_100ns=134337536069310736 Disconnect result=0 error=
+utc_100ns=134337536089386274 step line=5: close dev
+utc_100ns=134337536089545504 Close result=0 error=

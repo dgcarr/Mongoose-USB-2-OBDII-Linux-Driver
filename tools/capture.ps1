@@ -18,7 +18,10 @@ param(
     [int]$Gap = 2000,
     [string]$Dll = 'C:\Program Files (x86)\Drew Technologies, Inc\J2534\MongoosePro JLR\monpj432.dll',
     [string]$Harness = 'build\windows\mongoose-reference.exe',
-    [int]$SettleMs = 1500
+    # USBPcap can take seconds to attach. At 1500 ms a capture recorded only the
+    # close and silently missed the entire open sequence, so this is deliberately
+    # generous - see docs/WINDOWS-FINDINGS.md.
+    [int]$SettleMs = 5000
 )
 
 $ErrorActionPreference = 'Stop'

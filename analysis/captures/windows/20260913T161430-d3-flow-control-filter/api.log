@@ -1,0 +1,20 @@
+utc_100ns=134337536751682378 step line=4: open dev
+utc_100ns=134337536752184161 Open result=0 error=
+device=1
+utc_100ns=134337536772250515 step line=5: connect dev ISO15765 NONE 500000 chan
+connect protocol=6 flags=0 baud=500000
+utc_100ns=134337536772270910 Connect result=0 error=
+channel=2
+utc_100ns=134337536790004275 step line=6: filter chan FLOW ISO15765 ISO15765_FRAME_PAD 0000ffff 000007e8 000007e0 fc
+utc_100ns=134337536792444N00 StartMsgFilter result=0 error=
+filter=3
+utc_100ns=134337536812589N00 step line=7: read chan 16 1000
+utc_100ns=134337536822653099 ReadMsgs result=16 error=Zero messages received
+received=0
+read_total=0 rounds=1
+utc_100ns=134337536842812736 step line=8: stopfilter chan fc
+utc_100ns=134337536842828220 StopMsgFilter result=0 error=
+utc_100ns=134337536862948122 step line=9: disconnect chan
+utc_100ns=134337536862961380 Disconnect result=0 error=
+utc_100ns=134337536883020472 step line=10: close dev
+utc_100ns=134337536883040467 Close result=0 error=

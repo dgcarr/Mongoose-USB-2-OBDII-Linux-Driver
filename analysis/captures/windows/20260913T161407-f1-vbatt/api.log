@@ -1,0 +1,12 @@
+utc_100ns=134337536528946671 step line=3: open dev
+utc_100ns=134337536529392150 Open result=0 error=
+device=1
+utc_100ns=134337536549425151 step line=4: vbatt dev
+utc_100ns=134337536549445171 Ioctl READ_VBATT result=0 error=
+vbatt_mv=14100
+utc_100ns=134337536569554614 step line=5: sleep 2000
+utc_100ns=134337536589615554 step line=6: vbatt dev
+utc_100ns=134337536589625574 Ioctl READ_VBATT result=0 error=
+vbatt_mv=14000
+utc_100ns=134337536609636107 step line=7: close dev
+utc_100ns=134337536609795323 Close result=0 error=
