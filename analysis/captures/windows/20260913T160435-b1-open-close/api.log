@@ -1,0 +1,5 @@
+utc_100ns=134337530769972971 step line=4: open dev
+utc_100ns=134337530770453227 Open result=0 error=
+device=1
+utc_100ns=134337530790473657 step line=5: close dev
+utc_100ns=134337530790631310 Close result=0 error=

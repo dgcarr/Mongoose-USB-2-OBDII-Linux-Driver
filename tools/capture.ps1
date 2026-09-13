@@ -2,11 +2,9 @@
 .SYNOPSIS
 One experiment = one stimulus, three synchronised records.
 
-Starts a USBPcap capture on the adapter's root hub, runs one step script through
-mongoose-reference.exe, stops the capture, and snapshots the vendor debug log if
-it is active. Everything for a run lands in analysis/captures/windows/<name>/.
-
-USBPcap needs Administrator, so run this from an elevated shell.
+Starts a USBPcap capture, runs one step script through mongoose-reference.exe,
+stops the capture, and snapshots the vendor debug log if it is active.
+Everything for a run lands in analysis/captures/windows/<timestamp>-<name>/.
 
 .EXAMPLE
   .\tools\capture.ps1 -Script tools\scripts\b1-open-close.txt
@@ -31,17 +29,28 @@ if (-not (Test-Path $Script))  { throw "Step script not found: $Script" }
 if (-not (Test-Path $Harness)) { throw "Harness not built: $Harness (see docs/CAPTURING.md)" }
 if (-not (Test-Path $Dll))     { throw "Vendor DLL not found: $Dll" }
 
-$identity  = [Security.Principal.WindowsIdentity]::GetCurrent()
-$principal = New-Object Security.Principal.WindowsPrincipal($identity)
-if (-not $principal.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)) {
-    throw 'USBPcap requires Administrator. Re-run this script from an elevated shell.'
-}
-
 $usbpcap = 'C:\Program Files\USBPcap\USBPcapCMD.exe'
 if (-not (Test-Path $usbpcap)) { throw "USBPcapCMD not found at $usbpcap" }
 
-# The adapter's root hub, resolved live rather than hard-coded: find the device,
-# walk to its parent hub, then match that hub against the USBPcap filter list.
+# USBPcap capture needs no elevation here, but the driver must have attached to
+# the root hubs, which only happens on the boot after install.
+#
+# The candidate list is generated rather than read from --extcap-interfaces:
+# that switch prints nothing when USBPcapCMD is invoked from a script file.
+# USBPcap numbers its control devices one per root hub, so probe exactly that
+# many - running more capture processes than there are hubs makes them contend
+# and several then record nothing at all.
+$cache = Join-Path $repo 'build\windows\usbpcap-interface.txt'
+$hubs  = @(Get-PnpDevice -ErrorAction SilentlyContinue |
+           Where-Object { $_.InstanceId -like 'USB\ROOT_HUB*' }).Count
+if ($hubs -lt 1) { $hubs = 4 }
+$ifaces = 1..$hubs | ForEach-Object { '\\.\USBPcap' + $_ }
+if (-not $Interface -and (Test-Path $cache)) {
+    $remembered = (Get-Content $cache -Raw).Trim()
+    if ($remembered) { $Interface = $remembered }
+}
+if ($Interface) { $ifaces = @($Interface) }
+
 $device = Get-PnpDevice -ErrorAction SilentlyContinue |
           Where-Object { $_.InstanceId -like '*VID_18E1&PID_0104*' } | Select-Object -First 1
 if (-not $device) { throw 'MongoosePro adapter not found in PnP. Is the USB cable connected?' }
@@ -50,28 +59,11 @@ $parent = (Get-PnpDeviceProperty -InstanceId $device.InstanceId -KeyName DEVPKEY
 Write-Host "Adapter : $($device.InstanceId)"
 Write-Host "Root hub: $parent"
 
-if (-not $Interface) {
-    # USBPcapCMD -h lists each filter device with the devices beneath it.
-    $listing = & $usbpcap -h 2>&1 | Out-String
-    $current = $null
-    foreach ($line in ($listing -split "`r?`n")) {
-        if ($line -match '^\s*(\\\\\.\\USBPcap\d+)') { $current = $Matches[1] }
-        if ($current -and $line -match [regex]::Escape($device.InstanceId.Split('\')[-1])) { $Interface = $current; break }
-    }
-    if (-not $Interface) {
-        Write-Warning 'Could not auto-resolve the USBPcap interface. Listing follows; pass -Interface explicitly.'
-        Write-Host $listing
-        throw 'Unresolved USBPcap interface.'
-    }
-}
-Write-Host "Capture : $Interface"
-
 if (-not $Name) { $Name = [IO.Path]::GetFileNameWithoutExtension($Script) }
 $stamp  = Get-Date -Format 'yyyyMMddTHHmmss'
 $outDir = Join-Path $repo "analysis\captures\windows\$stamp-$Name"
 New-Item -ItemType Directory -Force -Path $outDir | Out-Null
 
-$pcap = Join-Path $outDir 'wire.pcap'
 $log  = Join-Path $outDir 'api.log'
 $meta = Join-Path $outDir 'metadata.txt'
 
@@ -80,27 +72,77 @@ $drewLogs = 'C:\DrewTech\Logs'
 $before = @()
 if (Test-Path $drewLogs) { $before = Get-ChildItem $drewLogs -File | Select-Object -ExpandProperty FullName }
 
+# Capture every root hub at once rather than trusting a remembered hub index:
+# USB enumeration order can change across a reboot, and an empty pcap is
+# indistinguishable from a quiet one. Only the hub that saw traffic is kept.
+# -A is required; without a device selection USBPcap captures nothing at all.
 Write-Host "Output  : $outDir"
-$capture = Start-Process -FilePath $usbpcap -ArgumentList @('-d', $Interface, '-o', $pcap, '-s', '65535') `
-                         -PassThru -WindowStyle Hidden
-Start-Sleep -Milliseconds $SettleMs   # let the capture attach before any traffic
+$captures = @()
+foreach ($iface in $ifaces) {
+    $tag  = ($iface -replace '[^A-Za-z0-9]', '')
+    $file = Join-Path $outDir "raw-$tag.pcap"
+    $psi = New-Object Diagnostics.ProcessStartInfo
+    $psi.FileName  = $usbpcap
+    $psi.Arguments = "-d `"$iface`" -o `"$file`" -s 65535 -A"
+    $psi.RedirectStandardOutput = $true
+    $psi.RedirectStandardError  = $true
+    $psi.UseShellExecute = $false
+    $psi.CreateNoWindow  = $true
+    $captures += @{ iface = $iface; file = $file; proc = [Diagnostics.Process]::Start($psi) }
+}
+Start-Sleep -Milliseconds $SettleMs   # let the filters attach before any traffic
 
+$harnessExit = -1
 try {
-    & $Harness $Dll --script $Script --gap $Gap 2>&1 | Tee-Object -FilePath $log
+    & $Harness $Dll --script $Script --gap $Gap 2>&1 |
+        Tee-Object -Variable harnessOutput |
+        Write-Host
     $harnessExit = $LASTEXITCODE
 } finally {
     Start-Sleep -Milliseconds $SettleMs   # let trailing frames land
-    if (-not $capture.HasExited) { Stop-Process -Id $capture.Id -Force }
+    foreach ($c in $captures) {
+        if (-not $c.proc.HasExited) { $c.proc.Kill(); $c.proc.WaitForExit(3000) | Out-Null }
+    }
 }
+# Written explicitly as UTF-8: Tee-Object -FilePath under Windows PowerShell
+# produces UTF-16, which the correlator would have to special-case.
+$harnessOutput | Out-File -FilePath $log -Encoding utf8
 
-# Metadata: the plan requires ignition state, firmware version and driver hash
-# recorded with every capture set.
+# A pcap holding only the 24-byte global header saw no packets.
+$sizes = @()
+$kept  = $null
+foreach ($c in $captures) {
+    $size = if (Test-Path $c.file) { (Get-Item $c.file).Length } else { 0 }
+    $sizes += "$($c.iface) = $size bytes"
+    $err = $c.proc.StandardError.ReadToEnd().Trim()
+    if ($err) { $sizes += "  stderr: $($err -replace "`r?`n", ' | ')" }
+    if ($size -gt 24) {
+        if (-not $kept -or $size -gt (Get-Item $kept).Length) { $kept = $c.file }
+    } elseif (Test-Path $c.file) {
+        Remove-Item $c.file -Force
+    }
+}
+$wire = Join-Path $outDir 'wire.pcap'
+if ($kept) {
+    # Remember which hub the adapter is on so later runs use a single capture
+    # process. USB enumeration order can change, so a miss re-probes every hub.
+    $winner = ($captures | Where-Object { $_.file -eq $kept }).iface
+    New-Item -ItemType Directory -Force -Path (Split-Path -Parent $cache) | Out-Null
+    Set-Content -Path $cache -Value $winner -Encoding ASCII
+    Move-Item $kept $wire -Force
+} elseif (Test-Path $cache) {
+    Remove-Item $cache -Force   # cached hub went quiet; re-probe next run
+}
+Get-ChildItem $outDir -Filter 'raw-*.pcap' -ErrorAction SilentlyContinue |
+    ForEach-Object { Write-Host "Also kept $($_.Name) ($($_.Length) bytes) - more than one hub saw traffic" }
+
 $notes = @()
 $notes += "capture       = $stamp-$Name"
 $notes += "step_script   = $Script"
 $notes += "harness_exit  = $harnessExit"
 $notes += "gap_ms        = $Gap"
-$notes += "usbpcap_iface = $Interface"
+$notes += "usbpcap_ifaces= $($ifaces -join ' ')"
+foreach ($s in $sizes) { $notes += "  $s" }
 $notes += "adapter       = $($device.InstanceId)"
 $notes += "root_hub      = $parent"
 $notes += "dll           = $Dll"
@@ -119,9 +161,12 @@ if (Test-Path $drewLogs) {
     if ($new) { Write-Host "Vendor log: copied $($new.Count) file(s)" }
 }
 
-$size = if (Test-Path $pcap) { (Get-Item $pcap).Length } else { 0 }
 Write-Host ''
 Write-Host "harness exit = $harnessExit"
-Write-Host "wire.pcap    = $size bytes"
-if ($size -eq 0) { Write-Warning 'Capture file is empty - the USBPcap filter may not be attached to that hub (reboot after install).' }
+foreach ($s in $sizes) { Write-Host "  $s" }
+if (Test-Path $wire) {
+    Write-Host "wire.pcap    = $((Get-Item $wire).Length) bytes"
+} else {
+    Write-Warning 'No hub saw any packets. Check that the adapter is connected and that -A reached USBPcap.'
+}
 Write-Host "Record ignition state and vehicle in $meta"
