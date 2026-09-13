@@ -167,7 +167,7 @@ int main(int argc, char **argv) {
         for (int i = 1; i < argc; ++i) {
             const std::string arg = argv[i];
             if (arg == "--list" || arg == "--discover" || arg == "--open-close" ||
-                arg == "--inspect" || arg == "--filter-probe" || arg == "--transmit-probe") {
+                arg == "--inspect" || arg == "--filter-probe" || arg == "--transmit-probe" || arg == "--read-burst") {
                 if (!mode.empty()) throw std::invalid_argument("choose exactly one mode");
                 mode = arg;
             } else if ((arg == "--serial" || arg == "--device" || arg == "--replay" || arg == "--trace" ||
@@ -184,11 +184,11 @@ int main(int argc, char **argv) {
                 }
                 if (arg == "--filter-ceiling") {
                     size_t consumed = 0; const auto parsed = std::stoul(value, &consumed);
-                    if (consumed != value.size() || parsed == 0 || parsed > 4096) throw std::invalid_argument("invalid filter ceiling");
+                    if (consumed != value.size() || parsed == 0 || parsed > 100000) throw std::invalid_argument("invalid ceiling");
                     ceiling = static_cast<unsigned>(parsed);
                 }
             } else {
-                std::cerr << "Usage: mongoose-diag --list|--discover|--open-close|--inspect|--filter-probe|--transmit-probe "
+                std::cerr << "Usage: mongoose-diag --list|--discover|--open-close|--inspect|--filter-probe|--transmit-probe|--read-burst "
                              "[--device SELECTOR] [--serial SERIAL] [--trace FILE] [--timeout-ms 10000] [--replay FILE]\n"
                              "  SELECTOR: serial:S | tty:[serial:S|/dev/ttyACMn] | usb:[serial:S]  (default: tty)\n"
                              "  --filter-probe opens a CAN channel and fills the filter table; it never transmits.\n"
@@ -269,6 +269,26 @@ int main(int argc, char **argv) {
                         std::cout << "selector=" << static_cast<unsigned>(selector) << ' ';
                         show("value", value); require_status(value);
                     }
+                }
+                if (mode == "--read-burst") {
+                    // Read-only firmware-version reads, as fast as the link allows. The
+                    // point is sequence reuse under sustained load: the 255-value space
+                    // recycles every 255 commands, so a stale or duplicated response
+                    // would show up here as a mismatched echo.
+                    const auto started = std::chrono::steady_clock::now();
+                    unsigned mismatched = 0;
+                    for (unsigned i = 0; i < ceiling; ++i) {
+                        const mongoose::Bytes selector{0x2b, 0, 0, 0};
+                        auto response = session.command(0xc, selector, deadline);
+                        require_status(response);
+                        if (response.size() < 28 || mongoose::le32(response, 20) != 0x2b) ++mismatched;
+                        if ((i+1) % 1000 == 0)
+                            std::cout << "burst " << i+1 << '/' << ceiling << std::endl;
+                    }
+                    const auto seconds = std::chrono::duration<double>(std::chrono::steady_clock::now()-started).count();
+                    std::cout << "burst " << ceiling << " commands in " << seconds << " s = "
+                              << static_cast<unsigned>(ceiling/seconds) << " cmd/s, "
+                              << mismatched << " mismatched responses\n";
                 }
                 if (mode == "--transmit-probe") {
                     constexpr auto channel = mongoose::channel_node(CAN);

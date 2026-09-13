@@ -1,0 +1,26 @@
+Linux sequence-reuse burst, 2026-09-13
+Adapter 18e1:0104, serial AOLHE0000003666A, /dev/ttyACM3, cdc_acm.
+USB only, no vehicle, no 12 V, no bus. Firmware 1.1.16.0.
+Command: build/mongoose-diag --read-burst --filter-ceiling 20000 --serial SERIAL
+
+Read-only cGetValue of the firmware version, repeated. Nothing is written to
+the device and nothing is transmitted.
+
+20000 commands in 3.13 s = 6385 commands/second, 0 mismatched responses.
+
+This exists to test sequence reuse under sustained load. The 255-value space
+recycles every 255 commands, so each value was reused about 78 times at
+roughly 40 ms apart. Every response echoed the selector of the command it
+answered; a stale or duplicated response matched to a later command would
+have shown up as a mismatch, and none did.
+
+Under the previous ten-second quarantine this run was not possible: it would
+have failed at command 256, or taken 800 seconds paced at 25 commands/second.
+
+Also run under ThreadSanitizer against the live adapter: 5000 commands at
+5833 cmd/s, zero warnings, with the real reader thread running.
+
+Grounds for the change, together with the 1041-command filter probe that
+showed exactly one response per request and no unsolicited command-shaped
+frames, and the D4 Windows capture showing inbound data carries sequence 0 and
+so never consumes the space at all.

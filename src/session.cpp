@@ -52,7 +52,11 @@ Bytes Session::command(uint16_t opcode, std::span<const uint8_t> payload,
         if (used_[sequence_] == std::chrono::steady_clock::time_point{} ||
             now - used_[sequence_] >= std::chrono::seconds(10)) { available = true; break; }
     }
+    // Only sequences abandoned with a response possibly still outstanding are held, and
+    // every path that abandons one also poisons the session, so in practice at most one
+    // can be held and this cannot trigger. It stays as the backstop if that ever changes.
     if (!available) throw Error(ERR_EXCEEDED_LIMIT, "all sequence numbers are in the 10-second reuse quarantine");
+    const auto allocated = sequence_;
     const auto wire = encode(request(opcode, sequence_, payload, destination, chan));
     pending_source_ = destination;
     pending_ = sequence_; minimum_ = opcode == 0x100 ? 12 : 20; response_.reset();
@@ -62,9 +66,9 @@ Bytes Session::command(uint16_t opcode, std::span<const uint8_t> payload,
     // failed just because the remainder truncates to zero whole milliseconds.
     const auto left = deadline - std::chrono::steady_clock::now();
     if (left <= std::chrono::steady_clock::duration::zero()) {
-        // Nothing has left the host on this path, so only the sequence slot is lost;
-        // the session stays usable.
-        state.lock(); pending_ = 0;
+        // Nothing has left the host on this path, so no response can ever arrive for
+        // this sequence and it is free for immediate reuse; the session stays usable.
+        state.lock(); pending_ = 0; used_[allocated] = {};
         throw Error(ERR_TIMEOUT, "command deadline expired before write");
     }
     // Zero is out of contract for every transport -- libusb reads it as "no timeout",
@@ -90,6 +94,14 @@ Bytes Session::command(uint16_t opcode, std::span<const uint8_t> payload,
         throw Error(ERR_TIMEOUT, failure_);
     }
     pending_ = 0;
+    // Release only on an answered sequence: the wait also ends on close or failure, and
+    // in those cases a response may still be outstanding. Once the adapter has answered,
+    // nothing is outstanding and the ten-second hold would protect nothing -- holding it
+    // anyway is what capped a long burst, a filter fill or sustained transmit, at 255
+    // commands per ten seconds under a rule aimed at abandoned sequences. Hardware shows
+    // exactly one response per request over 1041 consecutive commands, with no duplicate
+    // and no unsolicited command-shaped frame; see docs/VALIDATION.md.
+    if (response_) used_[allocated] = {};
     if (closing_) throw Error(ERR_DEVICE_NOT_CONNECTED, "session closed while waiting");
     if (!failure_.empty()) throw Error(ERR_DEVICE_NOT_CONNECTED, failure_);
     return std::move(*response_);

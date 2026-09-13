@@ -667,13 +667,22 @@ data path rather than discarding it. Its meaning remains unresolved.
 Matching the Windows open path. The value is now confirmed on two platforms; its meaning
 is still unknown.
 
-### A host-side ceiling this probe exposed
+### A host-side ceiling this probe exposed, and what the adapter said about it
 
 The first attempt failed at 250 filters with `all sequence numbers are in the 10-second
-reuse quarantine`. That is ours, not the adapter's: `Session` holds each of 255 sequence
-slots for ten seconds before reuse, which caps the driver near 25 commands per second
-sustained. Harmless at channel-setup rates and invisible until a burst runs long. It is a
-live design question for transmit, where the Windows baseline is 2455 msg/s.
+reuse quarantine` -- ours, not the adapter's, and since fixed (`docs/VALIDATION.md`).
+Two protocol facts settled it.
+
+The adapter answers **exactly once per command**: 1041 responses to 1041 requests in this
+probe, with no duplicate and no unsolicited command-shaped frame. And inbound bus data
+does not use the sequence space at all -- in the D4 sustained-load capture, 17233 of
+17243 device-to-host frames are `cInboundData` carrying sequence 0 -- so receive traffic,
+however busy the bus, applies no pressure to it.
+
+A read-only burst then ran 20000 commands at 6385 per second, recycling each of the 255
+sequence values about 78 times roughly 40 ms apart, with every response echoing the
+selector of the command it answered. Nothing in 21000 commands suggests this firmware
+emits a delayed duplicate response.
 
 ## 8. Remaining work and validation boundary
 

@@ -3,6 +3,7 @@
 #include <algorithm>
 #include <future>
 #include <iostream>
+#include <set>
 #include <sstream>
 #include <random>
 #include <atomic>
@@ -76,9 +77,20 @@ void session_tests() {
     CHECK(le16(session.command(3), 4) == 1); // do not require opcode|0x8000
     mock->write = [&](auto wire) { mock->receive(response(0x8100, le16(wire, 10), 12)); };
     CHECK(session.command(0x100).size() == 12);
-    mock->write = [&](auto wire) { mock->receive(response(0x8003, le16(wire, 10))); };
-    for (int i = 0; i < 253; ++i) CHECK(Session::status(session.command(3)) == 0);
-    error(ERR_EXCEEDED_LIMIT, [&] { session.command(3); });
+    // A sequence whose response arrived is complete and returns to the pool at once, so
+    // a burst far longer than the 255-value space must not be refused. The previous rule
+    // held every sequence for ten seconds and failed the 256th command in that window,
+    // capping the driver near 25 commands per second -- fine for setup, impossible for
+    // sustained transmit. Only abandoned sequences are held now, and every path that
+    // abandons one also poisons the session, so exhaustion is unreachable from here.
+    std::set<uint16_t> seen;
+    mock->write = [&](auto wire) {
+        const auto seq = le16(wire, 10);
+        CHECK(seq >= 1 && seq <= 255);
+        seen.insert(seq); mock->receive(response(0x8003, seq));
+    };
+    for (int i = 0; i < 1000; ++i) CHECK(Session::status(session.command(3)) == 0);
+    CHECK(seen.size() == 255 && *seen.begin() == 1 && *seen.rbegin() == 255);
     CHECK(session.usable());
     session.close(); CHECK(mock->stopped); session.close();
     CHECK(!session.usable());
@@ -302,6 +314,6 @@ void vendor_frame_tests() {
 
 int main() {
     try { selector_tests(); codec_tests(); session_tests(); channel_routing_tests(); timeout_and_cancel(); write_failure_paths(); replay_tests(); concurrent_commands(); vendor_frame_tests();
-        std::cout << "selectors, codec, correlation, quarantine, cancellation, write failures, replay, concurrency, vendor frames passed\n"; return 0;
+        std::cout << "selectors, codec, correlation, sequence reuse, cancellation, write failures, replay, concurrency, vendor frames passed\n"; return 0;
     } catch (const std::exception &e) { std::cerr << e.what() << '\n'; return 1; }
 }

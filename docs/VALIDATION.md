@@ -141,11 +141,12 @@ The `MONGOOSE_FUZZ` libFuzzer target was run over the framing codec for roughly
 6.2 million executions seeded from the captured frames, with no crash, leak or
 sanitizer finding; that exercises the only code that parses untrusted wire data.
 
-Sequence numbers are held for ten seconds before reuse. A response timeout or an
-ambiguous write requires reopening the session, because a late or partially delivered
-frame could otherwise be matched to a later command. A command whose deadline expires
-**before** anything is written does not: nothing reached the wire, so only the sequence
-slot is lost and the session stays usable. The write budget is rounded up to whole
+A sequence number is released as soon as its response arrives, and held for ten seconds
+only when it is abandoned with a response possibly still outstanding. A response timeout
+or an ambiguous write requires reopening the session, because a late or partially
+delivered frame could otherwise be matched to a later command. A command whose deadline
+expires **before** anything is written does not: nothing reached the wire, so no response
+can ever arrive for that sequence, it is freed at once, and the session stays usable. The write budget is rounded up to whole
 milliseconds rather than truncated, so a caller with a sub-millisecond remainder still
 reaches the adapter and no backend is ever passed a zero timeout. Zero is out of
 contract for both: libusb treats it as no timeout at all, `poll(2)` as expire
@@ -242,19 +243,13 @@ Reproduced across two consecutive runs. Full detail in `PROTOCOL.md` section 7c.
 - **`cGetValue` selector `0x2f` returns 1**, matching Windows. Value confirmed on a
   second platform; meaning still unknown.
 
-### A driver ceiling this probe exposed
+### A driver ceiling this probe exposed, since resolved
 
 The first attempt failed at 250 filters with `all sequence numbers are in the 10-second
-reuse quarantine`. That is our limit, not the adapter's. `Session` holds each of 255
-sequence slots for ten seconds before reuse, so the library sustains roughly 25 commands
-per second and no more; bursts shorter than the quarantine are unaffected, which is why
-nothing before this had noticed. The probe now waits it out.
-
-This is fine for channel and filter setup. It is not fine for transmit: the Windows
-baseline moved 2455 msg/s, and every message needs a sequence. Either the quarantine
-shortens on evidence about how long a late duplicate response can actually arrive, or
-transmit needs a path that does not consume one slot per message. That question should
-be settled before transmit is built, not after.
+reuse quarantine` -- our limit, not the adapter's. Every sequence was held for ten
+seconds regardless of outcome, capping the library near 25 commands per second. Bursts
+shorter than the quarantine were unaffected, which is why nothing before this had
+noticed. See the next section for how it was settled.
 
 ## Linux CAN transmit probe (2026-09-13)
 
@@ -277,6 +272,54 @@ Nothing here shows that a frame reached a wire. That needs a bus.
 
 Evidence: `analysis/captures/linux-transmit-probe-20260913T120454Z.*`.
 
+## The sequence-number quarantine, settled (2026-09-13)
+
+The ten-second hold was a conservative guess made when nothing was known about how late
+a duplicate response might arrive. Reviewing what it actually defends, against evidence:
+
+**It could not protect the case it was written for.** Every path that abandons a sequence
+with a response possibly outstanding -- a response timeout, or a write that may have been
+partially delivered -- also sets `failure_`, which poisons the session permanently. After
+either, no later command can run at all, so there is no command for a late frame to be
+mismatched against. The path that expires before writing puts nothing on the wire, so no
+response can ever exist. That leaves only sequences whose response already arrived, which
+is precisely the case where the adapter has finished and nothing is outstanding.
+
+**The adapter answers exactly once.** Across 1041 consecutive commands in the filter
+probe, 1041 responses came back: one per request, no duplicate, no unsolicited
+command-shaped frame. Inbound bus data does not consume the space at all -- the Windows
+D4 capture shows 17233 of 17243 device-to-host frames are `cInboundData` carrying
+sequence 0 -- so even a busy bus applies no pressure here.
+
+So a sequence is now released when its response is matched, and held for ten seconds only
+when abandoned. The hold is unreachable in practice, because abandoning one poisons the
+session; it stays as a backstop if that ever changes.
+
+Measured on the adapter, with no other change:
+
+| | Before | After |
+|---|---|---|
+| 1041-command filter probe | 40.3 s, with ~40 s of waiting | 0.271 s |
+| Sustained command rate | ~25/s (hard cap) | 3843/s measured, 6385/s on reads |
+| 20000-command read burst | impossible: fails at command 256 | 3.13 s, 0 mismatched responses |
+
+The 20000-command burst reused each of the 255 values about 78 times, roughly 40 ms
+apart, and every response echoed the selector of the command it answered. Both the burst
+and the filter probe were also run against the live adapter under ThreadSanitizer with no
+warnings.
+
+What this costs: the reuse distance for a given sequence value is now 255 commands rather
+than ten seconds -- about 40 ms at full rate. A duplicate response arriving later than
+that could in principle match a reused value. Nothing in 21000 commands of hardware
+evidence suggests the adapter produces one, and the real protection against a genuinely
+late frame remains the session poisoning that any timeout already triggers.
+
+Transmit is therefore bounded by round-trip latency (0.26 ms mean, so ~3800 frames/s
+serialized) rather than by the sequence design. That is above the 2455 msg/s the Windows
+stack sustained on receive.
+
+Evidence: `analysis/captures/linux-sequence-burst-20260913T121643Z.*`.
+
 ## Next blocking work
 
 Pass filters and the receive queue are implemented and hardware-accepted, which
@@ -285,16 +328,14 @@ work the bench can finish and work that needs a vehicle.
 
 Bench-reachable, with the adapter on USB alone:
 
-1. Resolve the sequence-number ceiling described above. It bounds transmit throughput
-   at roughly 25 messages per second, so it precedes transmit rather than following it.
-2. Decide how transmit reports delivery. The library accepts and queues frames today
+1. Decide how transmit reports delivery. The library accepts and queues frames today
    and counts `iMsgTxDone` internally, but J2534 has no place to surface that count, so
    a caller still cannot distinguish queued from sent.
-3. Measure receive throughput and back-pressure through a pty-backed synthetic load.
+2. Measure receive throughput and back-pressure through a pty-backed synthetic load.
    That exercises the real tty reader, n_tty flip buffer, decoder and queue, but not
    the cdc_acm URB path, so it bounds host-side capability rather than proving parity
    with the adapter. Windows D4's five-minute ~2455 msg/s baseline is the reference.
-4. Build the ISO15765 host-side reassembler against the captured VIN exchange. The
+3. Build the ISO15765 host-side reassembler against the captured VIN exchange. The
    responsibility split is known: firmware generates flow control, the host reassembles.
 
 Vehicle-blocked:

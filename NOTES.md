@@ -85,7 +85,9 @@ now divides by what the bench can actually settle.
 1. Probe the filter table on the bench: capacity beyond D2's 40, `cTableClear` (`0x10`,
    never exercised in any capture), and `cGetValue` selector `0x2f`.
 2. Decide how transmit reports delivery. Frames are queued and `iMsgTxDone` is counted
-   internally, but J2534 gives a caller no way to tell queued from sent.
+   internally, but J2534 gives a caller no way to tell queued from sent. The sequence
+   quarantine that used to cap the driver at 25 commands/second is resolved: sequences
+   are released on response, measured at 6385 commands/second on hardware.
 3. Measure sustained receive through a pty-backed load harness. It exercises the real
    tty reader and queue but not the cdc_acm URB path, so it bounds host capability
    rather than proving parity. Windows D4 is the ~2455 msg/s reference.
