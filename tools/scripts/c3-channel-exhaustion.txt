@@ -1,9 +1,28 @@
 # C3b: how many channels before the device refuses? Expected to fail at the
-# limit; the failing connect is the finding.
+# limit; the failing connect is the finding, and the script stops there.
 open dev
-connect dev CAN NONE 500000 a
-connect dev CAN NONE 500000 b
-connect dev CAN NONE 500000 c
-connect dev CAN NONE 500000 d
-connect dev CAN NONE 500000 e
+connect dev CAN NONE 500000 ch1
+connect dev CAN NONE 500000 ch2
+connect dev CAN NONE 500000 ch3
+connect dev CAN NONE 500000 ch4
+connect dev CAN NONE 500000 ch5
+connect dev CAN NONE 500000 ch6
+connect dev CAN NONE 500000 ch7
+connect dev CAN NONE 500000 ch8
+connect dev CAN NONE 500000 ch9
+connect dev CAN NONE 500000 ch10
+connect dev CAN NONE 500000 ch11
+connect dev CAN NONE 500000 ch12
+connect dev CAN NONE 500000 ch13
+connect dev CAN NONE 500000 ch14
+connect dev CAN NONE 500000 ch15
+connect dev CAN NONE 500000 ch16
+connect dev CAN NONE 500000 ch17
+connect dev CAN NONE 500000 ch18
+connect dev CAN NONE 500000 ch19
+connect dev CAN NONE 500000 ch20
+connect dev CAN NONE 500000 ch21
+connect dev CAN NONE 500000 ch22
+connect dev CAN NONE 500000 ch23
+connect dev CAN NONE 500000 ch24
 close dev

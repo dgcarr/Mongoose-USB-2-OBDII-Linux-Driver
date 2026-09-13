@@ -1,0 +1,10 @@
+utc_100ns=134337560766001532 step line=3: open dev
+utc_100ns=134337560766482446 Open result=0 error=
+device=1
+utc_100ns=134337560786551350 step line=4: connect dev CAN NONE 500000 raw
+connect protocol=5 flags=0 baud=500000
+utc_100ns=134337560786581696 Connect result=0 error=
+channel=2
+utc_100ns=134337560806729554 step line=5: connect dev ISO15765 NONE 500000 iso
+connect protocol=6 flags=0 baud=500000
+utc_100ns=134337560806729554 Connect result=20 error=All 6:ISO15765 hardware is busy. Close some channels then retry?

@@ -1,0 +1,131 @@
+utc_100ns=134337561651006219 step line=3: open dev
+utc_100ns=134337561651483567 Open result=0 error=
+device=1
+utc_100ns=134337561671493578 step line=4: connect dev CAN NONE 500000 chan
+connect protocol=5 flags=0 baud=500000
+utc_100ns=134337561671511163 Connect result=0 error=
+channel=2
+utc_100ns=134337561691603290 step line=5: filter chan PASS CAN NONE 000007ff 00000700 fl0
+utc_100ns=134337561691614295 StartMsgFilter result=0 error=
+filter=3
+utc_100ns=134337561711754379 step line=6: filter chan PASS CAN NONE 000007ff 00000701 fl1
+utc_100ns=134337561711774326 StartMsgFilter result=0 error=
+filter=4
+utc_100ns=134337561731878384 step line=7: filter chan PASS CAN NONE 000007ff 00000702 fl2
+utc_100ns=134337561731898522 StartMsgFilter result=0 error=
+filter=5
+utc_100ns=134337561751992094 step line=8: filter chan PASS CAN NONE 000007ff 00000703 fl3
+utc_100ns=134337561751997727 StartMsgFilter result=0 error=
+filter=6
+utc_100ns=134337561772068399 step line=9: filter chan PASS CAN NONE 000007ff 00000704 fl4
+utc_100ns=134337561772078373 StartMsgFilter result=0 error=
+filter=7
+utc_100ns=134337561792172591 step line=10: filter chan PASS CAN NONE 000007ff 00000705 fl5
+utc_100ns=134337561792172591 StartMsgFilter result=0 error=
+filter=8
+utc_100ns=134337561812328341 step line=11: filter chan PASS CAN NONE 000007ff 00000706 fl6
+utc_100ns=134337561812334503 StartMsgFilter result=0 error=
+filter=9
+utc_100ns=134337561832491451 step line=12: filter chan PASS CAN NONE 000007ff 00000707 fl7
+utc_100ns=134337561832501817 StartMsgFilter result=0 error=
+filter=10
+utc_100ns=134337561852627344 step line=13: filter chan PASS CAN NONE 000007ff 00000708 fl8
+utc_100ns=134337561852637545 StartMsgFilter result=0 error=
+filter=11
+utc_100ns=134337561872789650 step line=14: filter chan PASS CAN NONE 000007ff 00000709 fl9
+utc_100ns=134337561872799991 StartMsgFilter result=0 error=
+filter=12
+utc_100ns=134337561892944925 step line=15: filter chan PASS CAN NONE 000007ff 0000070a fl10
+utc_100ns=134337561892965230 StartMsgFilter result=0 error=
+filter=13
+utc_100ns=134337561913042142 step line=16: filter chan PASS CAN NONE 000007ff 0000070b fl11
+utc_100ns=134337561913062190 StartMsgFilter result=0 error=
+filter=14
+utc_100ns=134337561933084827 step line=17: filter chan PASS CAN NONE 000007ff 0000070c fl12
+utc_100ns=134337561933094856 StartMsgFilter result=0 error=
+filter=15
+utc_100ns=134337561953175953 step line=18: filter chan PASS CAN NONE 000007ff 0000070d fl13
+utc_100ns=134337561953201149 StartMsgFilter result=0 error=
+filter=16
+utc_100ns=134337561973239560 step line=19: filter chan PASS CAN NONE 000007ff 0000070e fl14
+utc_100ns=134337561973249535 StartMsgFilter result=0 error=
+filter=17
+utc_100ns=134337561993398763 step line=20: filter chan PASS CAN NONE 000007ff 0000070f fl15
+utc_100ns=134337561993415030 StartMsgFilter result=0 error=
+filter=18
+utc_100ns=134337562013563461 step line=21: filter chan PASS CAN NONE 000007ff 00000710 fl16
+utc_100ns=134337562013573619 StartMsgFilter result=0 error=
+filter=19
+utc_100ns=134337562033666299 step line=22: filter chan PASS CAN NONE 000007ff 00000711 fl17
+utc_100ns=134337562033672407 StartMsgFilter result=0 error=
+filter=20
+utc_100ns=134337562053686619 step line=23: filter chan PASS CAN NONE 000007ff 00000712 fl18
+utc_100ns=134337562053706906 StartMsgFilter result=0 error=
+filter=21
+utc_100ns=134337562073795951 step line=24: filter chan PASS CAN NONE 000007ff 00000713 fl19
+utc_100ns=134337562073795951 StartMsgFilter result=0 error=
+filter=22
+utc_100ns=134337562093936189 step line=25: filter chan PASS CAN NONE 000007ff 00000714 fl20
+utc_100ns=134337562093946521 StartMsgFilter result=0 error=
+filter=23
+utc_100ns=134337562113956777 step line=26: filter chan PASS CAN NONE 000007ff 00000715 fl21
+utc_100ns=134337562113967104 StartMsgFilter result=0 error=
+filter=24
+utc_100ns=134337562134063750 step line=27: filter chan PASS CAN NONE 000007ff 00000716 fl22
+utc_100ns=134337562134073641 StartMsgFilter result=0 error=
+filter=25
+utc_100ns=134337562154205413 step line=28: filter chan PASS CAN NONE 000007ff 00000717 fl23
+utc_100ns=134337562154245438 StartMsgFilter result=0 error=
+filter=26
+utc_100ns=134337562174321202 step line=29: filter chan PASS CAN NONE 000007ff 00000718 fl24
+utc_100ns=134337562174396808 StartMsgFilter result=0 error=
+filter=27
+utc_100ns=134337562194399689 step line=30: filter chan PASS CAN NONE 000007ff 00000719 fl25
+utc_100ns=134337562194429851 StartMsgFilter result=0 error=
+filter=28
+utc_100ns=134337562214577783 step line=31: filter chan PASS CAN NONE 000007ff 0000071a fl26
+utc_100ns=134337562214589411 StartMsgFilter result=0 error=
+filter=29
+utc_100ns=134337562234651068 step line=32: filter chan PASS CAN NONE 000007ff 0000071b fl27
+utc_100ns=134337562234663933 StartMsgFilter result=0 error=
+filter=30
+utc_100ns=134337562254799206 step line=33: filter chan PASS CAN NONE 000007ff 0000071c fl28
+utc_100ns=134337562254819239 StartMsgFilter result=0 error=
+filter=31
+utc_100ns=134337562274891331 step line=34: filter chan PASS CAN NONE 000007ff 0000071d fl29
+utc_100ns=134337562274910257 StartMsgFilter result=0 error=
+filter=32
+utc_100ns=134337562294987215 step line=35: filter chan PASS CAN NONE 000007ff 0000071e fl30
+utc_100ns=134337562295000102 StartMsgFilter result=0 error=
+filter=33
+utc_100ns=134337562315116145 step line=36: filter chan PASS CAN NONE 000007ff 0000071f fl31
+utc_100ns=134337562315132352 StartMsgFilter result=0 error=
+filter=34
+utc_100ns=134337562335246915 step line=37: filter chan PASS CAN NONE 000007ff 00000720 fl32
+utc_100ns=134337562335246915 StartMsgFilter result=0 error=
+filter=35
+utc_100ns=134337562355275587 step line=38: filter chan PASS CAN NONE 000007ff 00000721 fl33
+utc_100ns=134337562355301023 StartMsgFilter result=0 error=
+filter=36
+utc_100ns=134337562375417911 step line=39: filter chan PASS CAN NONE 000007ff 00000722 fl34
+utc_100ns=134337562375417911 StartMsgFilter result=0 error=
+filter=37
+utc_100ns=134337562395432136 step line=40: filter chan PASS CAN NONE 000007ff 00000723 fl35
+utc_100ns=134337562395442763 StartMsgFilter result=0 error=
+filter=38
+utc_100ns=134337562415556514 step line=41: filter chan PASS CAN NONE 000007ff 00000724 fl36
+utc_100ns=134337562415586496 StartMsgFilter result=0 error=
+filter=39
+utc_100ns=134337562435603739 step line=42: filter chan PASS CAN NONE 000007ff 00000725 fl37
+utc_100ns=134337562435608845 StartMsgFilter result=0 error=
+filter=40
+utc_100ns=134337562455757453 step line=43: filter chan PASS CAN NONE 000007ff 00000726 fl38
+utc_100ns=134337562455767443 StartMsgFilter result=0 error=
+filter=41
+utc_100ns=134337562475898170 step line=44: filter chan PASS CAN NONE 000007ff 00000727 fl39
+utc_100ns=134337562475898170 StartMsgFilter result=0 error=
+filter=42
+utc_100ns=134337562496035640 step line=45: disconnect chan
+utc_100ns=134337562496093564 Disconnect result=0 error=
+utc_100ns=134337562516168161 step line=46: close dev
+utc_100ns=134337562516223116 Close result=0 error=

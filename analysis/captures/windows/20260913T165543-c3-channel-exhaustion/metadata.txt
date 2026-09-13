@@ -1,0 +1,15 @@
+capture       = 20260913T165543-c3-channel-exhaustion
+step_script   = tools\scripts\c3-channel-exhaustion.txt
+harness_exit  = 1
+gap_ms        = 2000
+usbpcap_ifaces= \\.\USBPcap2
+  \\.\USBPcap2 = 2776 bytes
+adapter       = USB\VID_18E1&PID_0104\AOLHE0000003666A
+root_hub      = USB\ROOT_HUB30\5&1b2d6fec&0&0
+dll           = C:\Program Files (x86)\Drew Technologies, Inc\J2534\MongoosePro JLR\monpj432.dll
+dll_sha256    = 2710726FDD174F32B5E703E310CFCE047A663451EDBB3E35CA0C8EEFF6929413
+sys_sha256    = C3A5B6DBDA2EB38CF4AA46C2C1660148F4FF0B7F51D96E1BCFE6875E29C12B4A
+os            = Microsoft Windows 11 Home 10.0.26200.0
+captured_utc  = 2026-09-13T06:55:58.0712518Z
+ignition      = off (adapter on OBD port, engine off)
+vehicle       = 2017 Volvo XC60 D5 AWD

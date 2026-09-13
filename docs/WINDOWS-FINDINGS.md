@@ -129,13 +129,22 @@ ISO15765 and for both baud rates. Pins **6** and **14** are CAN High and CAN Low
 on the OBD-II connector, so this is the pin pair the channel is bound to. The
 leading `1` is unexplained; a pin-set index or an enable.
 
-### Channel identifiers
+### Channel identifiers — corrected
 
-The J2534 channel ID was `2` on every run, including after a disconnect and
-reconnect, so it is not a monotonically increasing handle. The `chan` field at
-body+8 stays `0` for all channel-management commands; it becomes `1` for data
-commands (below). Channel *routing* is in `dst`; `chan` distinguishes streams
-within a channel.
+An earlier revision of this document said the J2534 channel ID "was `2` on every
+run, including after a disconnect and reconnect, so it is not a monotonically
+increasing handle." **That was wrong, and the reasoning behind it was wrong.**
+Every one of those runs was a *separate process*, and each process starts its
+numbering afresh — so the repeated `2` showed process-local numbering, not reuse.
+
+Within one process, channel IDs **increment and are not reused**: a single run of
+connect/disconnect three times over returns 2, 3, then 4
+(`20260913T165401-c3-reconnect-cycle`), exactly like device handles. The mistake
+was comparing across process boundaries and treating that as a lifecycle
+observation.
+
+The `chan` field at body+8 stays `0` for channel-management commands and becomes
+`1` for data commands. Channel routing is in `dst`.
 
 ## D/E — Filters, receive and ISO15765
 
@@ -193,6 +202,84 @@ as *already transmitted*, carrying the device's own timestamp, and no matching
 `cOutboundData` is ever sent by the host. So **the adapter generates flow control
 itself**. That split — firmware does flow control, the DLL does reassembly — is
 the single most important thing to get right in a portable implementation.
+
+## C3/C4 — One CAN channel, and that is the hardware limit
+
+Captures: `20260913T165401-c3-reconnect-cycle`,
+`20260913T165543-c3-channel-exhaustion`, `20260913T165431-c4-concurrent-channels`.
+
+**Only one CAN-family channel can be open at a time.** Two independent attempts
+both refuse, with different messages naming the protocol:
+
+| attempt | result | vendor text |
+|---|---|---|
+| CAN open, then CAN again | 20 `ERR_CHANNEL_IN_USE` | `There's already a 5:CAN channel open` |
+| CAN open, then ISO15765 | 20 `ERR_CHANNEL_IN_USE` | `All 6:ISO15765 hardware is busy. Close some channels then retry?` |
+
+The second is the more informative one. CAN and ISO15765 are not merely
+one-per-protocol — they contend for the **same** resource, because ISO15765 runs
+on the same CAN controller. This adapter has one.
+
+**Both refusals produced no wire traffic at all.** Each capture contains exactly
+one `cOpenChannel`, for the connect that succeeded; the refused connect never
+reached the device. So this is DLL-side accounting, consistent with the
+handle-validation behaviour in section B3.
+
+Two consequences worth stating plainly:
+
+- The plan's C4 objective — using concurrent channels to give body+8 (`chan`) a
+  job and pin down its semantics — **cannot be met on this hardware**. `chan` was
+  only ever observed as 0 and 1, and no arrangement of channels on this adapter
+  will produce more, so its meaning stays unresolved rather than merely untested.
+- A portable implementation should refuse a second CAN-family connect locally,
+  matching the vendor, rather than forwarding it and relying on the firmware.
+
+## D2 — Filter identifiers are a DLL-side map onto opaque device handles
+
+Capture: `20260913T165447-d2-filter-id-mapping`. Four filters added with one
+removed in the middle, then the rest removed out of order.
+
+| J2534 filter ID | wire handle |
+|---|---|
+| 3 | `0x00007e78` |
+| 4 | `0x00008288` |
+| 5 | `0x000079cc` |
+| 6 | `0x0000734c` |
+
+The J2534 IDs are small and sequential; the device handles are neither, and look
+like allocations from a pool rather than table indices. Every
+`cTableRemoveEntry` carried the exact handle its `cTableAddEntry` returned, in
+whatever order the API removed them. So the DLL keeps the mapping, and the wire
+handle is opaque — a portable implementation must not assume the J2534 filter ID
+means anything to the device.
+
+J2534 filter IDs also **increment without reuse**: removing filter 4 and adding
+another yielded 6, not 4.
+
+### The table selector is not fixed at 2
+
+Section D/E above reported table selector 2 for the ISO15765 flow-control filter.
+A plain CAN pass filter uses selector **0**:
+
+```
+cTableAddEntry  00000000 00000104 000007ff 000007e8
+                selector  ?        mask     pattern
+cTableRemoveEntry  00000000 88820000
+                   selector handle
+```
+
+Mask and pattern are the J2534 `PASSTHRU_MSG` payloads verbatim, so the CAN ID is
+**big-endian** there while every protocol header field is little-endian. The
+second word (`0x04010000` here, `0x00000040` on the ISO15765 filter) is not
+explained; the value on the ISO15765 filter matched its `ISO15765_FRAME_PAD`
+TxFlags, but `0x04010000` does not fit that reading, so no conclusion is drawn.
+
+### No filter limit found
+
+Forty pass filters were added successfully on one channel (J2534 IDs 3 to 42),
+and the script ran out before the device did. The limit is **greater than 40**,
+which is far beyond the ten that J2534 applications typically assume — it was not
+located, and saying "at least 40" is the honest result.
 
 ## D4 — Sustained load
 

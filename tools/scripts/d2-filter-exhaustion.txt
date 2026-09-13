@@ -1,16 +1,46 @@
 # D2b: fill the filter table until refused. The failing StartMsgFilter is the
-# finding, so this script is expected to exit 1.
+# finding, so this script is expected to exit 1 at the limit.
 open dev
 connect dev CAN NONE 500000 chan
-filter chan PASS CAN NONE 000007ff 00000700 f1
-filter chan PASS CAN NONE 000007ff 00000701 f2
-filter chan PASS CAN NONE 000007ff 00000702 f3
-filter chan PASS CAN NONE 000007ff 00000703 f4
-filter chan PASS CAN NONE 000007ff 00000704 f5
-filter chan PASS CAN NONE 000007ff 00000705 f6
-filter chan PASS CAN NONE 000007ff 00000706 f7
-filter chan PASS CAN NONE 000007ff 00000707 f8
-filter chan PASS CAN NONE 000007ff 00000708 f9
-filter chan PASS CAN NONE 000007ff 00000709 f10
+filter chan PASS CAN NONE 000007ff 00000700 fl0
+filter chan PASS CAN NONE 000007ff 00000701 fl1
+filter chan PASS CAN NONE 000007ff 00000702 fl2
+filter chan PASS CAN NONE 000007ff 00000703 fl3
+filter chan PASS CAN NONE 000007ff 00000704 fl4
+filter chan PASS CAN NONE 000007ff 00000705 fl5
+filter chan PASS CAN NONE 000007ff 00000706 fl6
+filter chan PASS CAN NONE 000007ff 00000707 fl7
+filter chan PASS CAN NONE 000007ff 00000708 fl8
+filter chan PASS CAN NONE 000007ff 00000709 fl9
+filter chan PASS CAN NONE 000007ff 0000070a fl10
+filter chan PASS CAN NONE 000007ff 0000070b fl11
+filter chan PASS CAN NONE 000007ff 0000070c fl12
+filter chan PASS CAN NONE 000007ff 0000070d fl13
+filter chan PASS CAN NONE 000007ff 0000070e fl14
+filter chan PASS CAN NONE 000007ff 0000070f fl15
+filter chan PASS CAN NONE 000007ff 00000710 fl16
+filter chan PASS CAN NONE 000007ff 00000711 fl17
+filter chan PASS CAN NONE 000007ff 00000712 fl18
+filter chan PASS CAN NONE 000007ff 00000713 fl19
+filter chan PASS CAN NONE 000007ff 00000714 fl20
+filter chan PASS CAN NONE 000007ff 00000715 fl21
+filter chan PASS CAN NONE 000007ff 00000716 fl22
+filter chan PASS CAN NONE 000007ff 00000717 fl23
+filter chan PASS CAN NONE 000007ff 00000718 fl24
+filter chan PASS CAN NONE 000007ff 00000719 fl25
+filter chan PASS CAN NONE 000007ff 0000071a fl26
+filter chan PASS CAN NONE 000007ff 0000071b fl27
+filter chan PASS CAN NONE 000007ff 0000071c fl28
+filter chan PASS CAN NONE 000007ff 0000071d fl29
+filter chan PASS CAN NONE 000007ff 0000071e fl30
+filter chan PASS CAN NONE 000007ff 0000071f fl31
+filter chan PASS CAN NONE 000007ff 00000720 fl32
+filter chan PASS CAN NONE 000007ff 00000721 fl33
+filter chan PASS CAN NONE 000007ff 00000722 fl34
+filter chan PASS CAN NONE 000007ff 00000723 fl35
+filter chan PASS CAN NONE 000007ff 00000724 fl36
+filter chan PASS CAN NONE 000007ff 00000725 fl37
+filter chan PASS CAN NONE 000007ff 00000726 fl38
+filter chan PASS CAN NONE 000007ff 00000727 fl39
 disconnect chan
 close dev

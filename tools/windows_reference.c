@@ -122,7 +122,7 @@ static uint32_t lookup_flags(const struct named *table, const char *text) {
 }
 
 /* ---- named handle slots -------------------------------------------------- */
-#define SLOTS 16
+#define SLOTS 64
 static struct { char name[24]; uint32_t handle; } slots[SLOTS];
 static int slot_count;
 static void slot_set(const char *name, uint32_t handle) {

@@ -1,0 +1,23 @@
+utc_100ns=134337560479723021 step line=2: open dev
+utc_100ns=134337560480230078 Open result=0 error=
+device=1
+utc_100ns=134337560500300596 step line=3: connect dev CAN NONE 500000 a
+connect protocol=5 flags=0 baud=500000
+utc_100ns=134337560500312273 Connect result=0 error=
+channel=2
+utc_100ns=134337560520400376 step line=4: disconnect a
+utc_100ns=134337560520410393 Disconnect result=0 error=
+utc_100ns=134337560540429305 step line=5: connect dev CAN NONE 500000 b
+connect protocol=5 flags=0 baud=500000
+utc_100ns=134337560540458652 Connect result=0 error=
+channel=3
+utc_100ns=134337560560529938 step line=6: disconnect b
+utc_100ns=134337560560565636 Disconnect result=0 error=
+utc_100ns=134337560580654963 step line=7: connect dev CAN NONE 500000 c
+connect protocol=5 flags=0 baud=500000
+utc_100ns=134337560580672367 Connect result=0 error=
+channel=4
+utc_100ns=134337560600732978 step line=8: disconnect c
+utc_100ns=134337560600743068 Disconnect result=0 error=
+utc_100ns=134337560620806727 step line=9: close dev
+utc_100ns=134337560620965071 Close result=0 error=

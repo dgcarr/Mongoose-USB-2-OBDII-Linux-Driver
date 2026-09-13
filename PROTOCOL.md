@@ -586,8 +586,10 @@ CAN ID | payload`, the timestamp in the same device microsecond domain.
 **no wire traffic at all** — not an error round trip. The DLL rejects bad handles
 locally. Device exclusivity is enforced across processes, reported as
 `ERR_DEVICE_IN_USE`, which is the behaviour `src/tty.cpp` approximates with
-`flock` plus `TIOCEXCL`. Device handles increment and are not reused; J2534
-channel IDs were reused across connect/disconnect.
+`flock` plus `TIOCEXCL`. Device handles and channel IDs both increment and are not
+reused within a process. (An earlier revision said channel IDs were reused; that was a
+mistake from comparing separate process runs, each of which numbers from scratch.
+Within one process a connect/disconnect cycle returns 2, 3, 4.)
 
 ### Safety observation
 
@@ -611,9 +613,10 @@ open-channel arguments, pin routing, body+10 semantics, and filter-ID mapping.
 Windows sends it anyway).
 
 Still open:
-- **body+8 (`chan`)** is 0 for channel management and 1 for data commands, so it separates
-  streams within a channel rather than selecting the channel. What values it takes beyond 1,
-  and when, is unestablished — only one channel was ever open at a time.
+- **body+8 (`chan`)** is 0 for channel management and 1 for data commands. It stays
+  unresolved, and now looks unresolvable on this hardware: the adapter permits only one
+  CAN-family channel at a time (section 7b), so no arrangement of channels on this unit can
+  produce further values to compare.
 - **Per-protocol status masks** remain unmapped for transmit and for protocols other than
   CAN. On plain CAN receive the mask is now characterised and it is trivial: `RxStatus` was
   `0x00000000` for all 736512 messages of a five-minute sustained run (section 7b), so the
@@ -621,8 +624,12 @@ Still open:
   the only transmit status value characterised.
 - **ISO15765 timing.** The responsibility split is known (firmware does flow control, the DLL
   reassembles) but no timing parameter — STmin, block size, N_Bs — has been varied or measured.
-- **Channel exhaustion and concurrency.** How many channels can be open, whether IDs are
-  reused, and how `chan` disambiguates them, were not exercised (plan items C3/C4).
+- **Channel concurrency is settled and restrictive** (section 7b): one CAN-family channel
+  at a time, enforced DLL-side with no wire traffic. A second CAN connect is refused with
+  `There's already a 5:CAN channel open`, and an ISO15765 connect while CAN is open with
+  `All 6:ISO15765 hardware is busy` - the two protocols share one CAN controller.
+- **The filter table limit was not found.** Forty pass filters were accepted on one channel;
+  the limit is greater than 40 and remains unmeasured.
 - **Sustained throughput** is measured (section 7b): 2455 msg/s over five minutes with no
   drops and no back-pressure signal. The `cdc_acm` throttling question is still open, since
   that is a different transport, but neither the adapter nor the vendor stack is the
