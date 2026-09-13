@@ -84,6 +84,9 @@ constants, the `board-PC` / `board-1`…`board-8` node names, and a hardware rou
 the response swaps the two words. PC is node 0; boards are 1–8.
 Do not silently assume bytes 10–11 are zero: no explicit store initializes them in the
 inspected simple builders, in either the `cCheckCRN` or `cOutboundData` builder.
+Section 7b settles what that means on the wire — the vendor really does send whatever
+happened to be in caller memory, and the firmware echoes the field back verbatim without
+acting on it, so sending zero is safe but reading it as meaningful is not.
 
 ### Response queue and matching — corrected
 
@@ -503,20 +506,127 @@ section 3 warns about substituting from the SAE spec; the adapter's own values a
 `CAN = 5`, `ISO15765 = 6`, with pin-select variants `CAN_PS = 0x8004`,
 `ISO15765_PS = 0x8005` — the pair relevant to the 2017 Volvo XC60.
 
+## 7b. Windows reference captures — the channel layer (2026-09-13)
+
+Captured from the vendor driver itself on Windows 11 against the real adapter and
+a 2017 Volvo XC60 D5 AWD. Full write-up and per-claim capture citations are in
+`docs/WINDOWS-FINDINGS.md`; raw material is under `analysis/captures/windows/`.
+The installed `monpj432.dll` is byte-identical to `vendor/driver/monpj432.dll`,
+so this section and the static analysis describe the same binary.
+
+### Channel commands are addressed by `(protocol << 8) | board` — resolves an open item
+
+`dst` is not always the board node. Device-level commands use `0x0001` as
+documented, but channel commands are addressed to a per-protocol node:
+
+| protocol | J2534 ID | `dst` |
+|---|---|---|
+| CAN | 5 | `0x0501` |
+| ISO15765 | 6 | `0x0601` |
+
+Isolated by changing only the protocol between two otherwise identical captures,
+and consistent across every frame in the corpus: `dst`/`src` took exactly three
+values, `0x0001`, `0x0501` and `0x0601`, with no exceptions. Responses swap
+`dst`/`src` as usual. `src/codec.hpp` implements this as `channel_node()`.
+
+### The two `cOpenChannel` arguments — resolves an open item
+
+Body is `u32 ConnectFlags | u32 baud`, each confirmed by a single-variable change:
+baud 500000 gives `0x0007a120` and 250000 gives `0x0003d090`, while
+`CAN_29BIT_ID` puts `0x00000100` in the flags word. The flags are the J2534
+`ConnectFlags` value passed through verbatim.
+
+### Pin routing — resolves an open item
+
+Every `PassThruConnect` is followed by `cSetPin` (`0x12`) with body
+`01000000 06000000 0e000000` = `(1, 6, 14)`. Pins **6** and **14** are CAN High
+and CAN Low on the OBD-II connector. Identical for CAN and ISO15765 and for both
+baud rates. The leading `1` is unexplained.
+
+### Body+10 is an echoed token, not a reserved field — resolves an open item
+
+Section 2 warns against assuming bytes 10–11 are zero because no explicit store
+initializes them. The captures settle what the firmware does with them: the
+vendor sends unrelated values (`0x7719`, `0x008f`, `0xffff`, `0x0000` — two
+different values for the same opcode within one run, consistent with
+uninitialised caller memory) and the firmware **echoes the field back verbatim**
+in the response without acting on it. Sending zero is therefore safe, and
+`request()` in `src/codec.cpp` does so deliberately.
+
+### Table selector 2 is the message-filter table
+
+`cTableAddEntry` (`0x0d`) with selector 2 adds a filter and **returns the entry
+handle in its response**; `cTableRemoveEntry` (`0x0e`) removes it by that handle.
+The J2534 filter ID is a DLL-side index, not the wire handle. This resolves the
+filter-ID mapping item. Other selectors and `0x0f`/`0x10` were not exercised.
+
+### ISO15765 responsibility is split — matters for any portable implementation
+
+- **The adapter generates flow control.** Indication `0x010e` reports an FC frame
+  (`30 00 00 00` to `0x7E0`) as *already transmitted*, carrying the device's own
+  timestamp, and the host never sends a matching `cOutboundData`.
+- **The DLL reassembles.** A multi-frame response arrives as separate
+  `cInboundData` frames with ISO-TP PCI bytes intact (`10 14`, `21`, `22`), while
+  the J2534 layer returns one reassembled message.
+
+Indication `0x0106` matches `iMsgTxDone` in `analysis/ENUMS.md`, confirming that
+enum entry against hardware.
+
+### Data commands
+
+`cOutboundData` body is `u32 TxFlags | u32 timeout_ms | u32 length | data`, where
+data is the J2534 payload — a four-byte big-endian CAN ID then the service bytes.
+Its response status is `0x100`, which accompanies a successful queue, not an
+error. `cInboundData` body is `u32 | u32 timestamp | u16 size | u16 extra |
+CAN ID | payload`, the timestamp in the same device microsecond domain.
+
+### Handle validation is DLL-side
+
+`PassThruReadVersion` and `PassThruReadMsgs` with invalid identifiers produced
+**no wire traffic at all** — not an error round trip. The DLL rejects bad handles
+locally. Device exclusivity is enforced across processes, reported as
+`ERR_DEVICE_IN_USE`, which is the behaviour `src/tty.cpp` approximates with
+`flock` plus `TIOCEXCL`. Device handles increment and are not reused; J2534
+channel IDs were reused across connect/disconnect.
+
+### Safety observation
+
+No destructive opcode appeared anywhere in the corpus: `cReflashBoard` (`0x10a`),
+`cWriteSerialNumber` (`0x10b`), `cUnprotectBootloader` (`0x10c`) and
+`cUpdateBTModule` (`0x112`) have a combined count of zero across all captures, so
+ordinary vendor operation never approaches them.
+
 ## 8. Remaining work and validation boundary
 
 The discovery Echo/GetBoardInfo flow has since been reproduced on hardware without the
 vendor-create control transfer (section 7a, `analysis/probes/`). The old sweep script does not
 implement the corrected protocol; do not treat its candidate frames as valid.
-Highest-value remaining hardware check is channel open and bus traffic against a vehicle.
+Channel open and bus traffic against a vehicle have now been captured from the vendor
+driver on Windows (section 7b), which closes most of what this list used to contain.
 
-Further static work remains:
-- Resolve channel-ID allocation, the two open-channel arguments, and pin-routing configuration.
-- Identify semantics of body+8/+10 and per-protocol status masks.
-  (`response+16` and timestamp units are resolved in section 7a: microseconds, zeroed by `cOpenDevice`.)
-- Complete ISO15765 transmit/flow-control timing and filter-ID mappings before claiming J2534 support.
-- Power requirements against real traffic. (Vendor request `0xdb` is resolved in section 7a:
-  it is **not** required for the message layer.)
+Resolved since this list was written, all in section 7b: channel addressing and the two
+open-channel arguments, pin routing, body+10 semantics, and filter-ID mapping.
+`response+16` and timestamp units were resolved in section 7a (microseconds, zeroed by
+`cOpenDevice`), and vendor request `0xdb` in section 7a (not required for the message layer;
+Windows sends it anyway).
+
+Still open:
+- **body+8 (`chan`)** is 0 for channel management and 1 for data commands, so it separates
+  streams within a channel rather than selecting the channel. What values it takes beyond 1,
+  and when, is unestablished — only one channel was ever open at a time.
+- **Per-protocol status masks** remain unmapped. `cOutboundData` returning status `0x100` on
+  success is the only status value characterised.
+- **ISO15765 timing.** The responsibility split is known (firmware does flow control, the DLL
+  reassembles) but no timing parameter — STmin, block size, N_Bs — has been varied or measured.
+- **Channel exhaustion and concurrency.** How many channels can be open, whether IDs are
+  reused, and how `chan` disambiguates them, were not exercised (plan items C3/C4).
+- **Sustained throughput and back-pressure** (plan item D4) were not exercised, so the
+  `cdc_acm` throttling question is still open.
+- `cGetValue` selector `0x2f`, used in the vendor open path and returning 1, has unknown meaning.
+- The leading `1` of `cSetPin`, the three-transfer `0xdb` preamble, `cInboundData` body+0, and
+  table selectors other than 2 are unexplained.
+- The vendor's own debug log could not be enabled; see the negative result in
+  `docs/WINDOWS-FINDINGS.md`.
 
 Additional kernel IOCTLs decoded in `kernel_labeled/00018b9c.c`:
 0x55006000 returns USB configuration descriptor; 0x55006018 returns two 32-bit ones;

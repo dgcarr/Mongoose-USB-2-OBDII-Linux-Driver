@@ -169,8 +169,119 @@ void selector_tests() {
                             "tty:relative", "tty:/dev/../etc/passwd"})
         error(ERR_FAILED, [&] { parse_selector(bad); });
 }
+// Frames captured from the vendor Windows driver against the real adapter, used
+// here as ground truth rather than as anything we generated ourselves. Sources
+// are under analysis/captures/windows/; see docs/WINDOWS-FINDINGS.md.
+namespace vendor {
+// C1/C2: PassThruConnect. Body is u32 ConnectFlags then u32 baud.
+constexpr auto open_channel_iso15765_500k =
+    "1400f2510106000006000800000000000000000020a10700";
+constexpr auto open_channel_can_500k =
+    "1400f2510105000006000800000019770000000020a10700";
+constexpr auto open_channel_can_250k =
+    "1400f2510105000006000800000019770000000090d00300";
+constexpr auto open_channel_can_500k_29bit =
+    "1400f2510105000006000800000019770001000020a10700";
+// C1: the pin routing that follows every Connect - (1, 6, 14), CAN High and Low.
+constexpr auto set_pin_can =
+    "1800fe5101050000120009000000147701000000060000000e000000";
+// B2: cGetString selector 0 and its response carrying the serial.
+constexpr auto get_string_serial_response =
+    "2900cf510000010013800a00000035000000000090c41e0000000000414f4c4845303030303030333636364100";
+// B1: cOpenDevice response. Status 0 and a microsecond counter of 0, because
+// cOpenDevice is what resets that counter.
+constexpr auto open_device_response =
+    "1500f351000001000380060000008f00000000000000000000";
+}
+
+// The vendor leaves body+10 uninitialised and the firmware echoes it back; we
+// always send zero. Comparing against captured frames therefore means masking
+// that one field, and asserting it is the *only* difference.
+Bytes token_cleared(const std::string &frame) {
+    auto bytes = unhex(frame);
+    CHECK(bytes.size() >= 4 + 12);
+    put16(bytes, 4 + 10, 0);
+    return bytes;
+}
+
+void vendor_frame_tests() {
+    // Our builder reproduces the vendor's bytes exactly, once the echoed token is
+    // masked. The ISO15765 capture happens to carry a zero token already, so that
+    // one is a byte-for-byte match with no masking at all.
+    const Bytes flags_zero_baud_500k = unhex("0000000020a10700");
+    CHECK(encode(request(0x06, 8, flags_zero_baud_500k, channel_node(6)))
+          == unhex(vendor::open_channel_iso15765_500k));
+
+    CHECK(encode(request(0x06, 8, flags_zero_baud_500k, channel_node(5)))
+          == token_cleared(vendor::open_channel_can_500k));
+    CHECK(encode(request(0x06, 8, unhex("0000000090d00300"), channel_node(5)))
+          == token_cleared(vendor::open_channel_can_250k));
+    // CAN_29BIT_ID is 0x100, passed through into the flags word verbatim.
+    CHECK(encode(request(0x06, 8, unhex("0001000020a10700"), channel_node(5)))
+          == token_cleared(vendor::open_channel_can_500k_29bit));
+    CHECK(encode(request(0x12, 9, unhex("01000000060000000e000000"), channel_node(5)))
+          == token_cleared(vendor::set_pin_can));
+
+    // Node addressing, stated as the rule rather than as three magic numbers.
+    CHECK(channel_node(5) == 0x0501);
+    CHECK(channel_node(6) == 0x0601);
+    CHECK(le16(unhex(vendor::open_channel_can_500k), 4) == channel_node(5));
+    CHECK(le16(unhex(vendor::open_channel_iso15765_500k), 4) == channel_node(6));
+    // Device-level commands stay addressed to the board itself.
+    CHECK(le16(encode(request(3, 1)), 4) == board_node);
+    // Node 0 is the PC. Addressing a request to it is a programming error, and
+    // request() rejects it the same way it rejects a bad size or sequence.
+    bool rejected = false;
+    try { request(3, 1, {}, 0); } catch (const std::invalid_argument &) { rejected = true; }
+    CHECK(rejected);
+
+    // Real vendor responses must survive the decoder, including across arbitrary
+    // USB chunk boundaries, and parse to the documented fields.
+    for (const char *frame : {vendor::open_channel_can_500k, vendor::set_pin_can,
+                              vendor::get_string_serial_response, vendor::open_device_response}) {
+        const auto wire = unhex(frame);
+        for (size_t split = 0; split <= wire.size(); ++split) {
+            Decoder decoder;
+            auto a = decoder.feed(std::span(wire).first(split));
+            auto b = decoder.feed(std::span(wire).subspan(split));
+            a.insert(a.end(), b.begin(), b.end());
+            CHECK(a.size() == 1 && decoder.buffered() == 0);
+            CHECK(a[0] == Bytes(wire.begin() + 4, wire.end()));
+        }
+    }
+
+    // A response swaps dst and src, and sets the high bit of the opcode.
+    const auto open_channel_response = unhex("1500f351000001050680080000001977000000004cc71e0000");
+    Decoder decoder;
+    const auto frames = decoder.feed(open_channel_response);
+    CHECK(frames.size() == 1);
+    const auto &body = frames[0];
+    CHECK(le16(body, 0) == 0);                    // dst: back to the PC
+    CHECK(le16(body, 2) == channel_node(5));      // src: the CAN channel node
+    CHECK(le16(body, 4) == (0x06 | 0x8000));      // response bit
+    CHECK(le16(body, 6) == 8);                    // sequence echoed
+    CHECK(le16(body, 10) == 0x7719);              // token echoed verbatim
+    CHECK(Session::status(body) == 0);
+
+    // cOpenDevice resets the device microsecond counter, so its own response
+    // reports zero. This is the origin of J2534 timestamps.
+    Decoder opened;
+    const auto open_frames = opened.feed(unhex(vendor::open_device_response));
+    CHECK(open_frames.size() == 1);
+    CHECK(Session::status(open_frames[0]) == 0);
+    CHECK(le32(open_frames[0], 16) == 0);
+
+    // The serial in the cGetString response matches the adapter's USB iSerial.
+    Decoder strings;
+    const auto string_frames = strings.feed(unhex(vendor::get_string_serial_response));
+    CHECK(string_frames.size() == 1);
+    const auto &serial_body = string_frames[0];
+    const std::string serial(serial_body.begin() + 24, serial_body.end() - 1);
+    CHECK(serial == "AOLHE0000003666A");
+}
+
 int main() {
-    try { selector_tests(); codec_tests(); session_tests(); timeout_and_cancel(); write_failure_paths(); replay_tests(); concurrent_commands();
-        std::cout << "selectors, codec, correlation, quarantine, cancellation, write failures, replay, concurrency passed\n"; return 0;
+    try { selector_tests(); codec_tests(); session_tests(); timeout_and_cancel(); write_failure_paths(); replay_tests(); concurrent_commands(); vendor_frame_tests();
+        std::cout << "selectors, codec, correlation, quarantine, cancellation, write failures, replay, concurrency, vendor frames passed\n"; return 0;
     } catch (const std::exception &e) { std::cerr << e.what() << '\n'; return 1; }
 }

@@ -142,20 +142,24 @@ within a channel.
 Captures: `…-d1-wildcard-pass` (32 live messages), `…-d3-flow-control-filter`,
 `…-e1-obd-mode01-pid00`, `…-e2-obd-mode09-pid02-vin`.
 
-### Two more opcodes identified
+### Filters use the table operations, and table selector 2 is the filter table
 
-`PROTOCOL.md:232-265` lists `0x0d`–`0x10` only as unnamed "table ops". Two are now
-pinned down by their use around `PassThruStartMsgFilter` / `PassThruStopMsgFilter`:
+`PROTOCOL.md` already names `0x0d cTableAddEntry` and `0x0e cTableRemoveEntry`
+(line 247-248) and already states that table operations carry a **table selector
+at body+12**, warning that `0x0d` "is not exclusively filters" (line 211). Both
+statements hold up, and the captures pin down the filter case:
 
-- **`0x000d` — add filter.** Body `02000000 40000000 000007e8 00000007e0 00`:
-  a type word, TxFlags `0x40` (`ISO15765_FRAME_PAD`), the pattern CAN ID `0x7E8`,
-  the flow-control CAN ID `0x7E0`, and a trailing byte. The **response carries the
-  filter handle**: `0c492000` = `0x0020490c`.
-- **`0x000e` — remove filter.** Body `02000000 0c492000` — the same type word and
-  the handle returned by `0x000d`.
+- **`0x000d cTableAddEntry`.** Body `02000000 40000000 000007e8 00000007e0 00`:
+  table selector **2**, then TxFlags `0x40` (`ISO15765_FRAME_PAD`), the pattern
+  CAN ID `0x7E8`, the flow-control CAN ID `0x7E0`, and a trailing byte. The
+  **response carries the table entry handle**: `0c492000` = `0x0020490c`.
+- **`0x000e cTableRemoveEntry`.** Body `02000000 0c492000` — the same table
+  selector and the handle returned by the add.
 
-So the J2534 filter ID (`3` at the API) is a DLL-side index, not the wire handle;
-the DLL maps between them. That answers the filter-ID mapping gap.
+So table selector 2 is the message-filter table, and the J2534 filter ID (`3` at
+the API) is a DLL-side index rather than the wire handle; the DLL maps between
+them. That answers the filter-ID mapping gap. Selectors other than 2, and
+`0x0f`/`0x10`, were never exercised by these captures.
 
 ### Data path
 
@@ -245,8 +249,9 @@ channel IDs behaved differently, staying at 2 across connect/disconnect.
 
 ## B7 — Opcode census
 
-Across all 15 captures, every opcode seen is either named in
-`PROTOCOL.md:232-265` or is one of the two filter ops identified above:
+Across all 15 captures, **every opcode seen is already named** in the table at
+`PROTOCOL.md:232-265` — including `0x000d`/`0x000e`, whose use for filters is
+pinned down above. Nothing unknown appeared:
 
 ```
 cOpenDevice 32   cCloseDevice 32   cOpenChannel 16   cCloseChannel 16

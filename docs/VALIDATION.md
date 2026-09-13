@@ -130,20 +130,42 @@ contract for both: libusb treats it as no timeout at all, `poll(2)` as expire
 immediately. `core_tests` now asserts the transport sees at least 1 ms. Hardware bounds on delayed duplicate
 responses are still unknown. No firmware-generation marker has been established.
 
+## Windows reference captures (2026-09-13)
+
+Items 1–3 below are **done**. The vendor driver was captured on Windows 11 against
+the adapter and the 2017 Volvo XC60 D5 AWD with the engine running: device
+lifecycle, `ReadVersion`, error paths, exclusivity, CAN and ISO15765 `Connect`
+across three bauds and both flag settings, a wildcard pass filter over live bus
+traffic, a flow-control filter, and OBD-II mode 01 and mode 09 requests.
+
+That settles channel addressing, the two open-channel arguments, pin routing,
+body+10 semantics and filter-ID mapping — see `PROTOCOL.md` section 7b and
+`docs/WINDOWS-FINDINGS.md`. `core_tests` now checks our frame builder against real
+vendor bytes, so the codec is validated against the vendor rather than against our
+own probe output.
+
+Two results worth carrying forward. `READ_VBATT` reads ~14.1 V with the engine
+running, so the Linux bench `0` from `cGetValue` selector 3 was a no-vehicle
+reading rather than a broken selector. And no destructive opcode appears anywhere
+in the capture corpus.
+
 ## Next blocking work
 
-1. Run the Windows capture harness on the user's laptop, using this repository's
-   vendor installer/DLL. Capture metadata, Open/ReadVersion/Close, then controlled
-   CAN Connect/filter/read cases.
-2. Trace channel/resource allocation and pin routing against those captures before
-   enabling Connect. Exports in `analysis/decompiled/linux_bringup/` extend the
-   evidence but do not settle constructor signatures.
-3. Validate CAN/ISO15765 on the user's **2017 Volvo XC60 D5 AWD**. It is not currently
-   connected; no ignition state, baud rate, ECU addressing, or pin assumptions are made.
-4. Complete the remaining protocol engines, filter/periodic semantics and IOCTLs.
+1. Implement `PassThruConnect` against section 7b and compare the emitted
+   `cOpenChannel` frame with the captured vendor frame for the same arguments.
+   `core_tests` already pins the expected bytes.
+2. Exercise channel exhaustion, concurrent channels and filter-table limits
+   (plan items C3/C4/D2), none of which were captured. Only one channel was ever
+   open at a time, so the `chan` field at body+8 is characterised only for the
+   values 0 and 1.
+3. Measure sustained throughput and back-pressure against a busy bus (plan item
+   D4). The `cdc_acm` throttling question is untouched, as is ISO15765 timing:
+   the responsibility split is known but no STmin, block size or N_Bs value has
+   been varied.
+4. Complete the remaining protocol engines, periodic messages and IOCTLs.
    Obtain other vehicles/fixtures for protocols the Volvo cannot exercise.
-5. Run the planned 100 hardware cycles and one-hour diagnostic soak after bus support
-   exists. Offline lifecycle tests do not satisfy these release requirements.
+5. Run the planned 100 hardware cycles and one-hour diagnostic soak after bus
+   support exists. Offline lifecycle tests do not satisfy these release requirements.
 
-Windows runtime comparison, vehicle communication, electrical testing and full
-J2534 conformance remain outstanding. Firmware updating, Wine and SocketCAN are out of scope.
+Electrical testing and full J2534 conformance remain outstanding. Firmware
+updating, Wine and SocketCAN are out of scope.
