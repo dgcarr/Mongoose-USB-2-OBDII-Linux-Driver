@@ -154,6 +154,69 @@ static void set_data(PASSTHRU_MSG *message, const char *hex) {
     }
     message->DataSize = (uint32_t)(length / 2);
 }
+/* Sustained-load accounting (step "readstats"). Printing every message is
+ * useless at these rates - a five minute run produced 736512 of them and a 69 MB
+ * log - and the questions D4 actually asks are throughput, whether anything is
+ * dropped, and which RxStatus bits appear. So summarise instead. */
+#define STATUS_SLOTS 32
+#define ID_SLOTS 4096          /* power of two, open addressing */
+struct stats {
+    uint64_t total, rounds, empty_rounds;
+    uint32_t status_value[STATUS_SLOTS], status_count[STATUS_SLOTS];
+    unsigned statuses;
+    uint32_t ids[ID_SLOTS];
+    int id_used[ID_SLOTS];
+    unsigned unique_ids;
+    uint32_t first_timestamp, last_timestamp, max_gap_us;
+    uint64_t gaps_over_10ms;
+    int seen_timestamp;
+};
+static void note_status(struct stats *s, uint32_t value) {
+    for (unsigned i = 0; i < s->statuses; ++i)
+        if (s->status_value[i] == value) { ++s->status_count[i]; return; }
+    if (s->statuses < STATUS_SLOTS) {
+        s->status_value[s->statuses] = value; s->status_count[s->statuses] = 1; ++s->statuses;
+    }
+}
+static void note_id(struct stats *s, uint32_t id) {
+    if (s->unique_ids >= ID_SLOTS / 2) return;          /* keep the table sparse */
+    uint32_t slot = (id * 2654435761u) & (ID_SLOTS - 1);
+    while (s->id_used[slot]) {
+        if (s->ids[slot] == id) return;
+        slot = (slot + 1) & (ID_SLOTS - 1);
+    }
+    s->id_used[slot] = 1; s->ids[slot] = id; ++s->unique_ids;
+}
+static void note_message(struct stats *s, const PASSTHRU_MSG *m) {
+    ++s->total;
+    note_status(s, m->RxStatus);
+    if (m->DataSize >= 4)
+        note_id(s, ((uint32_t)m->Data[0] << 24) | ((uint32_t)m->Data[1] << 16) |
+                   ((uint32_t)m->Data[2] << 8) | m->Data[3]);
+    if (!s->seen_timestamp) { s->first_timestamp = m->Timestamp; s->seen_timestamp = 1; }
+    else {
+        /* The device counter is unsigned microseconds and monotonic within a
+         * session, so a plain difference is meaningful. A large step means the
+         * adapter or the DLL dropped traffic in between. */
+        const uint32_t gap = m->Timestamp - s->last_timestamp;
+        if (gap > s->max_gap_us) s->max_gap_us = gap;
+        if (gap > 10000) ++s->gaps_over_10ms;
+    }
+    s->last_timestamp = m->Timestamp;
+}
+static void print_stats(const struct stats *s, uint32_t seconds) {
+    const uint32_t span = s->seen_timestamp ? (s->last_timestamp - s->first_timestamp) : 0;
+    printf("stats_total=%" PRIu64 " rounds=%" PRIu64 " empty_rounds=%" PRIu64 " requested_seconds=%" PRIu32 "\n",
+           s->total, s->rounds, s->empty_rounds, seconds);
+    printf("stats_device_span_us=%" PRIu32 " rate_msg_per_s=%.1f\n",
+           span, span ? (double)s->total * 1e6 / (double)span : 0.0);
+    printf("stats_unique_can_ids=%u\n", s->unique_ids);
+    printf("stats_max_gap_us=%" PRIu32 " gaps_over_10ms=%" PRIu64 "\n", s->max_gap_us, s->gaps_over_10ms);
+    for (unsigned i = 0; i < s->statuses; ++i)
+        printf("stats_rxstatus 0x%08" PRIx32 " = %" PRIu32 "\n", s->status_value[i], s->status_count[i]);
+    fflush(stdout);
+}
+
 static void print_messages(const PASSTHRU_MSG *messages, uint32_t count) {
     uint32_t i, j;
     for (i = 0; i < count; ++i) {
@@ -258,6 +321,33 @@ static int run_step(char **token, int count, uint32_t gap) {
         result = api_stop_filter(slot_get(token[1]), slot_get(token[2]));
         log_result("StopMsgFilter", result);
         if (result) return 1;
+    } else if (eq(verb, "readstats")) {  /* readstats CHAN COUNT TIMEOUT SECONDS */
+        NEED(5);
+        uint32_t channel = slot_get(token[1]);
+        uint32_t wanted = number(token[2]), timeout = number(token[3]), seconds = number(token[4]);
+        if (!wanted || wanted > 1024) { fprintf(stderr, "readstats count must be 1..1024\n"); return 1; }
+        PASSTHRU_MSG *buffer = calloc(wanted, sizeof(*buffer));
+        struct stats *s = calloc(1, sizeof(*s));
+        if (!buffer || !s) { free(buffer); free(s); fprintf(stderr, "Out of memory\n"); return 1; }
+        const DWORD started = GetTickCount();
+        int samples = 0, failed_step = 0;
+        do {
+            uint32_t got = wanted;
+            result = api_read(channel, buffer, &got, timeout);
+            if (got > wanted) { fprintf(stderr, "ReadMsgs returned %" PRIu32 "\n", got); failed_step = 1; break; }
+            ++s->rounds;
+            if (!got) ++s->empty_rounds;
+            for (uint32_t i = 0; i < got; ++i) {
+                note_message(s, &buffer[i]);
+                if (samples < 8) { print_messages(&buffer[i], 1); ++samples; }
+            }
+            if (result && result != ERR_BUFFER_EMPTY && result != ERR_TIMEOUT) {
+                log_result("ReadMsgs", result); failed_step = 1; break;
+            }
+        } while ((GetTickCount() - started) < seconds * 1000u);
+        print_stats(s, seconds);
+        free(buffer); free(s);
+        if (failed_step) return 1;
     } else if (eq(verb, "read") || eq(verb, "readfor")) {
         /* read CHAN COUNT TIMEOUT | readfor CHAN COUNT TIMEOUT SECONDS */
         uint32_t channel, wanted, timeout, seconds = 0, rounds = 0;

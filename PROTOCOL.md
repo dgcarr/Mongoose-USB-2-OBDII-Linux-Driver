@@ -614,14 +614,19 @@ Still open:
 - **body+8 (`chan`)** is 0 for channel management and 1 for data commands, so it separates
   streams within a channel rather than selecting the channel. What values it takes beyond 1,
   and when, is unestablished — only one channel was ever open at a time.
-- **Per-protocol status masks** remain unmapped. `cOutboundData` returning status `0x100` on
-  success is the only status value characterised.
+- **Per-protocol status masks** remain unmapped for transmit and for protocols other than
+  CAN. On plain CAN receive the mask is now characterised and it is trivial: `RxStatus` was
+  `0x00000000` for all 736512 messages of a five-minute sustained run (section 7b), so the
+  field carries no loss signal there. `cOutboundData` returning status `0x100` on success is
+  the only transmit status value characterised.
 - **ISO15765 timing.** The responsibility split is known (firmware does flow control, the DLL
   reassembles) but no timing parameter — STmin, block size, N_Bs — has been varied or measured.
 - **Channel exhaustion and concurrency.** How many channels can be open, whether IDs are
   reused, and how `chan` disambiguates them, were not exercised (plan items C3/C4).
-- **Sustained throughput and back-pressure** (plan item D4) were not exercised, so the
-  `cdc_acm` throttling question is still open.
+- **Sustained throughput** is measured (section 7b): 2455 msg/s over five minutes with no
+  drops and no back-pressure signal. The `cdc_acm` throttling question is still open, since
+  that is a different transport, but neither the adapter nor the vendor stack is the
+  bottleneck at that rate.
 - `cGetValue` selector `0x2f`, used in the vendor open path and returning 1, has unknown meaning.
 - The leading `1` of `cSetPin`, the three-transfer `0xdb` preamble, `cInboundData` body+0, and
   table selectors other than 2 are unexplained.

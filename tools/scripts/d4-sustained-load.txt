@@ -1,11 +1,16 @@
 # D4: sustained receive with the engine running. Targets throughput and
-# back-pressure, RxStatus and per-protocol status masks, and should make the
-# DLL's own "Contains %d frames" / "Dropped %ld frames" accounting observable
-# if the vendor debug log is active. Five minutes.
+# back-pressure, RxStatus and per-protocol status masks, and whether anything is
+# dropped between the bus and the API.
+#
+# readstats rather than readfor: at these rates per-message logging is useless
+# and enormous (a five minute run produced 736512 messages and a 69 MB log). It
+# prints eight sample messages, then aggregates - totals, rate against the device
+# microsecond clock, unique CAN IDs, the largest timestamp gap, and a histogram
+# of every RxStatus value seen.
 open dev
 connect dev CAN NONE 500000 chan
 filter chan PASS CAN NONE 00000000 00000000 f
-readfor chan 256 1000 300
+readstats chan 256 1000 300
 stopfilter chan f
 disconnect chan
 close dev

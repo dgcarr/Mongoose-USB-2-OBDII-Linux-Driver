@@ -194,6 +194,62 @@ as *already transmitted*, carrying the device's own timestamp, and no matching
 itself**. That split — firmware does flow control, the DLL does reassembly — is
 the single most important thing to get right in a portable implementation.
 
+## D4 — Sustained load
+
+Capture: `20260913T164517-d4-sustained-load`. Five minutes of continuous receive on
+a wildcard pass filter, CAN at 500 kbit/s, engine running.
+
+```
+stats_total=736512 rounds=2877 empty_rounds=0 requested_seconds=300
+stats_device_span_us=299999000 rate_msg_per_s=2455.0
+stats_unique_can_ids=69
+stats_max_gap_us=6000 gaps_over_10ms=0
+stats_rxstatus 0x00000000 = 736512
+```
+
+**Nothing was dropped and no back-pressure was ever signalled.** Four independent
+checks agree:
+
+- `RxStatus` was `0x00000000` for **every one of the 736 512 messages**. Not one
+  overflow, buffer-full or protocol status bit appeared. So on plain CAN receive
+  the status mask is simply always zero, and a portable implementation gets no
+  loss signal from this field because the vendor never sets one here.
+- `empty_rounds=0` — every `PassThruReadMsgs` returned a full batch.
+- The largest gap between consecutive message timestamps was **6 ms**, with zero
+  gaps over 10 ms. Dropped traffic would show as widening gaps.
+- The device microsecond span was **299.999 s** across a 300 s window, so the last
+  message was timestamped at the end of the run. A growing backlog inside the DLL
+  would have left the timestamps lagging wall-clock; they did not.
+
+The run reproduced **exactly** — two independent five-minute runs both returned
+736 512 messages, because every round returned precisely the 256 requested
+(2877 x 256). That is the J2534 contract working as specified rather than a
+coincidence: `PassThruReadMsgs` returns when the requested count is reached or the
+timeout expires, and at 2455 msg/s a batch of 256 takes 104 ms, which is exactly
+the observed 300 s / 2877 rounds. The adapter and DLL sustained the full bus rate
+in real time.
+
+2455 msg/s across 69 distinct CAN IDs is roughly 60 % utilisation of a 500 kbit/s
+bus, so this exercises the path properly without being a synthetic worst case.
+
+This does not settle the `cdc_acm` throttling question, which is about a different
+transport on Linux; it does establish that neither the adapter nor the vendor
+stack is the bottleneck at this rate.
+
+### On the artefacts
+
+`wire.pcap` was **88 632 691 bytes** for this run and is not committed.
+`wire-sample.pcap` is the first 2 MiB cut on a packet boundary (32 720 packets),
+which is enough to show `cInboundData` arriving at rate. The findings above come
+from the API statistics, not from the pcap, and the full capture is reproducible
+by re-running the step script.
+
+The first attempt at this test logged every message and produced a **69 MB
+`api.log`** of 736 512 lines, which is unusable as evidence and unacceptable in a
+repository. The `readstats` step exists for that reason: it prints eight sample
+messages and then aggregates. The questions D4 asks — throughput, loss, which
+status bits appear — are answered better by a histogram than by the raw stream.
+
 ## F — Ioctl
 
 `READ_VBATT` returned **14100 mV** and **14000 mV** on consecutive calls with the

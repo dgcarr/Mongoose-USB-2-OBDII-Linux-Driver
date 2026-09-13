@@ -1,0 +1,30 @@
+utc_100ns=134337555347452914 step line=10: open dev
+utc_100ns=134337555347944019 Open result=0 error=
+device=1
+utc_100ns=134337555347944019 step line=11: connect dev CAN NONE 500000 chan
+connect protocol=5 flags=0 baud=500000
+utc_100ns=134337555347954402 Connect result=0 error=
+channel=2
+utc_100ns=134337555347954402 step line=12: filter chan PASS CAN NONE 00000000 00000000 f
+utc_100ns=134337555347954402 StartMsgFilter result=0 error=
+filter=3
+utc_100ns=134337555347954402 step line=13: readstats chan 256 1000 300
+message protocol=5 rx=0 tx=0 timestamp=3900 size=12 extra=12 data=00000010476480008000012a
+message protocol=5 rx=0 tx=0 timestamp=4200 size=12 extra=12 data=000000639032c00060f8029e
+message protocol=5 rx=0 tx=0 timestamp=4500 size=12 extra=12 data=00000140e400c400c0009fff
+message protocol=5 rx=0 tx=0 timestamp=4700 size=12 extra=12 data=000001d13fffcc32c3ff0000
+message protocol=5 rx=0 tx=0 timestamp=4900 size=12 extra=12 data=000001ff5287f3ff0bffe2a3
+message protocol=5 rx=0 tx=0 timestamp=5200 size=12 extra=12 data=0000012788126741b7ff0000
+message protocol=5 rx=0 tx=0 timestamp=5400 size=12 extra=12 data=000002640000000000000000
+message protocol=5 rx=0 tx=0 timestamp=5700 size=12 extra=12 data=000002650000000000000009
+stats_total=736512 rounds=2877 empty_rounds=0 requested_seconds=300
+stats_device_span_us=299999000 rate_msg_per_s=2455.0
+stats_unique_can_ids=69
+stats_max_gap_us=6000 gaps_over_10ms=0
+stats_rxstatus 0x00000000 = 736512
+utc_100ns=134337558348225883 step line=14: stopfilter chan f
+utc_100ns=134337558348225883 StopMsgFilter result=0 error=
+utc_100ns=134337558348225883 step line=15: disconnect chan
+utc_100ns=134337558348276760 Disconnect result=0 error=
+utc_100ns=134337558348276760 step line=16: close dev
+utc_100ns=134337558348416764 Close result=0 error=

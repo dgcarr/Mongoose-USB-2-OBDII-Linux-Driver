@@ -47,12 +47,44 @@ $cache = Join-Path $repo 'build\windows\usbpcap-interface.txt'
 $hubs  = @(Get-PnpDevice -ErrorAction SilentlyContinue |
            Where-Object { $_.InstanceId -like 'USB\ROOT_HUB*' }).Count
 if ($hubs -lt 1) { $hubs = 4 }
-$ifaces = 1..$hubs | ForEach-Object { '\\.\USBPcap' + $_ }
+$candidates = 1..$hubs | ForEach-Object { '\\.\USBPcap' + $_ }
 if (-not $Interface -and (Test-Path $cache)) {
     $remembered = (Get-Content $cache -Raw).Trim()
     if ($remembered) { $Interface = $remembered }
 }
-if ($Interface) { $ifaces = @($Interface) }
+
+# Resolving the hub by capturing on all of them at once during the real run is
+# unreliable: more capture processes than hubs makes them contend and several
+# record nothing. Instead, when the hub is unknown, find it first with a short
+# dedicated probe - one interface at a time, against a stimulus we generate - and
+# cache the answer. Deterministic, and it costs a few seconds only on a miss.
+function Resolve-Hub {
+    param([string[]]$Candidates, [string]$Usbpcap, [string]$Harness, [string]$Dll, [string]$Repo)
+    $probe = Join-Path ([IO.Path]::GetTempPath()) ("mongoose-probe-" + [Guid]::NewGuid().ToString('N') + ".txt")
+    Set-Content -Path $probe -Value "open dev`nclose dev" -Encoding ASCII
+    try {
+        foreach ($iface in $Candidates) {
+            $file = Join-Path ([IO.Path]::GetTempPath()) ("mongoose-probe-" + [Guid]::NewGuid().ToString('N') + ".pcap")
+            $psi = New-Object Diagnostics.ProcessStartInfo
+            $psi.FileName  = $Usbpcap
+            $psi.Arguments = "-d `"$iface`" -o `"$file`" -s 65535 -A"
+            $psi.RedirectStandardOutput = $true; $psi.RedirectStandardError = $true
+            $psi.UseShellExecute = $false; $psi.CreateNoWindow = $true
+            $proc = [Diagnostics.Process]::Start($psi)
+            Start-Sleep -Milliseconds 4000
+            if (-not $proc.HasExited) {
+                & $Harness $Dll --script $probe --gap 0 2>&1 | Out-Null
+                Start-Sleep -Milliseconds 1200
+                $proc.Kill(); $proc.WaitForExit(3000) | Out-Null
+            }
+            $size = if (Test-Path $file) { (Get-Item $file).Length } else { 0 }
+            if (Test-Path $file) { Remove-Item $file -Force }
+            Write-Host "  probe $iface -> $size bytes"
+            if ($size -gt 24) { return $iface }
+        }
+    } finally { if (Test-Path $probe) { Remove-Item $probe -Force } }
+    return $null
+}
 
 $device = Get-PnpDevice -ErrorAction SilentlyContinue |
           Where-Object { $_.InstanceId -like '*VID_18E1&PID_0104*' } | Select-Object -First 1
@@ -79,6 +111,16 @@ if (Test-Path $drewLogs) { $before = Get-ChildItem $drewLogs -File | Select-Obje
 # USB enumeration order can change across a reboot, and an empty pcap is
 # indistinguishable from a quiet one. Only the hub that saw traffic is kept.
 # -A is required; without a device selection USBPcap captures nothing at all.
+if (-not $Interface) {
+    Write-Host 'Resolving which root hub the adapter is on:'
+    $Interface = Resolve-Hub -Candidates $candidates -Usbpcap $usbpcap -Harness $Harness -Dll $Dll -Repo $repo
+    if (-not $Interface) { throw 'No root hub saw adapter traffic. Is the adapter connected, and did the machine reboot after USBPcap was installed?' }
+    New-Item -ItemType Directory -Force -Path (Split-Path -Parent $cache) | Out-Null
+    Set-Content -Path $cache -Value $Interface -Encoding ASCII
+}
+Write-Host "Capture : $Interface"
+$ifaces = @($Interface)
+
 Write-Host "Output  : $outDir"
 $captures = @()
 foreach ($iface in $ifaces) {
@@ -127,14 +169,15 @@ foreach ($c in $captures) {
 }
 $wire = Join-Path $outDir 'wire.pcap'
 if ($kept) {
-    # Remember which hub the adapter is on so later runs use a single capture
-    # process. USB enumeration order can change, so a miss re-probes every hub.
-    $winner = ($captures | Where-Object { $_.file -eq $kept }).iface
-    New-Item -ItemType Directory -Force -Path (Split-Path -Parent $cache) | Out-Null
-    Set-Content -Path $cache -Value $winner -Encoding ASCII
     Move-Item $kept $wire -Force
-} elseif (Test-Path $cache) {
-    Remove-Item $cache -Force   # cached hub went quiet; re-probe next run
+} else {
+    # An empty capture is NOT evidence that the cached hub is wrong. Some runs
+    # legitimately generate no wire traffic at all - the DLL rejects invalid
+    # handles locally, without a round trip - and an earlier version deleted the
+    # cache on those, which sent the next run back into unreliable hub probing.
+    # The cache is cleared only by hand, or by passing -Interface.
+    Write-Warning 'No packets captured. If this run was expected to produce traffic, delete'
+    Write-Warning "the cached hub at $cache and retry, or pass -Interface explicitly."
 }
 Get-ChildItem $outDir -Filter 'raw-*.pcap' -ErrorAction SilentlyContinue |
     ForEach-Object { Write-Host "Also kept $($_.Name) ($($_.Length) bytes) - more than one hub saw traffic" }
