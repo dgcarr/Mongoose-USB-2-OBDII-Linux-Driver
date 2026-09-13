@@ -12,9 +12,11 @@ public:
     void receive(std::span<const uint8_t> body);
     void stop(int32_t code, const std::string &reason);
     void read(PASSTHRU_MSG *messages, uint32_t requested, uint32_t &count, uint32_t timeout_ms);
-    // Count of iMsgTxDone indications. J2534 has nowhere to report these, but whether the
-    // adapter confirms a transmit is exactly what a bench run with no bus needs to know.
+    // iMsgTxDone accounting. The adapter emits exactly one per transmitted frame, so a
+    // blocking WriteMsgs can wait on the count to report what was sent rather than what
+    // was merely queued.
     size_t transmitted();
+    bool await_transmitted(size_t target, std::chrono::steady_clock::time_point deadline);
 private:
     struct Frame {
         uint32_t status, timestamp;

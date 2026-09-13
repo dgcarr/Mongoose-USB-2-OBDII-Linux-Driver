@@ -1,0 +1,28 @@
+PassThruOpen status=0 
+PassThruReadVersion status=0 
+firmware=1.1.16.0 driver=0.1.0-experimental api=04.04
+PassThruConnect status=0 
+device=1 channel=2 baud=500000 flags=0x0
+PassThruWriteMsgs queued status=0 
+queued=1
+PassThruWriteMsgs blocking status=9 adapter did not confirm transmission of every message
+confirmed=0
+no iMsgTxDone without a bus: queued but not transmitted, as expected
+PassThruDisconnect status=0 
+PassThruConnect status=0 
+device=1 channel=3 baud=250000 flags=0x0
+PassThruWriteMsgs queued status=0 
+queued=1
+PassThruWriteMsgs blocking status=9 adapter did not confirm transmission of every message
+confirmed=0
+no iMsgTxDone without a bus: queued but not transmitted, as expected
+PassThruDisconnect status=0 
+PassThruConnect status=0 
+device=1 channel=4 baud=500000 flags=0x100
+PassThruWriteMsgs queued status=0 
+queued=1
+PassThruWriteMsgs blocking status=9 adapter did not confirm transmission of every message
+confirmed=0
+no iMsgTxDone without a bus: queued but not transmitted, as expected
+PassThruDisconnect status=0 
+PassThruClose status=0 

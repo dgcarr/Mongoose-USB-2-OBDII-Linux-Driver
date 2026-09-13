@@ -77,6 +77,12 @@ size_t CanReceiver::transmitted() {
     std::lock_guard lock(mutex_);
     return transmitted_;
 }
+bool CanReceiver::await_transmitted(size_t target, std::chrono::steady_clock::time_point deadline) {
+    std::unique_lock lock(mutex_);
+    ready_.wait_until(lock, deadline, [&] { return stopped_ || transmitted_ >= target; });
+    if (stopped_) throw Error(stopped_, reason_);
+    return transmitted_ >= target;
+}
 void CanReceiver::stop(int32_t code, const std::string &reason) {
     std::lock_guard lock(mutex_);
     if (!stopped_) { stopped_ = code; reason_ = reason; }

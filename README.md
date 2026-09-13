@@ -16,10 +16,11 @@ messages, BLOCK filters and ISO15765 remain unsupported.
 
 Everything above has been exercised only on a bench with no bus. Filters have been
 accepted by the adapter but never given a frame to act on, ReadMsgs has never returned a
-message, and the one frame ever transmitted was queued by the adapter without any
-confirmation that it left the controller -- `WriteMsgs` returning success means the
-adapter took the frame, not that anything received it. Channel, filter and transmit
-setup alone does not mean vehicle diagnostics work.
+message, and and no frame has ever been confirmed as transmitted. `WriteMsgs` follows J2534 here: with
+a zero timeout it returns once the adapter has accepted the frame, and with a non-zero
+timeout it waits for the adapter's `iMsgTxDone` confirmation and reports `ERR_TIMEOUT` if
+it never comes -- which is what happens on a bench with no bus. Channel, filter and
+transmit setup alone does not mean vehicle diagnostics work.
 
 ## Build and test
 

@@ -506,23 +506,24 @@ void transmit() {
     // = TxFlags | timeout | DataSize | ExtraDataIndex | big-endian ID and data, on an
     // ISO15765 channel. A raw CAN frame differs only in the flags word, since
     // ISO15765_FRAME_PAD cannot apply to a CAN channel. chan is 1 for data commands.
-    script->add(8, unhex("00000000e803000006000000000007df0902"), channel_node(CAN), 0x100, data_chan);
+    // A zero timeout is J2534's queue-and-return write, so these need no tx confirmation.
+    script->add(8, unhex("000000000000000006000000000007df0902"), channel_node(CAN), 0x100, data_chan);
     // Status zero is equally acceptable; only 0x100 is the documented queued case.
-    script->add(8, unhex("00000000640000000a00080000012345010200000000"), channel_node(CAN), 0, data_chan);
-    script->add(8, unhex("000000006400000005000000000007e001"), channel_node(CAN), 0x203, data_chan);
+    script->add(8, unhex("00000000000000000a00080000012345010200000000"), channel_node(CAN), 0, data_chan);
+    script->add(8, unhex("000000000000000005000000000007e001"), channel_node(CAN), 0x203, data_chan);
     script->disconnect(); script->add(5);
     const auto device = open(), channel = connect(device);
 
     auto message = can_message("000007df0902");
     uint32_t count = 1;
-    CHECK(PassThruWriteMsgs(channel, &message, &count, 1000) == 0 && count == 1);
+    CHECK(PassThruWriteMsgs(channel, &message, &count, 0) == 0 && count == 1);
 
     std::array<PASSTHRU_MSG, 2> pair{can_message("00012345010200000000"), can_message("000007e001")};
     pair[0].ExtraDataIndex = 8;
     count = 2;
     // The second message is refused by firmware, so the count reports the one that was
     // accepted rather than zero or two.
-    CHECK(PassThruWriteMsgs(channel, pair.data(), &count, 100) == ERR_FAILED && count == 1);
+    CHECK(PassThruWriteMsgs(channel, pair.data(), &count, 0) == ERR_FAILED && count == 1);
     char error[80]; PassThruGetLastError(error); CHECK(std::strstr(error, "0x00000203"));
 
     // Validation happens before anything reaches the wire, so none of these consume a
@@ -542,22 +543,39 @@ void transmit() {
     CHECK(PassThruWriteMsgs(channel, &message, nullptr, 0) == ERR_NULL_PARAMETER);
     CHECK(PassThruClose(device) == 0); script->finished();
 }
-void transmit_tx_done() {
+Bytes tx_done_indication() {
+    // Captured shape: dst 0, src the channel node, opcode 10, the originating sequence
+    // echoed at +6, chan 1, and code 0x106 at +12.
+    Bytes body(20, 0);
+    put16(body, 2, channel_node(CAN)); put16(body, 4, 10); put16(body, 8, 1); put16(body, 12, 0x106);
+    return encode(body);
+}
+void transmit_confirmed() {
     auto script = prepare(); script->connect();
     script->add(8, unhex("00000000e803000006000000000007df0902"), channel_node(CAN), 0x100, data_chan);
-    // iMsgTxDone (0x106) arrives unsolicited on the CAN node alongside the response, and
-    // must not be mistaken for one. Two loss codes on the same opcode stay overflow.
-    Bytes indication(20, 0);
-    put16(indication, 2, channel_node(CAN)); put16(indication, 4, 10); put16(indication, 12, 0x106);
-    script->steps.back().exchange.in.insert(script->steps.back().exchange.in.begin(), encode(indication));
+    // iMsgTxDone arrives on the CAN node alongside the response and must not be mistaken
+    // for one. A timed write reports what the adapter confirmed it sent.
+    script->steps.back().exchange.in.insert(script->steps.back().exchange.in.begin(), tx_done_indication());
     script->disconnect(); script->add(5);
     const auto device = open(), channel = connect(device);
     auto message = can_message("000007df0902");
     uint32_t count = 1;
     CHECK(PassThruWriteMsgs(channel, &message, &count, 1000) == 0 && count == 1);
-    PASSTHRU_MSG received{};
-    count = 1;
+    PASSTHRU_MSG received{}; count = 1;
     CHECK(PassThruReadMsgs(channel, &received, &count, 1) == ERR_BUFFER_EMPTY && count == 0);
+    CHECK(PassThruClose(device) == 0); script->finished();
+}
+void transmit_unconfirmed() {
+    auto script = prepare(); script->connect();
+    // The adapter queues the frame and says so, but never confirms it was sent. That is
+    // exactly what a bench run with no bus produces, and a timed write must not call it
+    // a success: nothing left the controller.
+    script->add(8, unhex("000000001e00000006000000000007df0902"), channel_node(CAN), 0x100, data_chan);
+    script->disconnect(); script->add(5);
+    const auto device = open(), channel = connect(device);
+    auto message = can_message("000007df0902");
+    uint32_t count = 1;
+    CHECK(PassThruWriteMsgs(channel, &message, &count, 30) == ERR_TIMEOUT && count == 0);
     CHECK(PassThruClose(device) == 0); script->finished();
 }
 }
@@ -568,7 +586,7 @@ std::unique_ptr<Transport> open_transport(const Selector &, Trace) {
 }
 int main() {
     try {
-        transmit(); transmit_tx_done();
+        transmit(); transmit_confirmed(); transmit_unconfirmed();
         filter_contract(); many_filters(); filter_failure(false); filter_failure(true);
         captured_receive(); receive_edges(); partial_read_cancel();
         filter_transport_failure(false); filter_transport_failure(true);

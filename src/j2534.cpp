@@ -1,5 +1,6 @@
 #include "mongoose/j2534.h"
 #include "session.hpp"
+#include <algorithm>
 #include <array>
 #include <cstdio>
 #include <cstring>
@@ -241,11 +242,25 @@ int32_t J2534_CALL PassThruWriteMsgs(uint32_t channel, PASSTHRU_MSG *messages, u
         // The adapter is told the caller's timeout; the host still has to wait for the
         // acknowledgement, so a zero (queue-and-return) timeout keeps a response budget.
         const auto budget = std::chrono::milliseconds(timeout ? std::min(timeout, 60000u) : 1000u);
+        const auto deadline = std::chrono::steady_clock::now() + budget;
+        auto receiver = state.receiver;
+        const auto already = receiver ? receiver->transmitted() : 0;
         for (uint32_t index = 0; index < requested; ++index) {
             const auto payload = can_transmit(messages[index], state.channel_flags, timeout);
             accepted(channel_command(state, 8, payload, budget, data_chan), Allow::Queued);
-            *count = index + 1;
+            if (!timeout) *count = index + 1;  // queue-and-return: accepted is all we claim
         }
+        if (!timeout) return;
+        // J2534 blocks a timed write until the messages are sent, and the adapter says
+        // when that happened: one iMsgTxDone per transmitted frame. Reporting the queued
+        // count here instead would claim delivery for frames that never left the
+        // controller -- which is exactly what happens with no bus attached.
+        if (!receiver) throw Error(ERR_DEVICE_NOT_CONNECTED, "channel has no receiver");
+        const bool confirmed = receiver->await_transmitted(already + requested, deadline);
+        const auto sent = receiver->transmitted() - already;
+        *count = static_cast<uint32_t>(std::min<size_t>(sent, requested));
+        if (!confirmed)
+            throw Error(ERR_TIMEOUT, "adapter did not confirm transmission of every message");
     });
 }
 int32_t J2534_CALL PassThruStartPeriodicMsg(uint32_t channel, PASSTHRU_MSG *message, uint32_t *id, uint32_t) {

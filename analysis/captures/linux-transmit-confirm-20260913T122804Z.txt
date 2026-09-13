@@ -1,0 +1,27 @@
+Linux transmit confirmation check, 2026-09-13
+Adapter 18e1:0104, serial AOLHE0000003666A, /dev/ttyACM3, cdc_acm.
+USB only: no vehicle, no 12 V, no CAN bus. Firmware 1.1.16.0.
+Command: build/mongoose-client serial:SERIAL --can-transmit-check
+
+Production shared library, through the public J2534 API. Three channels
+(500000 flags 0, 250000 flags 0, 500000 flags CAN_29BIT_ID). Each sends the
+same OBD-II mode 01 PID 00 frame twice: once with timeout 0, once with 250 ms.
+The 29-bit channel sends it with CAN_29BIT_ID set, since the identifier width
+must match the channel.
+
+On every channel:
+- timeout 0 (queue and return): status 0, queued=1.
+- timeout 250: status 9 ERR_TIMEOUT, confirmed=0, "adapter did not confirm
+  transmission of every message".
+
+That difference is the whole point. The adapter accepts the frame both times
+and answers 0x100 both times. Only the blocking write notices that no
+iMsgTxDone ever arrived: with no bus there is no node to acknowledge the frame,
+so the controller never completes the transmission.
+
+A timed WriteMsgs therefore reports correctly on this bench that nothing was
+sent, while a queue-and-return write reports correctly that the adapter took
+it. On a live bus the Windows captures show exactly one iMsgTxDone per
+cOutboundData (e1: 1 transmit, 1 indication 0x106; e2: 1 transmit, 0x106 plus
+an 0x10e for the firmware's own flow-control frame), so the timed path should
+report success there. That remains unproven without a vehicle.

@@ -97,7 +97,7 @@ libusb figures above:
 | CAN Connect/Disconnect | Captured vendor frames | Yes | Linux USB-only success; no vehicle/12 V |
 | CAN receive queue / ReadMsgs | Captured vendor frames | Yes | Host-queue path only; no bus traffic yet seen |
 | CAN PASS filters | Captured vendor frames | Yes | Adapter accepts and acknowledges; filtering effect unproven |
-| CAN transmit / WriteMsgs | Captured vendor frames | Yes | One frame queued with no bus; delivery unproven |
+| CAN transmit / WriteMsgs | Captured vendor frames | Yes | Queues on the bench; a timed write correctly reports nothing sent |
 | ISO15765 | Captured host reassembly / firmware flow control | No | Windows reference only; timing variations pending |
 | K-line / J1850PWM | Partial | No | Suitable hardware required |
 | BLOCK filters / periodic / configuration | Partial | No | Pending |
@@ -320,6 +320,35 @@ stack sustained on receive.
 
 Evidence: `analysis/captures/linux-sequence-burst-20260913T121643Z.*`.
 
+## Transmit reports delivery, not acceptance (2026-09-13)
+
+J2534 already had the right home for `iMsgTxDone`, so the open question answered itself.
+A write with `Timeout` zero queues and returns; a write with a non-zero timeout blocks
+until the messages are sent and reports how many. The adapter says exactly when that
+happened, so:
+
+- `timeout == 0` counts a message once the adapter acknowledges it. That is acceptance,
+  and the API says so.
+- `timeout != 0` waits for one `iMsgTxDone` per message and counts only what the adapter
+  confirmed, returning `ERR_TIMEOUT` with the confirmed count if they do not all arrive.
+
+The indication is 1:1 with transmission in the vendor captures: e1 sent one frame and
+produced one `0x106`; e2 sent one frame and produced one `0x106` plus an `0x10e` for the
+firmware's own flow-control frame, which is a different code and not counted. The
+indication also **echoes the sequence of the `cOutboundData` it confirms** (`seq=11` in
+e1), so it is correlated rather than anonymous. The implementation counts rather than
+correlates, because commands are serialized and only one write is ever outstanding.
+
+On the bench, all three channels behave as they should: the queued write reports success,
+and the timed write reports `ERR_TIMEOUT` with `confirmed=0`. Nothing is acknowledged
+because there is no bus, and the driver now says so instead of reporting success for a
+frame that never left the controller.
+
+What is still unproven: that the timed path reports success on a live bus. The Windows
+evidence says it should.
+
+Evidence: `analysis/captures/linux-transmit-confirm-20260913T122804Z.*`.
+
 ## Next blocking work
 
 Pass filters and the receive queue are implemented and hardware-accepted, which
@@ -328,14 +357,11 @@ work the bench can finish and work that needs a vehicle.
 
 Bench-reachable, with the adapter on USB alone:
 
-1. Decide how transmit reports delivery. The library accepts and queues frames today
-   and counts `iMsgTxDone` internally, but J2534 has no place to surface that count, so
-   a caller still cannot distinguish queued from sent.
-2. Measure receive throughput and back-pressure through a pty-backed synthetic load.
+1. Measure receive throughput and back-pressure through a pty-backed synthetic load.
    That exercises the real tty reader, n_tty flip buffer, decoder and queue, but not
    the cdc_acm URB path, so it bounds host-side capability rather than proving parity
    with the adapter. Windows D4's five-minute ~2455 msg/s baseline is the reference.
-3. Build the ISO15765 host-side reassembler against the captured VIN exchange. The
+2. Build the ISO15765 host-side reassembler against the captured VIN exchange. The
    responsibility split is known: firmware generates flow control, the host reassembles.
 
 Vehicle-blocked:
