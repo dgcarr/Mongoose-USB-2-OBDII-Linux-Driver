@@ -145,7 +145,13 @@ baseline, not a fresh run of the channel implementation.
 The preceding baseline passed under GCC, Clang, ASan/UBSan and ThreadSanitizer.
 The `MONGOOSE_FUZZ` libFuzzer target was run over the framing codec for roughly
 6.2 million executions seeded from the captured frames, with no crash, leak or
-sanitizer finding; that exercises the only code that parses untrusted wire data.
+sanitizer finding.
+
+That target now covers every path that parses untrusted wire data: the framing decoder,
+the CAN receive queue, the transmit encoder and ISO15765 reassembly. The reassembler is
+the one that most needed it, since it carries partial state across frames and takes its
+lengths and sequence numbers from the wire. Two runs seeded from the captured frames,
+175379 and 545593 executions, produced no crash, leak, sanitizer finding or timeout.
 
 A sequence number is released as soon as its response arrives, and held for ten seconds
 only when it is abandoned with a response possibly still outstanding. A response timeout
