@@ -281,6 +281,12 @@ and the script ran out before the device did. Capacity is **at least 40**,
 which is far beyond the ten that J2534 applications typically assume — it was not
 located, and saying "at least 40" is the honest result.
 
+A later Linux bench probe pushed the same table to **512** pass filters on one channel
+with no refusal (`PROTOCOL.md` section 7c), so the floor is 512 rather than 40. That
+probe also stopped at its own ceiling rather than at the firmware's, deliberately: the
+maximum is still not located, and still should not be found by exhausting the adapter's
+allocator.
+
 ## D4 — Sustained load
 
 Capture: `20260913T164517-d4-sustained-load`. Five minutes of continuous receive on
@@ -424,11 +430,19 @@ the captures do not depend on it.
 
 ## Open after this round
 
-`cGetValue` selector `0x2f`; the leading `1` of `cSetPin`; the three-transfer
+The leading `1` of `cSetPin`; the three-transfer
 `0xdb` preamble; the meaning of the `0x000d` type word; `cInboundData` body+0;
-and `0x000f`/`0x0010`, still unnamed. C3/C4 are resolved for this adapter (one shared CAN controller); D2 mapping is
-resolved with capacity at least 40 and the maximum unknown; D4 is complete as a
+and `0x000f`, still unnamed. C3/C4 are resolved for this adapter (one shared CAN controller); D2 mapping is
+resolved; D4 is complete as a
 Windows throughput baseline, with Linux back-pressure still open.
+
+Three items on this list moved on Linux rather than on Windows; see `PROTOCOL.md`
+section 7c. `cGetValue` selector `0x2f` returns 1 there too, so the value is
+cross-platform and only its meaning is open. `0x0010` is no longer unnamed or
+unexercised: it is `cTableClear`, it works on table selector 0, and a subsequent remove
+then fails with `0x0200` `FilterDelete: No matching Filter ID` — which is what makes the
+clear verifiable rather than merely acknowledged. And the D2 capacity floor rose from 40
+to at least 512.
 
 ## Capture procedure notes
 

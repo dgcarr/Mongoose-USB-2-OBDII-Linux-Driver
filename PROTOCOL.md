@@ -220,6 +220,9 @@ Normal pass/block builder `1000e600` sends N=20+mask_size+pattern_size:
 +19 u8 pattern size; +20 mask bytes then pattern bytes. The size comes from an 8-bit store,
 so upstream constraints must be checked before implementing arbitrary-size inputs.
 
+This layout is confirmed on Linux hardware for the pass case (selector 0, type 1): see
+section 7c. `cTableClear` (`0x10`) is confirmed there too, against table selector 0.
+
 Periodic builder `1000d220`: +12 u32 4; +16 u32 caller interval argument; +20 u32 message
 TxFlags; +24 u8 DataSize; +25 message data. N=25+DataSize. The request sequence is also saved
 for asynchronous response bookkeeping. Flow filters and repeat builders were extracted but
@@ -598,6 +601,63 @@ No destructive opcode appeared anywhere in the corpus: `cReflashBoard` (`0x10a`)
 `cUpdateBTModule` (`0x112`) have a combined count of zero across all captures, so
 ordinary vendor operation never approaches them.
 
+## 7c. Linux bench probes — the filter table (2026-09-13)
+
+Adapter on USB alone, no vehicle and no external 12 V. Run with
+`build/mongoose-diag --filter-probe`, a bench mode that issues only table and read
+operations on an open CAN channel: nothing is transmitted and no value is written.
+Evidence: `analysis/captures/linux-filter-probe-20260913T113817Z.*`. Reproduced twice.
+
+### The pass-filter layout is confirmed against firmware
+
+`cTableAddEntry` with table selector 0, type 1, size 4 and big-endian CAN IDs is accepted
+for every filter, and the response carries the entry handle at +20 in a 24-byte body.
+This is the `1000e600` layout above, now exercised rather than inferred.
+
+### `cTableClear` (`0x10`) works, and the clear is verifiable
+
+Table selector 0 returns status 0. The interesting part is what follows: removing a
+handle that was valid before the clear returns status `0x0200` with the text
+`FilterDelete: No matching Filter ID`. Without that, a clear returning zero would only
+prove the adapter accepted the command; with it, the table is demonstrably empty. Adding
+a filter afterwards succeeds, so the table stays usable. No vendor capture contains
+`0x10`, so this is its first exercise anywhere.
+
+### Status `0x0200` is absent from the extracted enumeration
+
+`analysis/ENUMS.md` runs the error band from `0x0201 eInvalidEntry` upward and has no
+`0x0200`. The firmware plainly returns it, with self-documenting text. This is the same
+kind of gap already recorded for response opcodes `0x8100`/`0x8101`/`0x8107`: the vendor's
+tables are incomplete, and hardware is the authority. Do not "correct" an observed code
+to the nearest table entry.
+
+### Capacity is at least 512 filters
+
+Five hundred and twelve pass filters were accepted on one channel with no refusal, well
+above the forty the Windows D2 capture reached. The fill stopped at the probe's own
+ceiling. It was not pushed to firmware refusal on purpose: exhausting an embedded
+allocator risks leaving the adapter wedged, and no J2534 client needs anything near 512.
+
+### Filter handles are heap addresses, and slots are reused
+
+All 512 handles were distinct and congruent modulo `0x34`, spanning `0x01c0` to `0x9190`
+-- a 52-byte entry grid over roughly 37 KB. The sequence is **not** monotonic: it moves
+both up and down, so freed slots are recycled. An earlier six-handle sample had suggested
+a monotonic `0x68` stride; the larger sample corrects it. Treat handles as opaque.
+
+### `cGetValue` selector `0x2f` returns 1 on Linux
+
+Matching the Windows open path. The value is now confirmed on two platforms; its meaning
+is still unknown.
+
+### A host-side ceiling this probe exposed
+
+The first attempt failed at 250 filters with `all sequence numbers are in the 10-second
+reuse quarantine`. That is ours, not the adapter's: `Session` holds each of 255 sequence
+slots for ten seconds before reuse, which caps the driver near 25 commands per second
+sustained. Harmless at channel-setup rates and invisible until a burst runs long. It is a
+live design question for transmit, where the Windows baseline is 2455 msg/s.
+
 ## 8. Remaining work and validation boundary
 
 The discovery Echo/GetBoardInfo flow has since been reproduced on hardware without the
@@ -628,15 +688,21 @@ Still open:
   at a time, enforced DLL-side with no wire traffic. A second CAN connect is refused with
   `There's already a 5:CAN channel open`, and an ISO15765 connect while CAN is open with
   `All 6:ISO15765 hardware is busy` - the two protocols share one CAN controller.
-- **The filter table limit was not found.** Forty pass filters were accepted on one channel;
-  capacity is at least 40; the maximum remains unmeasured.
+- **The filter table limit was not found.** Five hundred and twelve pass filters were
+  accepted on one Linux channel with no refusal (section 7c), raising the floor from the
+  forty the Windows capture reached. 512 was the probe's ceiling, not the firmware's, and
+  the fill deliberately stopped short of driving the adapter's allocator to exhaustion,
+  so the maximum is unmeasured by choice rather than by omission.
 - **Sustained throughput** is measured (section 7b): 2455 msg/s over five minutes with no
   reported overflow or back-pressure signal; this does not prove zero loss. The `cdc_acm` throttling question is still open, since
   that is a different transport, but neither the adapter nor the vendor stack is the
   bottleneck at that rate.
-- `cGetValue` selector `0x2f`, used in the vendor open path and returning 1, has unknown meaning.
-- The leading `1` of `cSetPin`, the three-transfer `0xdb` preamble, `cInboundData` body+0, and
-  table selectors other than 2 are unexplained.
+- `cGetValue` selector `0x2f`, used in the vendor open path and returning 1, has unknown
+  meaning. Linux returns 1 as well (section 7c), so the value is confirmed on a second
+  platform; the meaning is not.
+- The leading `1` of `cSetPin`, the three-transfer `0xdb` preamble, and `cInboundData`
+  body+0 are unexplained. Table selector 0 is now exercised heavily on hardware
+  (section 7c); selectors 1 and 3-5 remain untouched.
 - The vendor's own debug log could not be enabled; see the negative result in
   `docs/WINDOWS-FINDINGS.md`.
 

@@ -220,6 +220,42 @@ not usbmon packets. No bus traffic existed, so no filter was ever asked to pass 
 a frame, and ReadMsgs never returned a message. This is filter-acceptance evidence, not
 filter-behaviour evidence.
 
+## Linux filter-table probe (2026-09-13)
+
+USB only, no vehicle and no external 12 V. `build/mongoose-diag --filter-probe` is a
+bench mode: table and read operations on an open CAN channel, nothing transmitted, no
+value written, no destructive opcode reachable. It reuses the shipping
+`can_pass_filter()` encoder so it exercises the bytes the library actually sends.
+Reproduced across two consecutive runs. Full detail in `PROTOCOL.md` section 7c.
+
+- **512 pass filters accepted on one channel, no refusal**, against the at-least-40 the
+  Windows capture established. 512 is the probe's ceiling, not the firmware's. The fill
+  deliberately stopped short of allocator exhaustion, so the maximum remains unmeasured
+  by choice.
+- **`cTableClear` (`0x10`) returns status zero**, and a following remove of a
+  previously-valid handle returns `0x0200` `FilterDelete: No matching Filter ID`. The
+  second half is what makes the clear verifiable. `0x0200` is not in
+  `analysis/ENUMS.md`, which starts the band at `0x0201`.
+- **Handles are heap addresses on a 52-byte grid**, all 512 distinct, spanning `0x01c0`
+  to `0x9190`, and not monotonic -- freed slots are reused. This corrects the reading
+  taken from six handles in the receive check above.
+- **`cGetValue` selector `0x2f` returns 1**, matching Windows. Value confirmed on a
+  second platform; meaning still unknown.
+
+### A driver ceiling this probe exposed
+
+The first attempt failed at 250 filters with `all sequence numbers are in the 10-second
+reuse quarantine`. That is our limit, not the adapter's. `Session` holds each of 255
+sequence slots for ten seconds before reuse, so the library sustains roughly 25 commands
+per second and no more; bursts shorter than the quarantine are unaffected, which is why
+nothing before this had noticed. The probe now waits it out.
+
+This is fine for channel and filter setup. It is not fine for transmit: the Windows
+baseline moved 2455 msg/s, and every message needs a sequence. Either the quarantine
+shortens on evidence about how long a late duplicate response can actually arrive, or
+transmit needs a path that does not consume one slot per message. That question should
+be settled before transmit is built, not after.
+
 ## Next blocking work
 
 Pass filters and the receive queue are implemented and hardware-accepted, which
@@ -228,8 +264,8 @@ work the bench can finish and work that needs a vehicle.
 
 Bench-reachable, with the adapter on USB alone:
 
-1. Probe the filter table: capacity above the 40 that D2 established, `cTableClear`
-   (`0x10`, never exercised in any capture), and `cGetValue` selector `0x2f`.
+1. Resolve the sequence-number ceiling described above. It bounds transmit throughput
+   at roughly 25 messages per second, so it precedes transmit rather than following it.
 2. Add CAN transmit. The `cOutboundData` body is settled by the static builder and a
    real capture together, including status `0x100` as success. With no bus, the bench
    can prove the adapter accepts and queues a frame and nothing more.

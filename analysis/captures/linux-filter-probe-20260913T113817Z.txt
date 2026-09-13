@@ -1,0 +1,41 @@
+Linux filter-table probe, 2026-09-13
+Adapter 18e1:0104, serial AOLHE0000003666A, /dev/ttyACM3, cdc_acm.
+User confirmed USB connected, no vehicle and no external 12 V power.
+Firmware 1.1.16.0.
+Command: build/mongoose-diag --filter-probe --serial SERIAL --trace FILE
+Bench tool, not the shipping library. Table and read operations only: no
+transmission, no value written, no destructive opcode reachable.
+
+Results, reproduced across two consecutive runs:
+- 512 pass filters accepted on one CAN channel with no refusal. 512 is the
+  probe's own ceiling, not a firmware limit. Capacity is therefore at least
+  512, against the at-least-40 the Windows D2 capture established.
+- All 512 removed with cTableRemoveEntry, every one status zero.
+- cTableClear (0x10) with table selector 0 returned status zero. This opcode
+  appears in no vendor capture; this is its first exercise anywhere.
+- Removing a valid handle after that clear returned status 0x0200 with text
+  "FilterDelete: No matching Filter ID", which is what makes the clear
+  verifiable rather than merely acknowledged. 0x0200 is a named filter-lookup
+  failure, previously unrecorded.
+- Adding a filter after the clear succeeded, so the table stays usable.
+- cGetValue selector 0x2f returned 1, matching the Windows observation. Its
+  meaning remains unknown; only the value is confirmed on a second platform.
+
+Handle allocation, from the 512-handle sample:
+- All 512 handles were distinct, congruent modulo 0x34, spanning 0x01c0 to
+  0x9190 -- a 52-byte entry grid across roughly 37 KB.
+- The sequence is NOT monotonic: it moves both up and down, so freed slots are
+  reused. A six-handle sample from the earlier receive check had suggested a
+  monotonic 0x68 stride; the larger sample corrects that. Handles are opaque,
+  which is how the library treats them.
+
+Deliberately not done: the fill stopped at 512 rather than pushing until the
+firmware refused. Driving an embedded allocator to exhaustion risks leaving the
+adapter wedged, and no J2534 client needs anything near 512 filters, so the
+maximum remains unmeasured on purpose rather than unmeasured by omission.
+
+Driver-side finding, not an adapter property: the first attempt at this probe
+failed at 250 filters with "all sequence numbers are in the 10-second reuse
+quarantine". Session holds each of 255 sequence slots for ten seconds before
+reuse, capping the library at about 25 commands per second sustained. The probe
+now waits the quarantine out. This ceiling matters for transmit.
