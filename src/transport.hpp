@@ -41,6 +41,11 @@ struct Selector {
 Selector parse_selector(std::string_view name);
 std::vector<DeviceInfo> tty_devices();
 std::unique_ptr<Transport> tty_transport(const Selector &selector, Trace trace = {});
+// Wraps an already-open character device, taking ownership of the descriptor. The
+// factory above resolves the adapter from sysfs and refuses anything else, which is
+// right for a driver and useless for a load harness: this one adopts the fd as given,
+// so the real reader thread and line discipline can be driven over a pty.
+std::unique_ptr<Transport> tty_transport_from_fd(int fd, const std::string &label, Trace trace = {});
 // libusb backend, built only when the MONGOOSE_LIBUSB option finds the library.
 std::vector<DeviceInfo> usb_devices();
 std::unique_ptr<Transport> usb_transport(const std::string &serial, Trace trace = {});

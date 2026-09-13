@@ -1,0 +1,4 @@
+sustained: 1000000/1000000 messages in 3.21027 s = 311500 msg/s, overflow=0
+overflow reported: 1
+maximum-size writes completed: 2, then: partial tty write; command delivery is ambiguous (code 7)
+pty load harness passed

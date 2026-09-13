@@ -88,9 +88,10 @@ now divides by what the bench can actually settle.
    confirmed it sent, not what it accepted. So is the sequence quarantine that used to
    cap the driver at 25 commands/second -- sequences are released on response, measured
    at 6385 commands/second on hardware.
-3. Measure sustained receive through a pty-backed load harness. It exercises the real
-   tty reader and queue but not the cdc_acm URB path, so it bounds host capability
-   rather than proving parity. Windows D4 is the ~2455 msg/s reference.
+3. Resolved: a pty-backed load harness drives the real tty reader, decoder and queue at
+   311500 msg/s with zero loss, about 127x the Windows D4 baseline, and exercises the
+   partial-write path for the first time. It does not cover the cdc_acm URB path, so
+   adapter parity is still unproven.
 4. Build the ISO15765 host reassembler offline against the captured VIN exchange.
 5. Vehicle-blocked: that filters filter, that transmits transmit, ISO15765 timing, the
    other protocol engines, and the 100-cycle and one-hour soak gates.

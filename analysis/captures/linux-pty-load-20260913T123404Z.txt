@@ -1,0 +1,37 @@
+Linux pty load harness, 2026-09-13
+Host-side only: no adapter, no vehicle, no bus. Command:
+build/mongoose-load-tests 1000000
+
+A pty pair stands in for the adapter. The slave is handed to the real tty.cpp
+transport, so the run exercises the actual reader thread, the actual n_tty line
+discipline, the actual framing decoder and the actual CanReceiver queue. It
+replays the 32 real inbound frames captured from the Windows D1 wildcard-pass
+run, cycling through them.
+
+What it does NOT exercise is the cdc_acm URB path. This bounds what the host
+can absorb; it does not prove parity with the adapter, and it is not a
+substitute for a busy bus.
+
+Results:
+
+- 1000000 messages consumed in 3.21 s = 311500 msg/s, zero lost, no overflow.
+  Every message was checked against the fixture frame that produced it, so loss,
+  reordering and corruption would all have failed the run.
+- That is about 127x the Windows D4 baseline of 2455 msg/s over five minutes.
+  The host-side receive path is nowhere near being the limiting factor; whatever
+  bounds Linux receive, it is not the tty reader, the decoder or the queue.
+- A consumer that stops reading gets ERR_BUFFER_OVERFLOW rather than a silently
+  short batch, so loss is reported rather than hidden.
+- The partial-write retry loop in tty.cpp now runs for the first time. With
+  nothing draining the master, two maximum-size 6148-byte frames are written and
+  the third is refused with "partial tty write; command delivery is ambiguous".
+  docs/VALIDATION.md previously recorded that loop as inspected but never
+  exercised, because no read-only opcode produces a frame near the 0x1800 limit.
+
+Also clean under ASan/UBSan and ThreadSanitizer, the latter with zero warnings
+while the reader thread runs.
+
+One test bug worth recording: the overflow check originally read while the
+producer was still writing. Under ASan the reader drained as fast as the slower
+build filled, the queue never reached capacity, and the check failed for the
+wrong reason. It now fills in rounds and drains only one batch per round.

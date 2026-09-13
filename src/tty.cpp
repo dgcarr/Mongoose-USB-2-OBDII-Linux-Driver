@@ -88,6 +88,13 @@ public:
     explicit Tty(const Selector &selector, Trace trace) : trace_(std::move(trace)) {
         try { acquire(selector); } catch (...) { cleanup(); throw; }
     }
+    // Adopts an already-open character device. Resolving and validating the adapter is
+    // the caller's job on this path; the reader thread, framing and write loop below are
+    // the same ones the production factory uses.
+    Tty(int fd, const std::string &label, Trace trace) : trace_(std::move(trace)) {
+        fd_ = fd;
+        try { configure(label); } catch (...) { cleanup(); throw; }
+    }
     ~Tty() override { try { stop(); } catch (...) {} }
     void start(Receiver receiver, Failure failure) override {
         if (started_ || closed_) throw Error(ERR_FAILED, "transport cannot be restarted");
@@ -271,5 +278,8 @@ std::vector<DeviceInfo> tty_devices() {
 }
 std::unique_ptr<Transport> tty_transport(const Selector &selector, Trace trace) {
     return std::make_unique<Tty>(selector, std::move(trace));
+}
+std::unique_ptr<Transport> tty_transport_from_fd(int fd, const std::string &label, Trace trace) {
+    return std::make_unique<Tty>(fd, label, std::move(trace));
 }
 }

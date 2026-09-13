@@ -76,13 +76,18 @@ libusb figures above:
 - Exclusivity: `flock` plus `TIOCEXCL` means a second instance, and any unrelated
   opener such as `dd`, fails with `EBUSY` -> `ERR_DEVICE_IN_USE`; the lock clears on
   close with no stale state.
-- **Not measured:** `cdc_acm` throttling under sustained inbound traffic. The libusb
-  path used two outstanding 8 KB URBs; the tty path goes through the n_tty flip buffer,
-  which throttles rather than drops when the reader lags. Vehicle traffic is where this
-  would first matter, so parity is not claimed.
-- **Not exercised:** the partial-write retry loop. No read-only opcode produces a frame
-  near the 0x1800 limit, so the loop ships covered only by inspection. A single
-  6144-byte write was observed to complete in one call on an idle buffer.
+- **Partly measured now.** A pty-backed harness drives the real tty reader, line
+  discipline, decoder and queue at 311500 msg/s with zero loss (see the load-harness
+  section below), so the host side is not the constraint. What remains unmeasured is
+  `cdc_acm` itself under sustained inbound traffic: the libusb path used two outstanding
+  8 KB URBs, while the tty path goes through the n_tty flip buffer, which throttles
+  rather than drops when the reader lags. Vehicle traffic is where that would first
+  matter, so parity is still not claimed.
+- **Now exercised:** the partial-write retry loop. No read-only opcode produces a frame
+  near the 0x1800 limit, so hardware alone could not reach it; the pty harness fills the
+  buffer and the loop reports `partial tty write; command delivery is ambiguous` on the
+  third maximum-size frame. A single 6144-byte write still completes in one call on an
+  idle buffer.
 - The two backends do not mutually exclude each other; see README.
 
 ## Capability matrix
@@ -349,6 +354,31 @@ evidence says it should.
 
 Evidence: `analysis/captures/linux-transmit-confirm-20260913T122804Z.*`.
 
+## Linux receive under sustained load (2026-09-13)
+
+`build/mongoose-load-tests` stands a pty pair in for the adapter: the slave goes to the
+real `tty.cpp` transport, so the run drives the actual reader thread, line discipline,
+framing decoder and `CanReceiver` queue, replaying the 32 real inbound frames from the
+Windows D1 capture. It is registered as the `load` CTest entry.
+
+**It does not exercise the cdc_acm URB path.** This bounds what the host can absorb; it
+does not prove parity with the adapter, and it is not a substitute for a busy bus.
+
+- **1000000 messages at 311500 msg/s, zero lost, no overflow.** Every message is checked
+  against the fixture frame that produced it, so loss, reordering or corruption fails the
+  run. That is roughly 127x the Windows D4 baseline of 2455 msg/s: whatever ultimately
+  bounds Linux receive, it is not the tty reader, the decoder or the queue.
+- **A stalled consumer gets `ERR_BUFFER_OVERFLOW`**, not a silently short batch, so loss
+  is reported rather than hidden.
+- **The partial-write retry loop runs for the first time**, closing the coverage gap
+  above. With nothing draining the master, two maximum-size 6148-byte frames go out and
+  the third is refused as ambiguous delivery.
+
+Clean under ASan/UBSan and ThreadSanitizer, the latter with zero warnings while the
+reader thread runs.
+
+Evidence: `analysis/captures/linux-pty-load-20260913T123404Z.*`.
+
 ## Next blocking work
 
 Pass filters and the receive queue are implemented and hardware-accepted, which
@@ -357,11 +387,7 @@ work the bench can finish and work that needs a vehicle.
 
 Bench-reachable, with the adapter on USB alone:
 
-1. Measure receive throughput and back-pressure through a pty-backed synthetic load.
-   That exercises the real tty reader, n_tty flip buffer, decoder and queue, but not
-   the cdc_acm URB path, so it bounds host-side capability rather than proving parity
-   with the adapter. Windows D4's five-minute ~2455 msg/s baseline is the reference.
-2. Build the ISO15765 host-side reassembler against the captured VIN exchange. The
+1. Build the ISO15765 host-side reassembler against the captured VIN exchange. The
    responsibility split is known: firmware generates flow control, the host reassembles.
 
 Vehicle-blocked:
