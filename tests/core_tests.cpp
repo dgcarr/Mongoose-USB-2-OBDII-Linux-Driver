@@ -67,6 +67,7 @@ void session_tests() {
     mock->write = [&](auto wire) {
         const auto seq = le16(wire, 10);
         auto wrong_route = response(0x8003, seq); put16(wrong_route, 4, 1); mock->receive(wrong_route);
+        auto wrong_source = response(0x8003, seq); put16(wrong_source, 6, channel_node(CAN)); mock->receive(wrong_source);
         mock->receive(response(0x8003, static_cast<uint16_t>(seq+1)));
         mock->receive(response(9, seq)); mock->receive(response(10, seq));
         mock->receive(response(0x8003, seq, 12)); // too short for ordinary response
@@ -78,12 +79,31 @@ void session_tests() {
     mock->write = [&](auto wire) { mock->receive(response(0x8003, le16(wire, 10))); };
     for (int i = 0; i < 253; ++i) CHECK(Session::status(session.command(3)) == 0);
     error(ERR_EXCEEDED_LIMIT, [&] { session.command(3); });
+    CHECK(session.usable());
     session.close(); CHECK(mock->stopped); session.close();
+    CHECK(!session.usable());
+    error(ERR_DEVICE_NOT_CONNECTED, [&] { session.command(3); });
+}
+void channel_routing_tests() {
+    auto source = std::make_unique<Mock>(); auto *mock = source.get(); Session session(std::move(source));
+    mock->write = [&](auto wire) {
+        CHECK(le16(wire, 4) == channel_node(CAN));
+        const auto seq = le16(wire, 10);
+        mock->receive(response(0x8006, seq)); // right sequence, wrong source
+        auto other_channel = response(0x8006, seq);
+        put16(other_channel, 6, channel_node(ISO15765)); mock->receive(other_channel);
+        auto general = response(1, seq);
+        put16(general, 6, channel_node(CAN)); mock->receive(general);
+    };
+    CHECK(le16(session.command(6, {}, 100ms, channel_node(CAN)), 4) == 1);
+    mock->write = [&](auto wire) { mock->receive(response(0x8006, le16(wire, 10))); };
+    error(ERR_TIMEOUT, [&] { session.command(6, {}, 3ms, channel_node(CAN)); });
     error(ERR_DEVICE_NOT_CONNECTED, [&] { session.command(3); });
 }
 void timeout_and_cancel() {
     auto source = std::make_unique<Mock>(); auto *mock = source.get(); Session session(std::move(source));
     error(ERR_TIMEOUT, [&] { session.command(3, {}, 3ms); });
+    CHECK(!session.usable());
     mock->receive(response(0x8003, 1));
     error(ERR_DEVICE_NOT_CONNECTED, [&] { session.command(3); });
     session.close();
@@ -281,7 +301,7 @@ void vendor_frame_tests() {
 }
 
 int main() {
-    try { selector_tests(); codec_tests(); session_tests(); timeout_and_cancel(); write_failure_paths(); replay_tests(); concurrent_commands(); vendor_frame_tests();
+    try { selector_tests(); codec_tests(); session_tests(); channel_routing_tests(); timeout_and_cancel(); write_failure_paths(); replay_tests(); concurrent_commands(); vendor_frame_tests();
         std::cout << "selectors, codec, correlation, quarantine, cancellation, write failures, replay, concurrency, vendor frames passed\n"; return 0;
     } catch (const std::exception &e) { std::cerr << e.what() << '\n'; return 1; }
 }

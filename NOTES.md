@@ -2,10 +2,9 @@
 
 Updated 2026-09-13. The current technical reference is [PROTOCOL.md](PROTOCOL.md).
 Implementation update: Linux discovery, open/close, firmware version and voltage
-queries now succeed on the USB-only adapter. See [current validation](docs/VALIDATION.md)
-and `analysis/captures/linux-*.trace`. The research summary below predates these
-hardware runs. Vehicle communication is not implemented; the next reference setup
-is a Windows laptop and a 2017 Volvo XC60 D5 AWD.
+queries and CAN channel setup now succeed on the USB-only adapter. See [current validation](docs/VALIDATION.md)
+and `analysis/captures/linux-*.trace`. Vehicle message I/O is not implemented. Windows reference captures on a
+2017 Volvo XC60 D5 AWD now resolve the CAN channel lifecycle and inform the next work.
 The chronological research log, including superseded hypotheses, is preserved in
 [the history archive](analysis/history/NOTES-before-consolidation.md).
 
@@ -44,8 +43,9 @@ map and enumerations from the binaries alone and then confirmed them against the
 over `cdc_acm` (read-only opcodes only, no vehicle): see PROTOCOL.md section 7a and
 `analysis/probes/`. Findings not marked as hardware-checked there remain static evidence.
 
-Unknowns include channel allocation and open arguments, pin routing, header bytes 10–11,
-status masks, and complete ISO15765 transmit/flow-control behavior. Timestamp units are
+Windows captures resolve channel allocation, open arguments, pin routing and the
+opaque echoed token at bytes 10–11. Remaining unknowns include status masks, the
+CAN filter type word and complete ISO15765 transmit/timing behavior. Timestamp units are
 resolved: response+16 is a device microsecond counter zeroed by `cOpenDevice`.
 The old probe script (`analysis/history/probe.py`) sweeps guessed frames and does not
 implement the corrected protocol or vendor initialization; it is a historical experiment,
@@ -76,11 +76,14 @@ its original `analysis/probe.py` path, which is left intact so the record stays 
 
 ## Next work
 
-1. Validate the vendor-create request and discovery Echo/GetBoardInfo sequence in a
-   narrowly scoped USB capture using a corrected probe.
-2. Trace channel-ID allocation, open-channel arguments and pin configuration.
-3. Finish protocol-specific message/status and ISO15765 handling before claiming a
-   complete Linux J2534 implementation.
+1. Implement CAN filters and receive queues against the Windows evidence, resolving
+   the filter type word before claiming filter support.
+2. Measure Linux sustained receive; the Windows D4 baseline does not establish tty
+   back-pressure behavior or prove zero loss. C3/C4 establish one CAN-family channel;
+   D2 establishes opaque handles and at least 40 filters, with the maximum unknown.
+3. Add CAN transmit and ISO15765 reassembly/timing, then other protocol engines.
+   CAN Connect/Disconnect now passes offline failure/concurrency tests and three
+   USB-only hardware setup cycles; full diagnostics and release soaks remain pending.
 
 See [reproduction instructions](analysis/REPRODUCE.md) and the
 [sender index](analysis/SENDERS.md) for the saved evidence and Ghidra scripts.

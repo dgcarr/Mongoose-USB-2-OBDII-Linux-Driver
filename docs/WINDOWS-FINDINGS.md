@@ -277,7 +277,7 @@ TxFlags, but `0x04010000` does not fit that reading, so no conclusion is drawn.
 ### No filter limit found
 
 Forty pass filters were added successfully on one channel (J2534 IDs 3 to 42),
-and the script ran out before the device did. The limit is **greater than 40**,
+and the script ran out before the device did. Capacity is **at least 40**,
 which is far beyond the ten that J2534 applications typically assume — it was not
 located, and saying "at least 40" is the honest result.
 
@@ -294,34 +294,25 @@ stats_max_gap_us=6000 gaps_over_10ms=0
 stats_rxstatus 0x00000000 = 736512
 ```
 
-**Nothing was dropped and no back-pressure was ever signalled.** Four independent
-checks agree:
+**The vendor stack sustained approximately 2455 messages/s without reporting an
+error or overflow. This does not prove zero packet loss.** The API statistics show:
 
-- `RxStatus` was `0x00000000` for **every one of the 736 512 messages**. Not one
-  overflow, buffer-full or protocol status bit appeared. So on plain CAN receive
-  the status mask is simply always zero, and a portable implementation gets no
-  loss signal from this field because the vendor never sets one here.
-- `empty_rounds=0` — every `PassThruReadMsgs` returned a full batch.
-- The largest gap between consecutive message timestamps was **6 ms**, with zero
-  gaps over 10 ms. Dropped traffic would show as widening gaps.
-- The device microsecond span was **299.999 s** across a 300 s window, so the last
-  message was timestamped at the end of the run. A growing backlog inside the DLL
-  would have left the timestamps lagging wall-clock; they did not.
+- All 736512 returned messages had RxStatus zero. That establishes the observed
+  status distribution, not that every transmitted bus frame was received.
+- No read returned zero messages. The aggregate total also equals 2877 batches
+  of 256; the empty-round counter alone would not establish full batches.
+- The largest observed timestamp gap was 6 ms. A missing frame can occur between
+  other traffic without causing a large gap, so this is not a loss detector.
+- Device timestamps span 299.999 s. This is consistent with sustained draining,
+  but does not measure absolute queue latency or bound clock drift.
 
-The run reproduced **exactly** — two independent five-minute runs both returned
-736 512 messages, because every round returned precisely the 256 requested
-(2877 x 256). That is the J2534 contract working as specified rather than a
-coincidence: `PassThruReadMsgs` returns when the requested count is reached or the
-timeout expires, and at 2455 msg/s a batch of 256 takes 104 ms, which is exactly
-the observed 300 s / 2877 rounds. The adapter and DLL sustained the full bus rate
-in real time.
+The reported repeated total is not evidence of a required J2534 result: batching
+explains the multiple of 256, but does not require independent runs to produce
+identical totals. A loss claim needs an independent transmitted-frame count or
+sequence-numbered source, and a backlog claim needs queue/latency measurements.
 
-2455 msg/s across 69 distinct CAN IDs is roughly 60 % utilisation of a 500 kbit/s
-bus, so this exercises the path properly without being a synthetic worst case.
-
-This does not settle the `cdc_acm` throttling question, which is about a different
-transport on Linux; it does establish that neither the adapter nor the vendor
-stack is the bottleneck at this rate.
+This is a Windows receive baseline. Linux cdc_acm throttling and back-pressure
+still need their own busy-bus experiment; no transport parity is claimed.
 
 ### On the artefacts
 
@@ -387,8 +378,8 @@ Two things follow.
   semantics rather than merely being defensible.
 
 Device handles **increment and are not reused**: three open/close cycles in one
-process returned device 1, 2, then 3 (`20260913T162358-b1-open-close-x3`). J2534
-channel IDs behaved differently, staying at 2 across connect/disconnect.
+process returned device 1, 2, then 3 (`20260913T162358-b1-open-close-x3`). Channel
+IDs also increment within one process; see the C3 reconnect correction above.
 
 ## B7 — Opcode census
 
@@ -435,9 +426,9 @@ the captures do not depend on it.
 
 `cGetValue` selector `0x2f`; the leading `1` of `cSetPin`; the three-transfer
 `0xdb` preamble; the meaning of the `0x000d` type word; `cInboundData` body+0;
-and `0x000f`/`0x0010`, still unnamed. Channel exhaustion (C3), concurrent
-channels (C4), filter-table limits (D2) and sustained throughput (D4) were not
-run.
+and `0x000f`/`0x0010`, still unnamed. C3/C4 are resolved for this adapter (one shared CAN controller); D2 mapping is
+resolved with capacity at least 40 and the maximum unknown; D4 is complete as a
+Windows throughput baseline, with Linux back-pressure still open.
 
 ## Capture procedure notes
 

@@ -29,7 +29,7 @@ mongoose-reference.exe C:\path\to\monpj432.dll --cycles 3 > windows-open.log
 
 First capture USB-only open/version/close. Repeat with the adapter on the vehicle,
 recording power/ignition state, model/year, firmware version and driver hash. Keep the
-pcapng, API log, and metadata together. Windows has not been tested in this session.
+pcapng, API log, and metadata together. Completed Windows runs and their limits are recorded in WINDOWS-FINDINGS.md.
 
 For subsequent CAN research, `--can --baud N --flags N` adds Connect, a wildcard
 pass filter, a one-second ReadMsgs, then cleanup. Record the verified baud/flags for
@@ -62,7 +62,7 @@ voltage onto an OBD pin of a live vehicle is not a read-only act.
 
 `tools\capture.ps1 -Script FILE` runs one script between USBPcap start and stop, writing
 `wire.pcap`, `api.log` and a `metadata.txt` carrying the DLL and driver hashes into
-`analysis/captures/windows/<timestamp>-<name>/`. It needs an elevated shell, and the
+`analysis/captures/windows/<timestamp>-<name>/`. Capture worked without elevation in the recorded setup; the
 ignition state and vehicle fields in the metadata are filled in by hand.
 
 USBPcap registers itself as an `UpperFilters` entry on the USB device class, so the
@@ -71,8 +71,8 @@ filter only attaches to root hubs after a **reboot**. Before that reboot
 
 `tools\vendor_debug_log.ps1` toggles `DebugEnable` on the vendor's PassThru registry key.
 `monpj432.dll` carries the strings `DebugEnable`, `C:\DrewTech\Logs` and a log filename
-template, so the vendor may be able to write its own log alongside the capture. Whether
-that switch is the real gate is unverified.
+template, so the vendor may be able to write its own log alongside the capture. The captured DWORD/string trials produced no logs; do not repeat registry guesses
+without tracing the gate (see WINDOWS-FINDINGS.md).
 
 ## Linux
 
@@ -99,3 +99,15 @@ appear. Capture success is not implied by a trace.
 Replay format is `OUT hex` followed by one or more `IN hex` chunks. Comments start
 with `#`. Preserve chunk boundaries. Only feed request/response traffic appropriate
 to the chosen diagnostic mode; replay is never a fallback for PassThruOpen.
+
+### Linux CAN setup only
+
+`build/mongoose-client serial:SERIAL --can-lifecycle` uses the production J2534
+library to open, read version, connect/disconnect at 500k and 250k flags zero,
+then 500k with CAN_29BIT_ID, and close. It does not call WriteMsgs. This has
+succeeded with USB power alone, but connecting on a live bus may acknowledge
+traffic. Select the intended adapter explicitly and record power/vehicle state.
+For API-level wire evidence without a USB capture, use `strace -f -ttt -xx -s 8192
+-e trace=read,write,openat,close -o lifecycle.strace` before the client command.
+Keep only the selected tty's syscall buffers when deriving OUT/IN trace records;
+label these as syscall traces, never USB captures.

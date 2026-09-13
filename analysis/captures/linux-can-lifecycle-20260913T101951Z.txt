@@ -1,0 +1,13 @@
+Linux CAN channel lifecycle acceptance, 2026-09-13
+Adapter 18e1:0104, serial AOLHE0000003666A, /dev/ttyACM3, cdc_acm.
+User confirmed USB connected, no vehicle and no external 12 V power.
+Firmware 1.1.16.0. Production shared library, current channel-lifecycle working tree.
+Command: build/mongoose-client serial:AOLHE0000003666A --can-lifecycle
+Capture: strace -f -ttt -xx -s 8192 -e trace=read,write,openat,close
+The .strace is a target-tty excerpt; .trace losslessly decodes its successful
+read/write buffers and preserves syscall boundaries. Neither is a USB capture.
+All 14 commands returned status zero. Three Connect/Disconnect cycles, IDs 2/3/4,
+at 500000 flags 0, 250000 flags 0, 500000 flags 0x100. No message transmission,
+filters, voltage output, or firmware writes. No bus traffic was available.
+This validates USB-only channel setup, not bus timing or vehicle diagnostics.
+Library SHA256: 1a44aa7c226fa756fa15cb4a4710b3c7e79bd2c4a760e96446b17d63f3fad96f

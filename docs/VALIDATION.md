@@ -1,7 +1,7 @@
 # Implementation and validation status
 
 2026-09-13 Australia/Sydney (captures use 2026-09-12 UTC).
-This is an experimental device-management library, **not a complete J2534 driver**.
+This is an experimental device-management and CAN channel-lifecycle library, **not a complete J2534 driver**.
 The 04.04 version string identifies the target interface, not a compliance claim.
 
 ## Hardware results
@@ -94,28 +94,40 @@ libusb figures above:
 | ReadVersion | Yes | Yes | Firmware value retrieved |
 | READ_VBATT / READ_PROG_VOLTAGE | Yes | Yes | Raw values retrieved; accuracy pending |
 | ABI and GetLastError | Standard interface | Yes | Native client / offline tests |
-| CAN channels and message I/O | Partial | No | Requires reference capture and vehicle |
-| ISO15765 | Partial host-side logic | No | Requires reference capture and vehicle |
+| CAN Connect/Disconnect | Captured vendor frames | Yes | Linux USB-only success; no vehicle/12 V |
+| CAN message I/O | Partial | No | Windows reference only |
+| ISO15765 | Captured host reassembly / firmware flow control | No | Windows reference only; timing variations pending |
 | K-line / J1850PWM | Partial | No | Suitable hardware required |
 | Filters / periodic / configuration | Partial | No | Pending |
 | Programming-voltage output | Partial | No | Pending electrical validation |
 
-All 14 core exports exist. Connect explicitly returns ERR_NOT_SUPPORTED; no channel
-IDs are allocated. Channel APIs reject invalid IDs. Unsupported IOCTLs and voltage
-output never report success. No bus messages or firmware writes have been sent.
+All 14 core exports exist. CAN Connect/Disconnect is implemented; other protocols
+remain unsupported. One CAN-family resource is reserved per device, with a second
+CAN or ISO15765 connection refused locally. Message/filter/periodic APIs reject
+invalid IDs and report ERR_NOT_SUPPORTED for live channels. Unsupported IOCTLs and
+voltage output never report success. The Linux driver has sent no bus messages or
+firmware writes; the Windows reference harness has exercised OBD requests.
 
 ## Tests
 
 CTest covers frame fragmentation, concatenation, invalid headers, bounds, randomized
 round trips, general-response matching, unrelated indications, short responses,
 sequence quarantine, timeout poisoning, cancellation, unplug notification, short
-writes, pre-write deadline expiry, transport root-cause preservation, concurrent
+writes, nonzero write budgets, transport root-cause preservation, concurrent
 command serialization, replay mismatches, C ABI layout, symbol exports, and 100
 **synthetic** lifecycle cycles. Real discovery/open/inspection captures are replayed
-separately through the diagnostic executable.
+separately through the diagnostic executable. The pre-write deadline-expiry branch
+is inspected, not deterministically tested. The channel suite tests capture-derived
+API setup/teardown, wrong-source rejection, argument validation, stale handles,
+rollback, teardown rejection, real response timeout, short writes, unplug and
+synchronized competing lifecycle calls. Every scripted wire exchange must be consumed.
 
-The suite passes under GCC, Clang, and ASan/UBSan, and is clean under ThreadSanitizer.
-The `MONGOOSE_FUZZ` libFuzzer target has been run over the framing codec for roughly
+All eight CTest entries pass in normal, ASan/UBSan and no-libusb builds after this
+change. Earlier Clang/ThreadSanitizer/fuzzer results below describe the preceding
+baseline, not a fresh run of the channel implementation.
+
+The preceding baseline passed under GCC, Clang, ASan/UBSan and ThreadSanitizer.
+The `MONGOOSE_FUZZ` libFuzzer target was run over the framing codec for roughly
 6.2 million executions seeded from the captured frames, with no crash, leak or
 sanitizer finding; that exercises the only code that parses untrusted wire data.
 
@@ -132,7 +144,7 @@ responses are still unknown. No firmware-generation marker has been established.
 
 ## Windows reference captures (2026-09-13)
 
-Items 1–3 below are **done**. The vendor driver was captured on Windows 11 against
+The vendor driver was captured on Windows 11 against
 the adapter and the 2017 Volvo XC60 D5 AWD with the engine running: device
 lifecycle, `ReadVersion`, error paths, exclusivity, CAN and ISO15765 `Connect`
 across three bauds and both flag settings, a wildcard pass filter over live bus
@@ -149,23 +161,37 @@ running, so the Linux bench `0` from `cGetValue` selector 3 was a no-vehicle
 reading rather than a broken selector. And no destructive opcode appears anywhere
 in the capture corpus.
 
+## Linux CAN lifecycle acceptance (2026-09-13)
+
+User confirmed the adapter was connected by USB only, with no car or external 12 V.
+The production shared library completed Open, ReadVersion, three CAN
+Connect/Disconnect pairs, and Close, all with status zero. The pairs were
+500000 flags 0, 250000 flags 0, and 500000 flags CAN_29BIT_ID; channel handles
+were 2, 3 and 4 within the same process. Each Connect emitted OpenChannel then
+SetPin to 0x0501, and each Disconnect emitted CloseChannel to that node.
+
+Evidence: `analysis/captures/linux-can-lifecycle-20260913T101951Z.trace`, with matching
+`.strace`, `.log` and `.txt` metadata. These are tty syscall bytes captured with
+strace, not usbmon packets. Reproduce with
+`build/mongoose-client serial:SERIAL --can-lifecycle`. No bus transmission is
+performed. This is channel setup acceptance, not vehicle communication validation.
+
 ## Next blocking work
 
-1. Implement `PassThruConnect` against section 7b and compare the emitted
-   `cOpenChannel` frame with the captured vendor frame for the same arguments.
-   `core_tests` already pins the expected bytes.
-2. Exercise channel exhaustion, concurrent channels and filter-table limits
-   (plan items C3/C4/D2), none of which were captured. Only one channel was ever
-   open at a time, so the `chan` field at body+8 is characterised only for the
-   values 0 and 1.
-3. Measure sustained throughput and back-pressure against a busy bus (plan item
-   D4). The `cdc_acm` throttling question is untouched, as is ISO15765 timing:
-   the responsibility split is known but no STmin, block size or N_Bs value has
-   been varied.
-4. Complete the remaining protocol engines, periodic messages and IOCTLs.
-   Obtain other vehicles/fixtures for protocols the Volvo cannot exercise.
-5. Run the planned 100 hardware cycles and one-hour diagnostic soak after bus
-   support exists. Offline lifecycle tests do not satisfy these release requirements.
+1. Implement CAN pass filters and receive queues; first resolve the CAN filter
+   type word against vendor construction/captures, rather than treating it as
+   ISO15765 TxFlags. D2 establishes opaque filter handles and at least 40 filters,
+   but not maximum capacity.
+2. Validate Linux receive throughput and back-pressure on a busy bus. Windows D4
+   supplies a five-minute ~2455 msg/s baseline with no reported overflow, not
+   proof of zero loss or Linux transport parity.
+3. Add CAN transmit, then ISO15765 host reassembly using the captured firmware
+   flow-control split. STmin, block size and N_Bs variations remain untested.
+4. Complete remaining protocol engines, periodic messages and IOCTLs with suitable
+   vehicles/fixtures. C3/C4 are settled for this adapter: only one CAN-family
+   channel can be open; further chan-field semantics cannot be inferred here.
+5. Run 100 hardware cycles and a one-hour diagnostic soak once bus support exists.
+   Three USB-only channel cycles and synthetic lifecycle tests do not satisfy these gates.
 
 Electrical testing and full J2534 conformance remain outstanding. Firmware
 updating, Wine and SocketCAN are out of scope.

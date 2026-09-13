@@ -2,14 +2,16 @@
 
 Experimental native C++20 J2534 library for USB `18e1:0104`, talking to the adapter as
 an ordinary `cdc_acm` serial device.
-**Linux discovery and device open/close now work on the adapter. Vehicle diagnostics
+**Linux discovery, device open/close and CAN channel setup now work on the adapter. Vehicle diagnostics
 are not implemented yet.** See [validation and remaining work](docs/VALIDATION.md).
 
 Implemented: two transports (cdc_acm by default, libusb optional), scoped device
 ownership, asynchronous reception, validated length/XOR
 framing, serialized commands, startup/cleanup, native Open/Close/ReadVersion,
-voltage-reading IOCTLs, replay tests and all 14 core ABI exports. Connect and other
-unfinished operations return errors; exports alone do not mean protocol support.
+voltage-reading IOCTLs, CAN Connect/Disconnect, replay tests and all 14 core ABI exports.
+CAN supports flags 0 or CAN_29BIT_ID, with one channel per adapter. Message I/O,
+filters, periodic messages and ISO15765 remain unsupported; channel setup alone
+does not mean vehicle diagnostics work.
 
 ## Build and test
 
@@ -22,6 +24,8 @@ ctest --test-dir build --output-on-failure
 build/mongoose-diag --list
 build/mongoose-diag --discover --trace discovery.trace
 build/mongoose-client
+# Explicit CAN setup/reconnect check; never calls WriteMsgs:
+build/mongoose-client serial:SERIAL --can-lifecycle
 ```
 
 `PassThruOpen(NULL, ...)` requires exactly one matching adapter. Use `serial:SERIAL`
@@ -99,5 +103,12 @@ tools and documentation; vendor files and research binaries are excluded.
 
 The old probe script is a historical speculative experiment, not the driver; it is
 kept at `analysis/history/probe.py`.
-The next vehicle target is a 2017 Volvo XC60 D5 AWD. Reference captures will be made
-on a separate Windows laptop; no vehicle was connected during current testing.
+Windows reference captures now cover the 2017 Volvo XC60 D5 AWD. Linux CAN channel
+setup has been exercised on USB power only, without a vehicle or external 12 V.
+Message I/O and Linux vehicle validation remain next work.
+
+CAN lifecycle calls are serialized per device. Handles increase without reuse and
+are invalidated on disconnect or device close. A rejected pin setup is rolled back
+with CloseChannel; failed rollback or ambiguous transport failure requires device
+close/reopen. Unsupported channel APIs return ERR_NOT_SUPPORTED for a live channel
+and ERR_INVALID_CHANNEL_ID for an invalid one, with output counts/IDs cleared.

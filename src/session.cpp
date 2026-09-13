@@ -20,22 +20,23 @@ Session::~Session() { try { close(); } catch (...) {} }
 void Session::failed(const std::string &reason) {
     std::lock_guard lock(mutex_);
     if (failure_.empty()) failure_ = reason;
+    if (can_receiver_) can_receiver_->stop(ERR_DEVICE_NOT_CONNECTED, failure_);
     ready_.notify_all();
 }
 void Session::receive(std::span<const uint8_t> bytes) {
     std::lock_guard lock(mutex_);
     for (auto &body : decoder_.feed(bytes)) {
-        // No channels are exposed until their setup is validated. Data and
-        // indications are traced by the transport but cannot satisfy commands.
+        if (can_receiver_) can_receiver_->receive(body);
+        // Data and indications cannot satisfy commands.
         if (pending_ && !response_ && body.size() >= minimum_ &&
             response_opcode(le16(body, 4)) && le16(body, 0) == 0 &&
-            le16(body, 6) == pending_) {
+            le16(body, 2) == pending_source_ && le16(body, 6) == pending_) {
             response_ = std::move(body); ready_.notify_all();
         }
     }
 }
 Bytes Session::command(uint16_t opcode, std::span<const uint8_t> payload,
-                       std::chrono::milliseconds timeout) {
+                       std::chrono::milliseconds timeout, uint16_t destination) {
     if (timeout.count() <= 0 || timeout > std::chrono::seconds(60))
         throw std::invalid_argument("command timeout must be 1..60000 ms");
     const auto deadline = std::chrono::steady_clock::now() + timeout;
@@ -52,7 +53,8 @@ Bytes Session::command(uint16_t opcode, std::span<const uint8_t> payload,
             now - used_[sequence_] >= std::chrono::seconds(10)) { available = true; break; }
     }
     if (!available) throw Error(ERR_EXCEEDED_LIMIT, "all sequence numbers are in the 10-second reuse quarantine");
-    const auto wire = encode(request(opcode, sequence_, payload));
+    const auto wire = encode(request(opcode, sequence_, payload, destination));
+    pending_source_ = destination;
     pending_ = sequence_; minimum_ = opcode == 0x100 ? 12 : 20; response_.reset();
     used_[sequence_] = now;
     state.unlock();
@@ -77,12 +79,14 @@ Bytes Session::command(uint16_t opcode, std::span<const uint8_t> payload,
         // Keep any root cause the transport already reported; it is more specific.
         state.lock(); pending_ = 0;
         if (failure_.empty()) failure_ = "write failed; reopen before retrying";
+        if (can_receiver_) can_receiver_->stop(ERR_DEVICE_NOT_CONNECTED, failure_);
         throw;
     }
     state.lock();
     if (!ready_.wait_until(state, deadline, [this] { return response_ || closing_ || !failure_.empty(); })) {
         pending_ = 0;
         failure_ = "response timed out; reopen to avoid accepting a late response";
+        if (can_receiver_) can_receiver_->stop(ERR_DEVICE_NOT_CONNECTED, failure_);
         throw Error(ERR_TIMEOUT, failure_);
     }
     pending_ = 0;
@@ -94,12 +98,24 @@ uint32_t Session::status(std::span<const uint8_t> body) {
     if (body.size() < 20) throw Error(ERR_FAILED, "general response shorter than 20 bytes");
     return le32(body, 12);
 }
+bool Session::usable() {
+    std::lock_guard lock(mutex_);
+    return !closing_ && failure_.empty();
+}
+void Session::set_can_receiver(std::shared_ptr<CanReceiver> receiver) {
+    std::lock_guard lock(mutex_);
+    if (can_receiver_) can_receiver_->stop(ERR_INVALID_CHANNEL_ID, "CAN channel retired");
+    can_receiver_ = std::move(receiver);
+    if (can_receiver_ && (closing_ || !failure_.empty()))
+        can_receiver_->stop(ERR_DEVICE_NOT_CONNECTED, "device connection lost");
+}
 void Session::close() {
     std::lock_guard close_lock(close_mutex_);
     {
         std::lock_guard state(mutex_);
         if (stopped_) return;
         closing_ = true; ready_.notify_all();
+        if (can_receiver_) can_receiver_->stop(ERR_DEVICE_NOT_CONNECTED, "device closed");
     }
     std::lock_guard transaction(transaction_);
     { std::lock_guard state(mutex_); stopped_ = true; }

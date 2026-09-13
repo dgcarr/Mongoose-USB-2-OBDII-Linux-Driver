@@ -160,8 +160,8 @@ Sources: `open_sequence/`, `open_transport/`, `usb_open/`, `message_decode/1004a
 | 1000dbf0 | 0x0011 ioctl | 16 | +12 u32 3: clear RX |
 | 1002a700 | 0x0011 ioctl | 17 | +12 u32 0; +16 initialization address byte (5-baud init) |
 
-Open-channel argument semantics and the source of channel IDs still need tracing through
-protocol-specific constructors; do not substitute SAE protocol IDs or assume flag/baud order.
+Windows captures resolve these fields as flags then baud, and channel routing as
+(protocol << 8) | board; see section 7b. Public handles are host-side allocations.
 `1000b320` additionally calls the pin-control sender after channel open. Channel creation is
 therefore more than issuing opcode 6 alone.
 
@@ -629,9 +629,9 @@ Still open:
   `There's already a 5:CAN channel open`, and an ISO15765 connect while CAN is open with
   `All 6:ISO15765 hardware is busy` - the two protocols share one CAN controller.
 - **The filter table limit was not found.** Forty pass filters were accepted on one channel;
-  the limit is greater than 40 and remains unmeasured.
+  capacity is at least 40; the maximum remains unmeasured.
 - **Sustained throughput** is measured (section 7b): 2455 msg/s over five minutes with no
-  drops and no back-pressure signal. The `cdc_acm` throttling question is still open, since
+  reported overflow or back-pressure signal; this does not prove zero loss. The `cdc_acm` throttling question is still open, since
   that is a different transport, but neither the adapter nor the vendor stack is the
   bottleneck at that rate.
 - `cGetValue` selector `0x2f`, used in the vendor open path and returning 1, has unknown meaning.
