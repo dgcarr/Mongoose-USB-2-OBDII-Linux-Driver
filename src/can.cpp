@@ -19,14 +19,42 @@ Bytes can_pass_filter(const PASSTHRU_MSG &mask, const PASSTHRU_MSG &pattern, uin
     payload.insert(payload.end(), pattern.Data, pattern.Data + pattern.DataSize);
     return payload;
 }
+Bytes can_transmit(const PASSTHRU_MSG &message, uint32_t channel_flags, uint32_t timeout_ms) {
+    if (message.ProtocolID != CAN)
+        throw Error(ERR_MSG_PROTOCOL_ID, "message protocol must match CAN channel");
+    if (message.TxFlags & ~static_cast<uint32_t>(CAN_29BIT_ID))
+        throw Error(ERR_INVALID_FLAGS, "unsupported CAN transmit flags");
+    if (message.TxFlags != channel_flags)
+        throw Error(ERR_INVALID_MSG, "transmit identifier width must match channel");
+    // Four ID bytes plus up to eight data bytes; the ID is big-endian, as on receive.
+    if (message.DataSize < 4 || message.DataSize > 12)
+        throw Error(ERR_INVALID_MSG, "CAN message size must be 4..12");
+    // 1006b090: +12 u32 TxFlags, +16 u32 timeout, +20 u16 DataSize, +22 u16
+    // ExtraDataIndex, +24 data. The Windows capture names +16, which the static pass
+    // could only call an unresolved caller argument.
+    Bytes payload(12, 0);
+    put16(payload, 0, static_cast<uint16_t>(message.TxFlags));
+    put16(payload, 2, static_cast<uint16_t>(message.TxFlags >> 16));
+    put16(payload, 4, static_cast<uint16_t>(timeout_ms));
+    put16(payload, 6, static_cast<uint16_t>(timeout_ms >> 16));
+    put16(payload, 8, static_cast<uint16_t>(message.DataSize));
+    put16(payload, 10, static_cast<uint16_t>(message.ExtraDataIndex));
+    payload.insert(payload.end(), message.Data, message.Data + message.DataSize);
+    return payload;
+}
 void CanReceiver::receive(std::span<const uint8_t> body) {
     std::lock_guard lock(mutex_);
     if (stopped_ || body.size() < 12 || le16(body, 0) != 0 || le16(body, 2) != channel_node(CAN)) return;
     const auto opcode = le16(body, 4);
     if (opcode == 10) {
+        if (body.size() < 20) return;
+        const auto indication = le32(body, 12);
         // 1000bcb0 reports these two firmware loss indications as buffer overflow.
-        if (body.size() >= 20 && (le32(body, 12) == 0x10b || le32(body, 12) == 0x119)) {
+        if (indication == 0x10b || indication == 0x119) {
             overflow_ = true; ready_.notify_all();
+        } else if (indication == 0x106) {
+            // iMsgTxDone: the adapter confirming one frame left the controller.
+            ++transmitted_; ready_.notify_all();
         }
         return;
     }
@@ -44,6 +72,10 @@ void CanReceiver::receive(std::span<const uint8_t> body) {
     std::copy_n(body.begin() + 24, frame.size, frame.data.begin());
     frames_.push_back(frame);
     ready_.notify_all();
+}
+size_t CanReceiver::transmitted() {
+    std::lock_guard lock(mutex_);
+    return transmitted_;
 }
 void CanReceiver::stop(int32_t code, const std::string &reason) {
     std::lock_guard lock(mutex_);

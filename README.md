@@ -10,11 +10,16 @@ Implemented: two transports (cdc_acm by default, libusb optional), scoped device
 ownership, asynchronous reception, validated length/XOR
 framing, serialized commands, startup/cleanup, native Open/Close/ReadVersion,
 voltage-reading IOCTLs, CAN Connect/Disconnect, CAN PASS filters, a CAN receive queue
-behind ReadMsgs, replay tests and all 14 core ABI exports.
-CAN supports flags 0 or CAN_29BIT_ID, with one channel per adapter. Transmit, periodic
-messages, BLOCK filters and ISO15765 remain unsupported. Filters have been accepted and
-acknowledged by the adapter but never given a frame to act on, and nothing has been
-transmitted; channel and filter setup alone does not mean vehicle diagnostics work.
+behind ReadMsgs, raw CAN transmit through WriteMsgs, replay tests and all 14 core ABI
+exports. CAN supports flags 0 or CAN_29BIT_ID, with one channel per adapter. Periodic
+messages, BLOCK filters and ISO15765 remain unsupported.
+
+Everything above has been exercised only on a bench with no bus. Filters have been
+accepted by the adapter but never given a frame to act on, ReadMsgs has never returned a
+message, and the one frame ever transmitted was queued by the adapter without any
+confirmation that it left the controller -- `WriteMsgs` returning success means the
+adapter took the frame, not that anything received it. Channel, filter and transmit
+setup alone does not mean vehicle diagnostics work.
 
 ## Build and test
 
@@ -31,6 +36,9 @@ build/mongoose-client
 build/mongoose-client serial:SERIAL --can-lifecycle
 # Adds two pass filters per channel and reads; also never calls WriteMsgs:
 build/mongoose-client serial:SERIAL --can-receive-check
+# Bench probes. --transmit-probe sends ONE OBD-II mode 01 PID 00 frame:
+build/mongoose-diag --filter-probe --serial SERIAL
+build/mongoose-diag --transmit-probe --serial SERIAL
 ```
 
 `PassThruOpen(NULL, ...)` requires exactly one matching adapter. Use `serial:SERIAL`

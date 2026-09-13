@@ -18,8 +18,12 @@ constexpr uint16_t board_node = 1;
 constexpr uint16_t channel_node(uint16_t protocol, uint16_t board = board_node) {
     return static_cast<uint16_t>((protocol << 8) | board);
 }
+// chan (body+8) is 0 for channel management and 1 for data commands; the vendor census
+// in docs/WINDOWS-FINDINGS.md section B7 shows no other value. Its meaning is still
+// unresolved, so the data path matches the vendor rather than assuming it is ignored.
+constexpr uint16_t data_chan = 1;
 Bytes request(uint16_t opcode, uint16_t sequence, std::span<const uint8_t> payload = {},
-              uint16_t destination = board_node);
+              uint16_t destination = board_node, uint16_t chan = 0);
 std::string hex(std::span<const uint8_t> data);
 Bytes unhex(const std::string &text);
 class Decoder {

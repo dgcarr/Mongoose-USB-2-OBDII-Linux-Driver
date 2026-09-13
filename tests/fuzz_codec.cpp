@@ -17,6 +17,19 @@ extern "C" int LLVMFuzzerTestOneInput(const uint8_t *data, size_t size) {
         }
         offset += length;
     }
+    // The transmit encoder copies DataSize bytes out of a caller-supplied message, so
+    // drive its size and flag fields from the same untrusted input.
+    if (size >= 3) {
+        PASSTHRU_MSG outbound{};
+        outbound.ProtocolID = CAN;
+        outbound.TxFlags = data[0] & 1 ? static_cast<uint32_t>(CAN_29BIT_ID) : 0;
+        outbound.DataSize = data[1];
+        outbound.ExtraDataIndex = data[2];
+        try {
+            const auto payload = mongoose::can_transmit(outbound, outbound.TxFlags, data[2]);
+            if (payload.size() != size_t{12} + outbound.DataSize) std::abort();
+        } catch (const mongoose::Error &) {}
+    }
     PASSTHRU_MSG message{};
     uint32_t count = 0;
     try { receiver.read(&message, 1, count, 0); } catch (const mongoose::Error &) {}

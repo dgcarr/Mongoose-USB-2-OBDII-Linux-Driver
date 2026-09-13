@@ -1,0 +1,28 @@
+Linux CAN transmit probe, 2026-09-13
+Adapter 18e1:0104, serial AOLHE0000003666A, /dev/ttyACM3, cdc_acm.
+User confirmed USB connected, no vehicle, no external 12 V, and no CAN bus.
+Firmware 1.1.16.0.
+Command: build/mongoose-diag --transmit-probe --serial SERIAL --trace FILE
+
+One frame was sent: OBD-II mode 01 PID 00 (09 02 to functional address 0x7DF),
+the standard read-only capability query and the same request the Windows
+reference captured. One frame, once. Nothing else was transmitted.
+
+Results:
+- cOutboundData was accepted with status 0x100, the queued status the Windows
+  capture documented. Our first transmit reproduces it.
+- The response echoes chan=1 at body+8. We send 1 there because the vendor
+  census shows data commands using it; the echo confirms the firmware carries
+  the field on the data path rather than ignoring it. Its meaning is still
+  unresolved.
+- NO iMsgTxDone (0x0106) indication arrived within two seconds.
+- No frame was received, as expected.
+
+The absent tx-done is the point of this run. With no bus there is no node to
+acknowledge the frame, so the controller never completes the transmission,
+yet the command still reports success. Status 0x100 therefore means QUEUED,
+not TRANSMITTED, and no client should read it as delivery. Distinguishing the
+two requires the 0x0106 indication, which is exactly what did not arrive here
+and what a live bus should produce.
+
+Not established: that any frame reached a wire. That needs a bus.

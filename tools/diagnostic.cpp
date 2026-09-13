@@ -167,7 +167,7 @@ int main(int argc, char **argv) {
         for (int i = 1; i < argc; ++i) {
             const std::string arg = argv[i];
             if (arg == "--list" || arg == "--discover" || arg == "--open-close" ||
-                arg == "--inspect" || arg == "--filter-probe") {
+                arg == "--inspect" || arg == "--filter-probe" || arg == "--transmit-probe") {
                 if (!mode.empty()) throw std::invalid_argument("choose exactly one mode");
                 mode = arg;
             } else if ((arg == "--serial" || arg == "--device" || arg == "--replay" || arg == "--trace" ||
@@ -188,11 +188,12 @@ int main(int argc, char **argv) {
                     ceiling = static_cast<unsigned>(parsed);
                 }
             } else {
-                std::cerr << "Usage: mongoose-diag --list|--discover|--open-close|--inspect|--filter-probe "
+                std::cerr << "Usage: mongoose-diag --list|--discover|--open-close|--inspect|--filter-probe|--transmit-probe "
                              "[--device SELECTOR] [--serial SERIAL] [--trace FILE] [--timeout-ms 10000] [--replay FILE]\n"
                              "  SELECTOR: serial:S | tty:[serial:S|/dev/ttyACMn] | usb:[serial:S]  (default: tty)\n"
                              "  --filter-probe opens a CAN channel and fills the filter table; it never transmits.\n"
-                             "  --filter-ceiling N caps that fill (default 512).\n";
+                             "  --filter-ceiling N caps that fill (default 512).\n"
+                             "  --transmit-probe sends ONE OBD-II mode 01 PID 00 frame on a CAN channel.\n";
                 return arg == "--help" ? 0 : 2;
             }
         }
@@ -268,6 +269,44 @@ int main(int argc, char **argv) {
                         std::cout << "selector=" << static_cast<unsigned>(selector) << ' ';
                         show("value", value); require_status(value);
                     }
+                }
+                if (mode == "--transmit-probe") {
+                    constexpr auto channel = mongoose::channel_node(CAN);
+                    auto channel_open = session.command(6, mongoose::unhex("0000000020a10700"), deadline, channel);
+                    show("open-channel", channel_open); require_status(channel_open);
+                    channel_opened = true;
+                    auto pins = session.command(0x12, mongoose::unhex("01000000060000000e000000"), deadline, channel);
+                    show("set-pin", pins); require_status(pins);
+                    // OBD-II mode 01 PID 00 to the functional address: the standard
+                    // read-only "what do you support" query, harmless on a real bus and
+                    // the same request the Windows reference captured.
+                    auto listener = std::make_shared<mongoose::CanReceiver>();
+                    session.set_can_receiver(listener);
+                    PASSTHRU_MSG frame{};
+                    frame.ProtocolID = CAN; frame.DataSize = 6;
+                    const auto bytes = mongoose::unhex("000007df0902");
+                    std::copy(bytes.begin(), bytes.end(), frame.Data);
+                    auto sent = session.command(8, mongoose::can_transmit(frame, 0, 1000), deadline,
+                                                channel, mongoose::data_chan);
+                    show("outbound", sent);
+                    const auto status = mongoose::Session::status(sent);
+                    std::cout << "transmit " << outcome(sent)
+                              << (status == 0x100 ? " (queued)" : status ? " (refused)" : " (accepted)") << '\n';
+                    // Whether iMsgTxDone ever arrives without a bus to acknowledge the
+                    // frame is exactly what this probe exists to find out.
+                    for (unsigned elapsed = 0; elapsed < 20; ++elapsed) {
+                        if (listener->transmitted()) break;
+                        std::this_thread::sleep_for(std::chrono::milliseconds(100));
+                    }
+                    std::cout << "iMsgTxDone indications: " << listener->transmitted() << '\n';
+                    PASSTHRU_MSG received{}; uint32_t count = 1;
+                    try {
+                        listener->read(&received, 1, count, 100);
+                        std::cout << "received " << count << " frames, first size " << received.DataSize << '\n';
+                    } catch (const mongoose::Error &error) {
+                        std::cout << "receive: " << error.what() << " (expected with no bus)\n";
+                    }
+                    session.set_can_receiver({});
                 }
                 if (mode == "--filter-probe") {
                     constexpr auto channel = mongoose::channel_node(CAN);

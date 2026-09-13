@@ -25,11 +25,12 @@ struct Script {
     std::deque<Step> steps;
     uint16_t sequence = 0;
     bool stopped = false, mismatch = false;
-    void add(uint16_t opcode, Bytes payload = {}, uint16_t node = board_node, uint16_t status = 0) {
+    void add(uint16_t opcode, Bytes payload = {}, uint16_t node = board_node, uint16_t status = 0,
+             uint16_t chan = 0) {
         ++sequence;
         Bytes body(20, 0);
         put16(body, 2, node); put16(body, 4, opcode | 0x8000); put16(body, 6, sequence); put16(body, 12, status);
-        steps.push_back({{encode(request(opcode, sequence, payload, node)), {encode(body)}}, Outcome::Reply, {}});
+        steps.push_back({{encode(request(opcode, sequence, payload, node, chan)), {encode(body)}}, Outcome::Reply, {}});
     }
     // C1/C2 vendor requests and C1 replies, captured in
     // analysis/captures/windows/20260913T161048-c1-connect-can-500k/wire.pcap.
@@ -97,7 +98,10 @@ void unsupported_operations(uint32_t channel, int32_t expected) {
     uint32_t count = 9, id = 9;
     CHECK(PassThruReadMsgs(channel, &message, &count, 0) == (expected == ERR_NOT_SUPPORTED ? ERR_BUFFER_EMPTY : expected) && count == 0);
     count = 9;
-    CHECK(PassThruWriteMsgs(channel, &message, &count, 0) == expected && count == 0);
+    // Transmit is implemented now, so a live channel rejects this empty message on its
+    // protocol field rather than reporting the whole call unsupported.
+    CHECK(PassThruWriteMsgs(channel, &message, &count, 0) ==
+          (expected == ERR_NOT_SUPPORTED ? ERR_MSG_PROTOCOL_ID : expected) && count == 0);
     CHECK(PassThruStartPeriodicMsg(channel, &message, &id, 10) == expected && id == 0);
     id = 9;
     CHECK(PassThruStartMsgFilter(channel, BLOCK_FILTER, &message, &message, nullptr, &id) == expected && id == 0);
@@ -487,6 +491,75 @@ void partial_read_cancel() {
     CHECK(PassThruClose(device) == 0); script->finished();
 }
 
+PASSTHRU_MSG can_message(const char *data, uint32_t flags = 0) {
+    PASSTHRU_MSG message{};
+    message.ProtocolID = CAN; message.TxFlags = flags;
+    const auto bytes = unhex(data);
+    message.DataSize = static_cast<uint32_t>(bytes.size());
+    std::copy(bytes.begin(), bytes.end(), message.Data);
+    return message;
+}
+void transmit() {
+    auto script = prepare(); script->connect();
+    // The vendor's captured cOutboundData body is
+    //   40000000 e8030000 06000000 000007df 0902
+    // = TxFlags | timeout | DataSize | ExtraDataIndex | big-endian ID and data, on an
+    // ISO15765 channel. A raw CAN frame differs only in the flags word, since
+    // ISO15765_FRAME_PAD cannot apply to a CAN channel. chan is 1 for data commands.
+    script->add(8, unhex("00000000e803000006000000000007df0902"), channel_node(CAN), 0x100, data_chan);
+    // Status zero is equally acceptable; only 0x100 is the documented queued case.
+    script->add(8, unhex("00000000640000000a00080000012345010200000000"), channel_node(CAN), 0, data_chan);
+    script->add(8, unhex("000000006400000005000000000007e001"), channel_node(CAN), 0x203, data_chan);
+    script->disconnect(); script->add(5);
+    const auto device = open(), channel = connect(device);
+
+    auto message = can_message("000007df0902");
+    uint32_t count = 1;
+    CHECK(PassThruWriteMsgs(channel, &message, &count, 1000) == 0 && count == 1);
+
+    std::array<PASSTHRU_MSG, 2> pair{can_message("00012345010200000000"), can_message("000007e001")};
+    pair[0].ExtraDataIndex = 8;
+    count = 2;
+    // The second message is refused by firmware, so the count reports the one that was
+    // accepted rather than zero or two.
+    CHECK(PassThruWriteMsgs(channel, pair.data(), &count, 100) == ERR_FAILED && count == 1);
+    char error[80]; PassThruGetLastError(error); CHECK(std::strstr(error, "0x00000203"));
+
+    // Validation happens before anything reaches the wire, so none of these consume a
+    // scripted exchange.
+    count = 1; auto wrong = can_message("000007df0902"); wrong.ProtocolID = ISO15765;
+    CHECK(PassThruWriteMsgs(channel, &wrong, &count, 0) == ERR_MSG_PROTOCOL_ID && count == 0);
+    count = 1; auto flagged = can_message("000007df0902", CAN_29BIT_ID);
+    CHECK(PassThruWriteMsgs(channel, &flagged, &count, 0) == ERR_INVALID_MSG && count == 0);
+    count = 1; auto unsupported_flag = can_message("000007df0902", 0x40);
+    CHECK(PassThruWriteMsgs(channel, &unsupported_flag, &count, 0) == ERR_INVALID_FLAGS && count == 0);
+    count = 1; auto tiny = can_message("000007");
+    CHECK(PassThruWriteMsgs(channel, &tiny, &count, 0) == ERR_INVALID_MSG && count == 0);
+    count = 1; auto huge = can_message("000007df010203040506070809");
+    CHECK(PassThruWriteMsgs(channel, &huge, &count, 0) == ERR_INVALID_MSG && count == 0);
+    count = 0; CHECK(PassThruWriteMsgs(channel, &message, &count, 0) == ERR_FAILED && count == 0);
+    count = 1; CHECK(PassThruWriteMsgs(channel, nullptr, &count, 0) == ERR_NULL_PARAMETER && count == 0);
+    CHECK(PassThruWriteMsgs(channel, &message, nullptr, 0) == ERR_NULL_PARAMETER);
+    CHECK(PassThruClose(device) == 0); script->finished();
+}
+void transmit_tx_done() {
+    auto script = prepare(); script->connect();
+    script->add(8, unhex("00000000e803000006000000000007df0902"), channel_node(CAN), 0x100, data_chan);
+    // iMsgTxDone (0x106) arrives unsolicited on the CAN node alongside the response, and
+    // must not be mistaken for one. Two loss codes on the same opcode stay overflow.
+    Bytes indication(20, 0);
+    put16(indication, 2, channel_node(CAN)); put16(indication, 4, 10); put16(indication, 12, 0x106);
+    script->steps.back().exchange.in.insert(script->steps.back().exchange.in.begin(), encode(indication));
+    script->disconnect(); script->add(5);
+    const auto device = open(), channel = connect(device);
+    auto message = can_message("000007df0902");
+    uint32_t count = 1;
+    CHECK(PassThruWriteMsgs(channel, &message, &count, 1000) == 0 && count == 1);
+    PASSTHRU_MSG received{};
+    count = 1;
+    CHECK(PassThruReadMsgs(channel, &received, &count, 1) == ERR_BUFFER_EMPTY && count == 0);
+    CHECK(PassThruClose(device) == 0); script->finished();
+}
 }
 namespace mongoose {
 std::unique_ptr<Transport> open_transport(const Selector &, Trace) {
@@ -495,6 +568,7 @@ std::unique_ptr<Transport> open_transport(const Selector &, Trace) {
 }
 int main() {
     try {
+        transmit(); transmit_tx_done();
         filter_contract(); many_filters(); filter_failure(false); filter_failure(true);
         captured_receive(); receive_edges(); partial_read_cancel();
         filter_transport_failure(false); filter_transport_failure(true);
@@ -505,6 +579,6 @@ int main() {
         ambiguous_command(Outcome::Timeout, true, ERR_TIMEOUT);
         competing_connects(); independent_devices();
         for (bool disconnect_first : {false, true}) for (bool close_first : {false, true}) lifecycle_race(disconnect_first, close_first);
-        std::cout << "capture-derived CAN lifecycle, failures, handles and concurrency passed\n";
+        std::cout << "capture-derived CAN lifecycle, transmit, failures, handles and concurrency passed\n";
     } catch (const std::exception &error) { std::cerr << error.what() << '\n'; return 1; }
 }

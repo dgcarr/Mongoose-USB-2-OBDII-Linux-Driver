@@ -22,7 +22,7 @@ Bytes encode(std::span<const uint8_t> body) {
     std::copy(body.begin(), body.end(), wire.begin()+4);
     return wire;
 }
-Bytes request(uint16_t op, uint16_t seq, std::span<const uint8_t> payload, uint16_t destination) {
+Bytes request(uint16_t op, uint16_t seq, std::span<const uint8_t> payload, uint16_t destination, uint16_t chan) {
     if (payload.size() > max_body-12 || seq == 0 || seq > 255)
         throw std::invalid_argument("invalid request size or sequence");
     if (destination == 0) throw std::invalid_argument("destination 0 is the PC, not a target");
@@ -33,7 +33,7 @@ Bytes request(uint16_t op, uint16_t seq, std::span<const uint8_t> payload, uint1
     // back verbatim in the response without acting on it. Zero is accepted exactly
     // as any other value is. See docs/WINDOWS-FINDINGS.md, section B1.
     Bytes body(12+payload.size(), 0);
-    put16(body, 0, destination); put16(body, 4, op); put16(body, 6, seq);
+    put16(body, 0, destination); put16(body, 4, op); put16(body, 6, seq); put16(body, 8, chan);
     std::copy(payload.begin(), payload.end(), body.begin()+12);
     return body;
 }

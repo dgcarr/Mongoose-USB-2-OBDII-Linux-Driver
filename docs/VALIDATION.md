@@ -97,16 +97,16 @@ libusb figures above:
 | CAN Connect/Disconnect | Captured vendor frames | Yes | Linux USB-only success; no vehicle/12 V |
 | CAN receive queue / ReadMsgs | Captured vendor frames | Yes | Host-queue path only; no bus traffic yet seen |
 | CAN PASS filters | Captured vendor frames | Yes | Adapter accepts and acknowledges; filtering effect unproven |
-| CAN transmit / WriteMsgs | Captured vendor frames | No | Windows reference only |
+| CAN transmit / WriteMsgs | Captured vendor frames | Yes | One frame queued with no bus; delivery unproven |
 | ISO15765 | Captured host reassembly / firmware flow control | No | Windows reference only; timing variations pending |
 | K-line / J1850PWM | Partial | No | Suitable hardware required |
 | BLOCK filters / periodic / configuration | Partial | No | Pending |
 | Programming-voltage output | Partial | No | Pending electrical validation |
 
-All 14 core exports exist. CAN Connect/Disconnect, PASS filters and ReadMsgs are
-implemented; other protocols remain unsupported. One CAN-family resource is reserved
-per device, with a second CAN or ISO15765 connection refused locally. Transmit,
-periodic and BLOCK-filter APIs reject invalid IDs and report ERR_NOT_SUPPORTED for
+All 14 core exports exist. CAN Connect/Disconnect, PASS filters, ReadMsgs and
+WriteMsgs are implemented; other protocols remain unsupported. One CAN-family resource
+is reserved per device, with a second CAN or ISO15765 connection refused locally.
+Periodic and BLOCK-filter APIs reject invalid IDs and report ERR_NOT_SUPPORTED for
 live channels. Unsupported IOCTLs and voltage output never report success. The Linux
 driver has sent no bus messages or firmware writes; the Windows reference harness has
 exercised OBD requests.
@@ -256,6 +256,27 @@ shortens on evidence about how long a late duplicate response can actually arriv
 transmit needs a path that does not consume one slot per message. That question should
 be settled before transmit is built, not after.
 
+## Linux CAN transmit probe (2026-09-13)
+
+USB only: no vehicle, no external 12 V, and no CAN bus. One frame was sent -- OBD-II
+mode 01 PID 00 to the functional address `0x7DF`, the standard read-only capability
+query -- once, through `build/mongoose-diag --transmit-probe`.
+
+- `cOutboundData` returned status `0x100`, reproducing the queued status from the
+  Windows capture on our own first transmit.
+- The response echoes `chan=1` at body+8, so the firmware carries that field on the data
+  path rather than ignoring it.
+- **No `iMsgTxDone` (`0x0106`) arrived within two seconds.**
+
+The last point is why the probe was worth running. No node existed to acknowledge the
+frame, so the transmission cannot have completed, and the command reported success
+anyway. `0x100` means the adapter accepted the frame, not that it sent it. Only the
+`0x0106` indication separates the two, and the library now counts those.
+
+Nothing here shows that a frame reached a wire. That needs a bus.
+
+Evidence: `analysis/captures/linux-transmit-probe-20260913T120454Z.*`.
+
 ## Next blocking work
 
 Pass filters and the receive queue are implemented and hardware-accepted, which
@@ -266,9 +287,9 @@ Bench-reachable, with the adapter on USB alone:
 
 1. Resolve the sequence-number ceiling described above. It bounds transmit throughput
    at roughly 25 messages per second, so it precedes transmit rather than following it.
-2. Add CAN transmit. The `cOutboundData` body is settled by the static builder and a
-   real capture together, including status `0x100` as success. With no bus, the bench
-   can prove the adapter accepts and queues a frame and nothing more.
+2. Decide how transmit reports delivery. The library accepts and queues frames today
+   and counts `iMsgTxDone` internally, but J2534 has no place to surface that count, so
+   a caller still cannot distinguish queued from sent.
 3. Measure receive throughput and back-pressure through a pty-backed synthetic load.
    That exercises the real tty reader, n_tty flip buffer, decoder and queue, but not
    the cdc_acm URB path, so it bounds host-side capability rather than proving parity

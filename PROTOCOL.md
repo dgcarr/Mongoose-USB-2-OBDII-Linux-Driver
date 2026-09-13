@@ -178,7 +178,7 @@ therefore more than issuing opcode 6 alone.
 | 8 | 2 | Caller argument |
 | 10 | 2 | No explicit store in this builder |
 | 12 | 4 | Input message+8 (TxFlags) |
-| 16 | 4 | Caller argument; meaning unresolved |
+| 16 | 4 | Transmit timeout in milliseconds (resolved by the Windows capture) |
 | 20 | 2 | Input message+16 (DataSize, truncated to a word) |
 | 22 | 2 | Input message+20 (ExtraDataIndex, low word) |
 | 24 | DataSize | Input message data at +24 |
@@ -644,6 +644,23 @@ All 512 handles were distinct and congruent modulo `0x34`, spanning `0x01c0` to 
 -- a 52-byte entry grid over roughly 37 KB. The sequence is **not** monotonic: it moves
 both up and down, so freed slots are recycled. An earlier six-handle sample had suggested
 a monotonic `0x68` stride; the larger sample corrects it. Treat handles as opaque.
+
+### Transmit: `0x100` means queued, not transmitted
+
+One OBD-II mode 01 PID 00 frame was sent from Linux with no bus attached
+(`analysis/captures/linux-transmit-probe-20260913T120454Z.*`). `cOutboundData` returned
+status `0x100`, reproducing the queued status the Windows capture recorded, and **no
+`iMsgTxDone` (`0x0106`) indication arrived within two seconds**.
+
+That pairing is the useful result. With no node on the bus to acknowledge the frame, the
+controller cannot complete the transmission, yet the command still reports success. So
+`0x100` is an acknowledgement that the adapter took the frame, and nothing more; only the
+`0x0106` indication distinguishes queued from actually sent. A client that treats the
+command status as delivery will be wrong precisely when the bus is broken.
+
+The response also **echoes `chan=1` at body+8**. We send 1 there because the vendor
+census shows data commands doing so; the echo shows the firmware carries the field on the
+data path rather than discarding it. Its meaning remains unresolved.
 
 ### `cGetValue` selector `0x2f` returns 1 on Linux
 

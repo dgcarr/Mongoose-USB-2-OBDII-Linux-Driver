@@ -88,17 +88,26 @@ void uncertain_channel(Device &owner) {
 }
 // Preserve Session's distinction between failures before a write and ambiguous
 // wire outcomes. Definite firmware rejection is handled separately by accepted().
-Bytes channel_command(Device &owner, uint16_t opcode, std::span<const uint8_t> payload = {}) {
+Bytes channel_command(Device &owner, uint16_t opcode, std::span<const uint8_t> payload = {},
+                      std::chrono::milliseconds timeout = std::chrono::seconds(10), uint16_t chan = 0) {
     try {
-        return owner.session->command(opcode, payload, std::chrono::seconds(10), channel_node(CAN));
+        return owner.session->command(opcode, payload, timeout, channel_node(CAN), chan);
     } catch (...) {
         if (!owner.session->usable()) uncertain_channel(owner);
         throw;
     }
 }
-void accepted(std::span<const uint8_t> response, bool start = false) {
+// Status zero is the general success. Two opcodes answer differently and neither is an
+// error: cJumpToFirmware reports 7 when the board is already running firmware, and
+// cOutboundData reports 0x100 alongside a successfully queued transmit
+// (docs/WINDOWS-FINDINGS.md section D). Both are named rather than folded into a
+// widened success test, so an unexpected status from any other command still fails.
+enum class Allow { None, AlreadyStarted, Queued };
+void accepted(std::span<const uint8_t> response, Allow allow = Allow::None) {
     const uint32_t status = Session::status(response);
-    if (status == 0 || (start && status == 7)) return;
+    if (status == 0) return;
+    if (allow == Allow::AlreadyStarted && status == 7) return;
+    if (allow == Allow::Queued && status == 0x100) return;
     if (status == 0x20a) throw Error(ERR_FAILED, "adapter reports missing vehicle-connector voltage (0x020a)");
     char message[80];
     std::snprintf(message, sizeof(message), "adapter status 0x%08x (mapping not yet validated)", status);
@@ -125,7 +134,7 @@ int32_t J2534_CALL PassThruOpen(void *name, uint32_t *id) {
             selector = parse_selector(std::string_view(text, size));
         }
         auto session = std::make_shared<Session>(open_transport(selector));
-        accepted(session->command(0x103), true);
+        accepted(session->command(0x103), Allow::AlreadyStarted);
         accepted(session->command(3));
         try {
             accepted(session->command(0x109));
@@ -222,8 +231,22 @@ int32_t J2534_CALL PassThruReadMsgs(uint32_t channel, PASSTHRU_MSG *messages, ui
         receiver->read(messages, requested, *count, timeout);
     });
 }
-int32_t J2534_CALL PassThruWriteMsgs(uint32_t channel, PASSTHRU_MSG *messages, uint32_t *count, uint32_t) {
-    return guarded([&] { required(count); *count = 0; required(messages); unsupported_channel(channel); });
+int32_t J2534_CALL PassThruWriteMsgs(uint32_t channel, PASSTHRU_MSG *messages, uint32_t *count, uint32_t timeout) {
+    return guarded([&] {
+        required(count); const auto requested = *count; *count = 0; required(messages);
+        auto owner = lookup(channel, true);
+        owner.session();
+        auto &state = *owner.state;
+        if (!requested || requested > 10000) throw Error(ERR_FAILED, "message count must be 1..10000");
+        // The adapter is told the caller's timeout; the host still has to wait for the
+        // acknowledgement, so a zero (queue-and-return) timeout keeps a response budget.
+        const auto budget = std::chrono::milliseconds(timeout ? std::min(timeout, 60000u) : 1000u);
+        for (uint32_t index = 0; index < requested; ++index) {
+            const auto payload = can_transmit(messages[index], state.channel_flags, timeout);
+            accepted(channel_command(state, 8, payload, budget, data_chan), Allow::Queued);
+            *count = index + 1;
+        }
+    });
 }
 int32_t J2534_CALL PassThruStartPeriodicMsg(uint32_t channel, PASSTHRU_MSG *message, uint32_t *id, uint32_t) {
     return guarded([&] { required(id); *id = 0; required(message); unsupported_channel(channel); });

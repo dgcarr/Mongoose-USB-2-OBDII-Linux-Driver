@@ -36,7 +36,7 @@ void Session::receive(std::span<const uint8_t> bytes) {
     }
 }
 Bytes Session::command(uint16_t opcode, std::span<const uint8_t> payload,
-                       std::chrono::milliseconds timeout, uint16_t destination) {
+                       std::chrono::milliseconds timeout, uint16_t destination, uint16_t chan) {
     if (timeout.count() <= 0 || timeout > std::chrono::seconds(60))
         throw std::invalid_argument("command timeout must be 1..60000 ms");
     const auto deadline = std::chrono::steady_clock::now() + timeout;
@@ -53,7 +53,7 @@ Bytes Session::command(uint16_t opcode, std::span<const uint8_t> payload,
             now - used_[sequence_] >= std::chrono::seconds(10)) { available = true; break; }
     }
     if (!available) throw Error(ERR_EXCEEDED_LIMIT, "all sequence numbers are in the 10-second reuse quarantine");
-    const auto wire = encode(request(opcode, sequence_, payload, destination));
+    const auto wire = encode(request(opcode, sequence_, payload, destination, chan));
     pending_source_ = destination;
     pending_ = sequence_; minimum_ = opcode == 0x100 ? 12 : 20; response_.reset();
     used_[sequence_] = now;

@@ -14,7 +14,7 @@ public:
     Session &operator=(const Session &) = delete;
     Bytes command(uint16_t opcode, std::span<const uint8_t> payload = {},
                   std::chrono::milliseconds timeout = std::chrono::seconds(10),
-                  uint16_t destination = board_node);
+                  uint16_t destination = board_node, uint16_t chan = 0);
     void close();
     bool usable();
     void set_can_receiver(std::shared_ptr<CanReceiver> receiver);
