@@ -95,18 +95,26 @@ libusb figures above:
 | READ_VBATT / READ_PROG_VOLTAGE | Yes | Yes | Raw values retrieved; accuracy pending |
 | ABI and GetLastError | Standard interface | Yes | Native client / offline tests |
 | CAN Connect/Disconnect | Captured vendor frames | Yes | Linux USB-only success; no vehicle/12 V |
-| CAN message I/O | Partial | No | Windows reference only |
+| CAN receive queue / ReadMsgs | Captured vendor frames | Yes | Host-queue path only; no bus traffic yet seen |
+| CAN PASS filters | Captured vendor frames | Yes | Adapter accepts and acknowledges; filtering effect unproven |
+| CAN transmit / WriteMsgs | Captured vendor frames | No | Windows reference only |
 | ISO15765 | Captured host reassembly / firmware flow control | No | Windows reference only; timing variations pending |
 | K-line / J1850PWM | Partial | No | Suitable hardware required |
-| Filters / periodic / configuration | Partial | No | Pending |
+| BLOCK filters / periodic / configuration | Partial | No | Pending |
 | Programming-voltage output | Partial | No | Pending electrical validation |
 
-All 14 core exports exist. CAN Connect/Disconnect is implemented; other protocols
-remain unsupported. One CAN-family resource is reserved per device, with a second
-CAN or ISO15765 connection refused locally. Message/filter/periodic APIs reject
-invalid IDs and report ERR_NOT_SUPPORTED for live channels. Unsupported IOCTLs and
-voltage output never report success. The Linux driver has sent no bus messages or
-firmware writes; the Windows reference harness has exercised OBD requests.
+All 14 core exports exist. CAN Connect/Disconnect, PASS filters and ReadMsgs are
+implemented; other protocols remain unsupported. One CAN-family resource is reserved
+per device, with a second CAN or ISO15765 connection refused locally. Transmit,
+periodic and BLOCK-filter APIs reject invalid IDs and report ERR_NOT_SUPPORTED for
+live channels. Unsupported IOCTLs and voltage output never report success. The Linux
+driver has sent no bus messages or firmware writes; the Windows reference harness has
+exercised OBD requests.
+
+Read the receive and filter rows precisely. The adapter accepts our filter frames and
+returns handles, and ReadMsgs drains a queue that the reader thread fills. Neither has
+ever had a single bus frame to act on, so nothing here establishes that a filter
+filters or that a received frame decodes correctly end to end.
 
 ## Tests
 
@@ -120,7 +128,9 @@ separately through the diagnostic executable. The pre-write deadline-expiry bran
 is inspected, not deterministically tested. The channel suite tests capture-derived
 API setup/teardown, wrong-source rejection, argument validation, stale handles,
 rollback, teardown rejection, real response timeout, short writes, unplug and
-synchronized competing lifecycle calls. Every scripted wire exchange must be consumed.
+synchronized competing lifecycle calls, plus pass-filter construction, filter handle
+mapping, removal, receive decoding against 32 captured inbound frames, queue overflow
+and malformed-frame rejection. Every scripted wire exchange must be consumed.
 
 All eight CTest entries pass in normal, ASan/UBSan and no-libusb builds after this
 change. Earlier Clang/ThreadSanitizer/fuzzer results below describe the preceding
@@ -176,21 +186,69 @@ strace, not usbmon packets. Reproduce with
 `build/mongoose-client serial:SERIAL --can-lifecycle`. No bus transmission is
 performed. This is channel setup acceptance, not vehicle communication validation.
 
+## Linux CAN pass-filter and receive acceptance (2026-09-13)
+
+User confirmed the adapter was connected by USB only, with no car and no external 12 V.
+`build/mongoose-client serial:SERIAL --can-receive-check` ran the production library
+through three Connect/Disconnect cycles, each adding two pass filters, calling ReadMsgs,
+and removing both filters. Twenty-six commands, every one status zero apart from the
+documented `cJumpToFirmware` status 7 `Board already in firmware`.
+
+- `cTableAddEntry` (`0x0d`) went out exactly as `can_pass_filter()` builds it: table
+  selector 0, the channel's flag word at +16, type 1, pattern size 4, then mask and
+  pattern with big-endian CAN IDs. Both the wildcard filter and mask `0x7ff` /
+  pattern `0x7e8` were accepted on all three channels, including the `CAN_29BIT_ID`
+  channel, where the filter body carried flags `0x100` to match.
+- The add response is exactly 24 bytes, with the firmware handle at +20. That is the
+  minimum our parser accepts, so the `response.size() < 24` guard sits precisely on the
+  real boundary rather than above it.
+- Six handles were issued: `0x0f5c`, `0x0fc4`, `0x1130`, `0x1198`, `0x1304`, `0x136c`.
+  All six are distinct and ascending, and the two within a single channel are `0x68`
+  apart. Six samples support nothing beyond that -- in particular they do not establish
+  that handles always ascend, and a later 512-handle sample shows they do not. The
+  handle is opaque, which is how the code treats it.
+- `cTableRemoveEntry` (`0x0e`) carried table selector 0 and the handle, and was accepted
+  for every filter. The vendor's captured example used selector 2 for a flow-control
+  filter; both selectors work with the same body layout.
+- **ReadMsgs emitted no wire traffic at all.** The 25 ms gap between the last add and the
+  first remove is the read timeout elapsing against an empty host queue. Reads are served
+  from the queue the reader thread fills; they do not poll the device.
+
+Evidence: `analysis/captures/linux-can-receive-20260913T112728Z.trace`, with matching
+`.strace`, `.log` and `.txt` metadata. These are tty syscall bytes captured with strace,
+not usbmon packets. No bus traffic existed, so no filter was ever asked to pass or block
+a frame, and ReadMsgs never returned a message. This is filter-acceptance evidence, not
+filter-behaviour evidence.
+
 ## Next blocking work
 
-1. Implement CAN pass filters and receive queues; first resolve the CAN filter
-   type word against vendor construction/captures, rather than treating it as
-   ISO15765 TxFlags. D2 establishes opaque filter handles and at least 40 filters,
-   but not maximum capacity.
-2. Validate Linux receive throughput and back-pressure on a busy bus. Windows D4
-   supplies a five-minute ~2455 msg/s baseline with no reported overflow, not
-   proof of zero loss or Linux transport parity.
-3. Add CAN transmit, then ISO15765 host reassembly using the captured firmware
-   flow-control split. STmin, block size and N_Bs variations remain untested.
-4. Complete remaining protocol engines, periodic messages and IOCTLs with suitable
+Pass filters and the receive queue are implemented and hardware-accepted, which
+retires the first two items this list used to carry. What is left splits cleanly into
+work the bench can finish and work that needs a vehicle.
+
+Bench-reachable, with the adapter on USB alone:
+
+1. Probe the filter table: capacity above the 40 that D2 established, `cTableClear`
+   (`0x10`, never exercised in any capture), and `cGetValue` selector `0x2f`.
+2. Add CAN transmit. The `cOutboundData` body is settled by the static builder and a
+   real capture together, including status `0x100` as success. With no bus, the bench
+   can prove the adapter accepts and queues a frame and nothing more.
+3. Measure receive throughput and back-pressure through a pty-backed synthetic load.
+   That exercises the real tty reader, n_tty flip buffer, decoder and queue, but not
+   the cdc_acm URB path, so it bounds host-side capability rather than proving parity
+   with the adapter. Windows D4's five-minute ~2455 msg/s baseline is the reference.
+4. Build the ISO15765 host-side reassembler against the captured VIN exchange. The
+   responsibility split is known: firmware generates flow control, the host reassembles.
+
+Vehicle-blocked:
+
+5. Prove filters actually filter, transmit actually transmits, and received frames
+   decode end to end. None of that can be shown without bus traffic.
+6. ISO15765 timing — STmin, block size and N_Bs remain untested and unvaried.
+7. Complete remaining protocol engines, periodic messages and IOCTLs with suitable
    vehicles/fixtures. C3/C4 are settled for this adapter: only one CAN-family
    channel can be open; further chan-field semantics cannot be inferred here.
-5. Run 100 hardware cycles and a one-hour diagnostic soak once bus support exists.
+8. Run 100 hardware cycles and a one-hour diagnostic soak once bus support exists.
    Three USB-only channel cycles and synthetic lifecycle tests do not satisfy these gates.
 
 Electrical testing and full J2534 conformance remain outstanding. Firmware

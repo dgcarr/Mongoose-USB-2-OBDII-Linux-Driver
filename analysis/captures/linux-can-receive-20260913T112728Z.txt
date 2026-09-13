@@ -1,0 +1,21 @@
+Linux CAN pass-filter and receive acceptance, 2026-09-13
+Adapter 18e1:0104, serial AOLHE0000003666A, /dev/ttyACM3, cdc_acm.
+User confirmed USB connected, no vehicle and no external 12 V power.
+Firmware 1.1.16.0. Production shared library, tree at a7c168d.
+Command: build/mongoose-client serial:AOLHE0000003666A --can-receive-check
+Capture: strace -f -ttt -xx -s 8192 -e trace=read,write,openat,close
+The .strace is a target-tty excerpt; .trace losslessly decodes its successful
+read/write buffers and preserves syscall boundaries. Neither is a USB capture.
+Twenty-six commands, all status zero except cJumpToFirmware status 7
+"Board already in firmware", which is the documented already-running case.
+Three Connect/Disconnect cycles at 500000 flags 0, 250000 flags 0 and 500000
+flags 0x100; each carried two cTableAddEntry pass filters (wildcard, then
+mask 0x7ff pattern 0x7e8) and removed both with cTableRemoveEntry.
+Firmware filter handles, in order: 0x0f5c 0x0fc4 0x1130 0x1198 0x1304 0x136c.
+PassThruReadMsgs returned ERR_BUFFER_EMPTY (16) on every channel and emitted
+no wire traffic at all, confirming reads are served from the host queue.
+No message transmission, voltage output, or firmware writes. No bus traffic
+was available, so no filter was ever required to pass or block a frame.
+This validates that the adapter accepts and acknowledges our filter frames,
+not that filtering works.
+Library SHA256: e255543e8523519953473e3e925c959553900bba5c366c5d425f1f2b710917c8

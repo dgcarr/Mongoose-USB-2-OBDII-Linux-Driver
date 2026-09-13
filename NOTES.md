@@ -2,8 +2,10 @@
 
 Updated 2026-09-13. The current technical reference is [PROTOCOL.md](PROTOCOL.md).
 Implementation update: Linux discovery, open/close, firmware version and voltage
-queries and CAN channel setup now succeed on the USB-only adapter. See [current validation](docs/VALIDATION.md)
-and `analysis/captures/linux-*.trace`. Vehicle message I/O is not implemented. Windows reference captures on a
+queries, CAN channel setup and CAN pass filters now succeed on the USB-only adapter, and
+ReadMsgs drains a host receive queue. See [current validation](docs/VALIDATION.md)
+and `analysis/captures/linux-*.trace`. Nothing has been transmitted, and with no bus
+attached no filter has ever been asked to pass a frame. Windows reference captures on a
 2017 Volvo XC60 D5 AWD now resolve the CAN channel lifecycle and inform the next work.
 The chronological research log, including superseded hypotheses, is preserved in
 [the history archive](analysis/history/NOTES-before-consolidation.md).
@@ -76,14 +78,19 @@ its original `analysis/probe.py` path, which is left intact so the record stays 
 
 ## Next work
 
-1. Implement CAN filters and receive queues against the Windows evidence, resolving
-   the filter type word before claiming filter support.
-2. Measure Linux sustained receive; the Windows D4 baseline does not establish tty
-   back-pressure behavior or prove zero loss. C3/C4 establish one CAN-family channel;
-   D2 establishes opaque handles and at least 40 filters, with the maximum unknown.
-3. Add CAN transmit and ISO15765 reassembly/timing, then other protocol engines.
-   CAN Connect/Disconnect now passes offline failure/concurrency tests and three
-   USB-only hardware setup cycles; full diagnostics and release soaks remain pending.
+Filters and the receive queue are built and hardware-accepted (2026-09-13), so the work
+now divides by what the bench can actually settle.
+
+1. Probe the filter table on the bench: capacity beyond D2's 40, `cTableClear` (`0x10`,
+   never exercised in any capture), and `cGetValue` selector `0x2f`.
+2. Add CAN transmit. `cOutboundData` is settled by the static builder and a capture
+   together, status `0x100` included. USB-only, that proves queuing and nothing more.
+3. Measure sustained receive through a pty-backed load harness. It exercises the real
+   tty reader and queue but not the cdc_acm URB path, so it bounds host capability
+   rather than proving parity. Windows D4 is the ~2455 msg/s reference.
+4. Build the ISO15765 host reassembler offline against the captured VIN exchange.
+5. Vehicle-blocked: that filters filter, that transmits transmit, ISO15765 timing, the
+   other protocol engines, and the 100-cycle and one-hour soak gates.
 
 See [reproduction instructions](analysis/REPRODUCE.md) and the
 [sender index](analysis/SENDERS.md) for the saved evidence and Ghidra scripts.

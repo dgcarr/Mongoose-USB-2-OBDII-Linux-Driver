@@ -1,0 +1,37 @@
+PassThruOpen status=0 
+PassThruReadVersion status=0 
+firmware=1.1.16.0 driver=0.1.0-experimental api=04.04
+PassThruConnect status=0 
+device=1 channel=2 baud=500000 flags=0x0
+PassThruStartMsgFilter status=0 
+filter=3
+PassThruStartMsgFilter status=0 
+filter=4
+PassThruReadMsgs status=16 zero CAN messages received
+received=0
+PassThruStopMsgFilter status=0 
+PassThruStopMsgFilter status=0 
+PassThruDisconnect status=0 
+PassThruConnect status=0 
+device=1 channel=5 baud=250000 flags=0x0
+PassThruStartMsgFilter status=0 
+filter=6
+PassThruStartMsgFilter status=0 
+filter=7
+PassThruReadMsgs status=16 zero CAN messages received
+received=0
+PassThruStopMsgFilter status=0 
+PassThruStopMsgFilter status=0 
+PassThruDisconnect status=0 
+PassThruConnect status=0 
+device=1 channel=8 baud=500000 flags=0x100
+PassThruStartMsgFilter status=0 
+filter=9
+PassThruStartMsgFilter status=0 
+filter=10
+PassThruReadMsgs status=16 zero CAN messages received
+received=0
+PassThruStopMsgFilter status=0 
+PassThruStopMsgFilter status=0 
+PassThruDisconnect status=0 
+PassThruClose status=0 

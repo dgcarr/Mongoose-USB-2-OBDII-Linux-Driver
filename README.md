@@ -2,16 +2,19 @@
 
 Experimental native C++20 J2534 library for USB `18e1:0104`, talking to the adapter as
 an ordinary `cdc_acm` serial device.
-**Linux discovery, device open/close and CAN channel setup now work on the adapter. Vehicle diagnostics
-are not implemented yet.** See [validation and remaining work](docs/VALIDATION.md).
+**Linux discovery, device open/close, CAN channel setup and CAN pass filters now work on
+the adapter. Vehicle diagnostics are not implemented yet.** See
+[validation and remaining work](docs/VALIDATION.md).
 
 Implemented: two transports (cdc_acm by default, libusb optional), scoped device
 ownership, asynchronous reception, validated length/XOR
 framing, serialized commands, startup/cleanup, native Open/Close/ReadVersion,
-voltage-reading IOCTLs, CAN Connect/Disconnect, replay tests and all 14 core ABI exports.
-CAN supports flags 0 or CAN_29BIT_ID, with one channel per adapter. Message I/O,
-filters, periodic messages and ISO15765 remain unsupported; channel setup alone
-does not mean vehicle diagnostics work.
+voltage-reading IOCTLs, CAN Connect/Disconnect, CAN PASS filters, a CAN receive queue
+behind ReadMsgs, replay tests and all 14 core ABI exports.
+CAN supports flags 0 or CAN_29BIT_ID, with one channel per adapter. Transmit, periodic
+messages, BLOCK filters and ISO15765 remain unsupported. Filters have been accepted and
+acknowledged by the adapter but never given a frame to act on, and nothing has been
+transmitted; channel and filter setup alone does not mean vehicle diagnostics work.
 
 ## Build and test
 
@@ -26,6 +29,8 @@ build/mongoose-diag --discover --trace discovery.trace
 build/mongoose-client
 # Explicit CAN setup/reconnect check; never calls WriteMsgs:
 build/mongoose-client serial:SERIAL --can-lifecycle
+# Adds two pass filters per channel and reads; also never calls WriteMsgs:
+build/mongoose-client serial:SERIAL --can-receive-check
 ```
 
 `PassThruOpen(NULL, ...)` requires exactly one matching adapter. Use `serial:SERIAL`
@@ -104,8 +109,8 @@ tools and documentation; vendor files and research binaries are excluded.
 The old probe script is a historical speculative experiment, not the driver; it is
 kept at `analysis/history/probe.py`.
 Windows reference captures now cover the 2017 Volvo XC60 D5 AWD. Linux CAN channel
-setup has been exercised on USB power only, without a vehicle or external 12 V.
-Message I/O and Linux vehicle validation remain next work.
+setup and pass filters have been exercised on USB power only, without a vehicle or
+external 12 V. Transmit and Linux vehicle validation remain next work.
 
 CAN lifecycle calls are serialized per device. Handles increase without reuse and
 are invalidated on disconnect or device close. A rejected pin setup is rolled back
