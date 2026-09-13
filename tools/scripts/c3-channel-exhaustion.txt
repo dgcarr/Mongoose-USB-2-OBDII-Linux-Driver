@@ -1,0 +1,9 @@
+# C3b: how many channels before the device refuses? Expected to fail at the
+# limit; the failing connect is the finding.
+open dev
+connect dev CAN NONE 500000 a
+connect dev CAN NONE 500000 b
+connect dev CAN NONE 500000 c
+connect dev CAN NONE 500000 d
+connect dev CAN NONE 500000 e
+close dev

@@ -1,0 +1,5 @@
+# B1: the minimal open/close pair. Establishes the vendor open sequence on the
+# wire - whether control request 0xdb is issued, and whether cJumpToFirmware
+# (0x103) leads as PROTOCOL.md infers from the bootloader behaviour.
+open dev
+close dev

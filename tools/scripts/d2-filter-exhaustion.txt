@@ -1,0 +1,16 @@
+# D2b: fill the filter table until refused. The failing StartMsgFilter is the
+# finding, so this script is expected to exit 1.
+open dev
+connect dev CAN NONE 500000 chan
+filter chan PASS CAN NONE 000007ff 00000700 f1
+filter chan PASS CAN NONE 000007ff 00000701 f2
+filter chan PASS CAN NONE 000007ff 00000702 f3
+filter chan PASS CAN NONE 000007ff 00000703 f4
+filter chan PASS CAN NONE 000007ff 00000704 f5
+filter chan PASS CAN NONE 000007ff 00000705 f6
+filter chan PASS CAN NONE 000007ff 00000706 f7
+filter chan PASS CAN NONE 000007ff 00000707 f8
+filter chan PASS CAN NONE 000007ff 00000708 f9
+filter chan PASS CAN NONE 000007ff 00000709 f10
+disconnect chan
+close dev

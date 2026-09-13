@@ -1,0 +1,2 @@
+# B3b: version on a device ID that was never opened.
+version 9999

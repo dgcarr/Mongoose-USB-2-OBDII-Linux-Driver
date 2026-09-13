@@ -1,0 +1,11 @@
+# D3: a BLOCK filter alongside a pass-all, to see how the two compose on the wire.
+open dev
+connect dev CAN NONE 500000 chan
+filter chan PASS CAN NONE 00000000 00000000 pass
+read chan 32 1000
+filter chan BLOCK CAN NONE 000007ff 000007e8 blk
+read chan 32 1000
+stopfilter chan blk
+stopfilter chan pass
+disconnect chan
+close dev

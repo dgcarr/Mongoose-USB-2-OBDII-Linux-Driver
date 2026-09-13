@@ -1,0 +1,11 @@
+# F3: buffer-management ioctls, all host-side.
+open dev
+connect dev CAN NONE 500000 chan
+filter chan PASS CAN NONE 00000000 00000000 f
+read chan 16 500
+ioctl chan CLEAR_RX_BUFFER
+read chan 16 500
+ioctl chan CLEAR_TX_BUFFER
+ioctl chan CLEAR_MSG_FILTERS
+disconnect chan
+close dev

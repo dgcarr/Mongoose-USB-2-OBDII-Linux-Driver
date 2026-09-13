@@ -1,0 +1,11 @@
+# E3: the same mode 01 PID 00 request on a RAW CAN channel, with the ISO-TP
+# single frame built by hand. Separates what the adapter segments from what the
+# DLL segments. Physical address 0x7E0 rather than the functional broadcast.
+open dev
+connect dev CAN NONE 500000 chan
+filter chan PASS CAN NONE 00000000 00000000 f
+write chan CAN NONE 000007e00201000000000000 1000
+read chan 16 2000
+stopfilter chan f
+disconnect chan
+close dev

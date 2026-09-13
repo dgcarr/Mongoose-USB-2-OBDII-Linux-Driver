@@ -1,0 +1,6 @@
+# C2: protocol sweep against the CAN baseline. Uses the adapter's own protocol
+# IDs (PROTOCOL.md section 9), never the SAE numbers.
+open dev
+connect dev ISO15765 NONE 500000 chan
+disconnect chan
+close dev

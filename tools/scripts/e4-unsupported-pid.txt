@@ -1,0 +1,9 @@
+# E4: a PID no ECU answers. Maps timeout semantics and error status codes.
+open dev
+connect dev ISO15765 NONE 500000 chan
+filter chan FLOW ISO15765 ISO15765_FRAME_PAD 0000ffff 000007e8 000007e0 fc
+write chan ISO15765 ISO15765_FRAME_PAD 000007df017f 1000
+read chan 16 3000
+stopfilter chan fc
+disconnect chan
+close dev

@@ -1,0 +1,4 @@
+# B3a: double close. Maps the J2534 error onto the wire status code.
+open dev
+close dev
+close dev

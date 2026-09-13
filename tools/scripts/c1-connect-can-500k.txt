@@ -1,0 +1,6 @@
+# C1: the baseline Connect. Captures cOpenChannel (0x06) and reveals channel-ID
+# allocation plus the two arguments.
+open dev
+connect dev CAN NONE 500000 chan
+disconnect chan
+close dev

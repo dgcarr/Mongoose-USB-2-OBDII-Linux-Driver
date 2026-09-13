@@ -1,0 +1,2 @@
+# B3c: read on a channel ID that was never connected.
+read 9999 1 100

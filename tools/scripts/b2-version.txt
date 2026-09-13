@@ -1,0 +1,5 @@
+# B2: which cGetValue selectors and cGetString calls back the three strings.
+# Expect firmware 1.1.16.0 and bootloader 1.1.8.0 per docs/VALIDATION.md.
+open dev
+version dev
+close dev

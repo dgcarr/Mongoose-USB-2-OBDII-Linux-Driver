@@ -1,0 +1,10 @@
+# D1: pass-all filter then read. Correlate PASSTHRU_MSG.Timestamp against the
+# device microsecond counter at body+16 to confirm or refute the claim that
+# cOpenDevice resetting the clock is the origin of J2534 timestamps.
+open dev
+connect dev CAN NONE 500000 chan
+filter chan PASS CAN NONE 00000000 00000000 f
+read chan 32 1000
+stopfilter chan f
+disconnect chan
+close dev

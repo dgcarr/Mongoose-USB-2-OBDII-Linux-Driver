@@ -1,0 +1,11 @@
+# E1: OBD-II mode 01 PID 00, the supported-PIDs bitmap. Single-frame request,
+# single-frame response. Exercises cOutboundData (0x08), cInboundData (0x09)
+# and the iMsgTxDone indication (0x106). Broadcast to 0x7DF; read-only.
+open dev
+connect dev ISO15765 NONE 500000 chan
+filter chan FLOW ISO15765 ISO15765_FRAME_PAD 0000ffff 000007e8 000007e0 fc
+write chan ISO15765 ISO15765_FRAME_PAD 000007df0100 1000
+read chan 16 2000
+stopfilter chan fc
+disconnect chan
+close dev

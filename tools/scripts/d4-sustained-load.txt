@@ -1,0 +1,11 @@
+# D4: sustained receive with the engine running. Targets throughput and
+# back-pressure, RxStatus and per-protocol status masks, and should make the
+# DLL's own "Contains %d frames" / "Dropped %ld frames" accounting observable
+# if the vendor debug log is active. Five minutes.
+open dev
+connect dev CAN NONE 500000 chan
+filter chan PASS CAN NONE 00000000 00000000 f
+readfor chan 256 1000 300
+stopfilter chan f
+disconnect chan
+close dev

@@ -1,0 +1,7 @@
+# F1: battery voltage with the engine running. Expect roughly 13.5-14.5 V,
+# in contrast with the bench cGetValue selector 3 returning 0.
+open dev
+vbatt dev
+sleep 2000
+vbatt dev
+close dev

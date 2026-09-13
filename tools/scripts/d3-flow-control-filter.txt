@@ -1,0 +1,10 @@
+# D3b: the ISO15765 flow-control filter. Prerequisite for every Phase E test.
+# mask/pattern/flow are the standard OBD-II functional pair: tester 0x7E0,
+# ECU 0x7E8. Read-only; establishing a filter transmits nothing.
+open dev
+connect dev ISO15765 NONE 500000 chan
+filter chan FLOW ISO15765 ISO15765_FRAME_PAD 0000ffff 000007e8 000007e0 fc
+read chan 16 1000
+stopfilter chan fc
+disconnect chan
+close dev

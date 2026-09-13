@@ -1,0 +1,6 @@
+# C2: baud sweep, one variable per capture. Diff against the other c2-baud-*
+# captures to locate the baud field in the cOpenChannel body.
+open dev
+connect dev CAN NONE 250000 chan
+disconnect chan
+close dev

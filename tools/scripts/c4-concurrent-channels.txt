@@ -1,0 +1,10 @@
+# C4: CAN and ISO15765 open together. This is what gives body+8 (chan) a job
+# and should settle body+10 (reserved).
+open dev
+connect dev CAN NONE 500000 raw
+connect dev ISO15765 NONE 500000 iso
+read raw 8 1000
+read iso 8 1000
+disconnect iso
+disconnect raw
+close dev

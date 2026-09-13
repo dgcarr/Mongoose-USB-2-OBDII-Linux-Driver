@@ -1,0 +1,6 @@
+# B3d: two opens without an intervening close, from one process. Is the second
+# refused (ERR_DEVICE_IN_USE) or does it hand back a second handle?
+open dev1
+open dev2
+close dev1
+close dev2

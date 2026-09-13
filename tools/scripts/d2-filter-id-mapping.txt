@@ -1,0 +1,14 @@
+# D2: several filters added then stopped out of order, to map J2534 filter IDs
+# onto wire-level filter slots.
+open dev
+connect dev CAN NONE 500000 chan
+filter chan PASS CAN NONE 000007ff 000007e8 f1
+filter chan PASS CAN NONE 000007ff 000007e9 f2
+filter chan PASS CAN NONE 000007ff 000007ea f3
+stopfilter chan f2
+filter chan PASS CAN NONE 000007ff 000007eb f4
+stopfilter chan f1
+stopfilter chan f3
+stopfilter chan f4
+disconnect chan
+close dev

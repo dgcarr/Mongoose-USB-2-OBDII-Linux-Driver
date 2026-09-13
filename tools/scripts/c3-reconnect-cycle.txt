@@ -1,0 +1,9 @@
+# C3: do channel IDs increment, get reused, or leak across connect/disconnect?
+open dev
+connect dev CAN NONE 500000 a
+disconnect a
+connect dev CAN NONE 500000 b
+disconnect b
+connect dev CAN NONE 500000 c
+disconnect c
+close dev

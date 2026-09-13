@@ -1,0 +1,8 @@
+# B1b: three cycles. Does the second open differ from the first (cached state,
+# skipped firmware jump)?
+open dev
+close dev
+open dev
+close dev
+open dev
+close dev

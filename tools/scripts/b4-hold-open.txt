@@ -1,0 +1,5 @@
+# B4: holds the device open for 30s so a second process can attempt its own
+# open concurrently. Run this, then run b1-open-close.txt alongside it.
+open dev
+sleep 30000
+close dev

@@ -1,0 +1,5 @@
+# C2: CAN_29BIT_ID against the NONE baseline in c2-baud-500000.txt.
+open dev
+connect dev CAN CAN_29BIT_ID 500000 chan
+disconnect chan
+close dev
