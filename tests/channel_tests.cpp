@@ -510,6 +510,7 @@ void transmit() {
     script->add(8, unhex("000000000000000006000000000007df0902"), channel_node(CAN), 0x100, data_chan);
     // Status zero is equally acceptable; only 0x100 is the documented queued case.
     script->add(8, unhex("00000000000000000a00080000012345010200000000"), channel_node(CAN), 0, data_chan);
+    script->add(8, unhex("000100000000000006000000000007df0902"), channel_node(CAN), 0x100, data_chan);
     script->add(8, unhex("000000000000000005000000000007e001"), channel_node(CAN), 0x203, data_chan);
     script->disconnect(); script->add(5);
     const auto device = open(), channel = connect(device);
@@ -518,20 +519,20 @@ void transmit() {
     uint32_t count = 1;
     CHECK(PassThruWriteMsgs(channel, &message, &count, 0) == 0 && count == 1);
 
-    std::array<PASSTHRU_MSG, 2> pair{can_message("00012345010200000000"), can_message("000007e001")};
-    pair[0].ExtraDataIndex = 8;
-    count = 2;
-    // The second message is refused by firmware, so the count reports the one that was
-    // accepted rather than zero or two.
-    CHECK(PassThruWriteMsgs(channel, pair.data(), &count, 0) == ERR_FAILED && count == 1);
+    std::array<PASSTHRU_MSG, 3> messages{can_message("00012345010200000000"),
+                                          can_message("000007df0902", CAN_29BIT_ID),
+                                          can_message("000007e001")};
+    messages[0].ExtraDataIndex = 8;
+    count = 3;
+    // Third message is refused by firmware, so count reports the two that were accepted.
+    // The second message exercises CAN_29BIT_ID on an 11-bit channel.
+    CHECK(PassThruWriteMsgs(channel, messages.data(), &count, 0) == ERR_FAILED && count == 2);
     char error[80]; PassThruGetLastError(error); CHECK(std::strstr(error, "0x00000203"));
 
     // Validation happens before anything reaches the wire, so none of these consume a
     // scripted exchange.
     count = 1; auto wrong = can_message("000007df0902"); wrong.ProtocolID = ISO15765;
     CHECK(PassThruWriteMsgs(channel, &wrong, &count, 0) == ERR_MSG_PROTOCOL_ID && count == 0);
-    count = 1; auto flagged = can_message("000007df0902", CAN_29BIT_ID);
-    CHECK(PassThruWriteMsgs(channel, &flagged, &count, 0) == ERR_INVALID_MSG && count == 0);
     count = 1; auto unsupported_flag = can_message("000007df0902", 0x40);
     CHECK(PassThruWriteMsgs(channel, &unsupported_flag, &count, 0) == ERR_INVALID_FLAGS && count == 0);
     count = 1; auto tiny = can_message("000007");
@@ -578,6 +579,43 @@ void transmit_unconfirmed() {
     CHECK(PassThruWriteMsgs(channel, &message, &count, 30) == ERR_TIMEOUT && count == 0);
     CHECK(PassThruClose(device) == 0); script->finished();
 }
+void waiting_write(unsigned action) {
+    auto script = prepare(); script->connect();
+    // 0x100 queued response for the outbound data; no iMsgTxDone confirmation.
+    // A timed write will therefore block until timeout or until woke by Disconnect/Close/Unplug.
+    script->add(8, unhex("000000008813000006000000000007df0902"), channel_node(CAN), 0x100, data_chan);
+    if (action != 3) { script->disconnect(); script->add(5); }
+    const auto device = open(), channel = connect(device);
+    std::promise<void> started;
+    auto message = can_message("000007df0902"); uint32_t count = 1;
+    auto write = std::async(std::launch::async, [&] {
+        started.set_value();
+        return PassThruWriteMsgs(channel, &message, &count, 5000);
+    });
+    started.get_future().wait();
+    const bool blocked = write.wait_for(20ms) == std::future_status::timeout;
+    if (action == 0) {
+        // Confirmation arrives on the CAN node: write finishes normally
+        script->receive(tx_done_indication());
+        CHECK(write.wait_for(1s) == std::future_status::ready);
+        CHECK(write.get() == 0);
+        CHECK(count == 1U);
+        CHECK(PassThruDisconnect(channel) == 0);
+        CHECK(PassThruClose(device) == 0);
+        CHECK(blocked);
+        script->finished();
+        return;
+    }
+    if (action == 1) CHECK(PassThruDisconnect(channel) == 0);
+    if (action == 2) CHECK(PassThruClose(device) == 0);
+    if (action == 3) script->fail("test unplug while waiting for CAN write");
+    CHECK(write.wait_for(1s) == std::future_status::ready);
+    const auto result = write.get(); CHECK(blocked);
+    CHECK(result == (action == 3 ? ERR_DEVICE_NOT_CONNECTED : ERR_INVALID_CHANNEL_ID));
+    CHECK(count == 0U);
+    if (action != 2) CHECK(PassThruClose(device) == (action == 3 ? ERR_DEVICE_NOT_CONNECTED : 0));
+    script->finished();
+}
 }
 namespace mongoose {
 std::unique_ptr<Transport> open_transport(const Selector &, Trace) {
@@ -591,6 +629,7 @@ int main() {
         captured_receive(); receive_edges(); partial_read_cancel();
         filter_transport_failure(false); filter_transport_failure(true);
         for (unsigned action = 0; action < 4; ++action) waiting_read(action);
+        for (unsigned action = 0; action < 4; ++action) waiting_write(action);
         lifecycle(); firmware_rejections(); rollback_failure(); teardown_failure(false); teardown_failure(true);
         ambiguous_command(Outcome::ShortWrite, false, ERR_FAILED);
         ambiguous_command(Outcome::Unplug, true, ERR_DEVICE_NOT_CONNECTED);

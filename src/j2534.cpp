@@ -29,6 +29,7 @@ uint32_t allocate_handle() {
     return static_cast<uint32_t>(next_handle++);
 }
 template<class F> int32_t guarded(F &&operation) noexcept {
+    last_error[0] = '\0';
     try { operation(); return STATUS_NOERROR; }
     catch (const Error &error) {
         std::snprintf(last_error.data(), last_error.size(), "%s", error.what()); return error.code;
@@ -256,6 +257,7 @@ int32_t J2534_CALL PassThruWriteMsgs(uint32_t channel, PASSTHRU_MSG *messages, u
         // count here instead would claim delivery for frames that never left the
         // controller -- which is exactly what happens with no bus attached.
         if (!receiver) throw Error(ERR_DEVICE_NOT_CONNECTED, "channel has no receiver");
+        owner.lock.unlock(); // Disconnect/Close must be able to wake a blocked writer
         const bool confirmed = receiver->await_transmitted(already + requested, deadline);
         const auto sent = receiver->transmitted() - already;
         *count = static_cast<uint32_t>(std::min<size_t>(sent, requested));
@@ -326,7 +328,7 @@ int32_t J2534_CALL PassThruReadVersion(uint32_t id, char *firmware, char *dll, c
 }
 int32_t J2534_CALL PassThruGetLastError(char *description) {
     if (!description) return ERR_NULL_PARAMETER;
-    std::memcpy(description, last_error.data(), last_error.size()); return STATUS_NOERROR;
+    std::snprintf(description, 80, "%s", last_error.data()); return STATUS_NOERROR;
 }
 int32_t J2534_CALL PassThruIoctl(uint32_t id, uint32_t ioctl_id, void *, void *output) {
     return guarded([&] {

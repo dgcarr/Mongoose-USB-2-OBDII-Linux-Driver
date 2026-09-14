@@ -22,10 +22,10 @@ Bytes can_pass_filter(const PASSTHRU_MSG &mask, const PASSTHRU_MSG &pattern, uin
 Bytes can_transmit(const PASSTHRU_MSG &message, uint32_t channel_flags, uint32_t timeout_ms) {
     if (message.ProtocolID != CAN)
         throw Error(ERR_MSG_PROTOCOL_ID, "message protocol must match CAN channel");
-    if (message.TxFlags & ~static_cast<uint32_t>(CAN_29BIT_ID))
+    // ConnectFlags sets default identifier width; individual messages may override CAN_29BIT_ID.
+    const uint32_t flags = message.TxFlags ? message.TxFlags : channel_flags;
+    if (flags & ~static_cast<uint32_t>(CAN_29BIT_ID))
         throw Error(ERR_INVALID_FLAGS, "unsupported CAN transmit flags");
-    if (message.TxFlags != channel_flags)
-        throw Error(ERR_INVALID_MSG, "transmit identifier width must match channel");
     // Four ID bytes plus up to eight data bytes; the ID is big-endian, as on receive.
     if (message.DataSize < 4 || message.DataSize > 12)
         throw Error(ERR_INVALID_MSG, "CAN message size must be 4..12");
@@ -33,8 +33,8 @@ Bytes can_transmit(const PASSTHRU_MSG &message, uint32_t channel_flags, uint32_t
     // ExtraDataIndex, +24 data. The Windows capture names +16, which the static pass
     // could only call an unresolved caller argument.
     Bytes payload(12, 0);
-    put16(payload, 0, static_cast<uint16_t>(message.TxFlags));
-    put16(payload, 2, static_cast<uint16_t>(message.TxFlags >> 16));
+    put16(payload, 0, static_cast<uint16_t>(flags));
+    put16(payload, 2, static_cast<uint16_t>(flags >> 16));
     put16(payload, 4, static_cast<uint16_t>(timeout_ms));
     put16(payload, 6, static_cast<uint16_t>(timeout_ms >> 16));
     put16(payload, 8, static_cast<uint16_t>(message.DataSize));

@@ -173,8 +173,11 @@ private:
             path = matched.front().location;
         } else {
             // An explicit path must still be the researched adapter, not a stray modem.
+            // Canonicalize to resolve symlinks like /dev/serial/by-id/... to the kernel tty node.
+            std::error_code code;
+            const auto target = std::filesystem::canonical(path, code);
+            const auto node = std::filesystem::path(code ? path : target.string()).filename().string();
             std::string serial;
-            const auto node = std::filesystem::path(path).filename().string();
             if (!is_adapter(node, serial))
                 throw Error(ERR_NOT_SUPPORTED, path + " is not a MongoosePro JLR adapter");
         }

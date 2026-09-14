@@ -99,6 +99,24 @@ void rejects_malformed_first_frames() {
     CHECK(reassembler.feed(unhex("000007e8300000")).empty());
     CHECK(reassembler.feed(unhex("000007e8")).empty());
 }
+void foreign_can_id_does_not_disturb_assembly() {
+    IsoTpReassembler reassembler;
+    CHECK(reassembler.feed(unhex("000007e81014490201524544")).size() == 1);
+    CHECK(reassembler.assembling());
+    // Consecutive frame with foreign CAN ID (000007e9 vs 000007e8) must be ignored,
+    // and must not kill or corrupt the ongoing reassembly on 000007e8.
+    CHECK(reassembler.feed(unhex("000007e92141435445445649")).empty());
+    CHECK(reassembler.assembling());
+    // Also a consecutive frame with foreign ID and wrong sequence must not kill it.
+    CHECK(reassembler.feed(unhex("000007e92541435445445649")).empty());
+    CHECK(reassembler.assembling());
+    // The correct consecutive frames still complete the original message.
+    CHECK(reassembler.feed(unhex("000007e82141435445445649")).empty());
+    auto done = reassembler.feed(unhex("000007e8224e303030303030"));
+    CHECK(done.size() == 1);
+    CHECK(hex(done[0].data) == "000007e8490201524544414354454456494e303030303030");
+    CHECK(!reassembler.assembling());
+}
 void trailing_bytes_are_trimmed() {
     IsoTpReassembler reassembler;
     // Announced length 8: six bytes arrive first, then a padded consecutive frame whose
@@ -117,6 +135,7 @@ int main() {
         sequence_gap_kills_receive();
         first_frame_restarts_assembly();
         single_frame_does_not_disturb_assembly();
+        foreign_can_id_does_not_disturb_assembly();
         rejects_malformed_first_frames();
         trailing_bytes_are_trimmed();
         std::cout << "ISO15765 reassembly against the captured VIN exchange passed\n";
