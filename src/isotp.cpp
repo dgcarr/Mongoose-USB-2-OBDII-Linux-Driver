@@ -73,6 +73,7 @@ std::vector<IsoTpReassembler::Output> IsoTpReassembler::first(std::span<const ui
 }
 std::vector<IsoTpReassembler::Output> IsoTpReassembler::consecutive(std::span<const uint8_t> frame) {
     if (frame.size() < identifier + 2) { reset(); return {}; }
+    if (!std::equal(frame.begin(), frame.begin() + static_cast<ptrdiff_t>(identifier), message_.begin())) return {};
     if ((frame[identifier] & 0x0f) != sequence_) {
         // "ISO15765 SequenceNum got %d expected %d, killing receive": a gap means the
         // rest of the message can never be trusted, so the whole thing is discarded.

@@ -191,6 +191,7 @@ void selector_tests() {
     CHECK(parse_selector("tty:").backend == Backend::Tty);
     CHECK(parse_selector("tty:serial:ABC").serial == "ABC");
     CHECK(parse_selector("tty:/dev/ttyACM3").path == "/dev/ttyACM3");
+    CHECK(parse_selector("tty:/dev/serial/by-id/usb-test").path == "/dev/serial/by-id/usb-test");
     CHECK(parse_selector("tty:/dev/ttyACM3").serial.empty());
     CHECK(parse_selector("usb:").backend == Backend::Usb);
     CHECK(parse_selector("usb:serial:ABC").backend == Backend::Usb);

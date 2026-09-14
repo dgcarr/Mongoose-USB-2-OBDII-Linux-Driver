@@ -6,6 +6,7 @@
 #include <cstdio>
 #include <cstring>
 #include <fstream>
+#include <mutex>
 #include <set>
 #include <thread>
 #include <sys/file.h>
@@ -97,6 +98,7 @@ public:
         } catch (...) { try { stop(); } catch (...) {} throw; }
     }
     void send(std::span<const uint8_t> data, unsigned timeout) override {
+        std::lock_guard io(io_mutex_);
         if (stopping_ || !started_) throw Error(ERR_DEVICE_NOT_CONNECTED, "USB transport stopped");
         if (data.size() > 65536 || data.empty() || timeout == 0)
             throw std::invalid_argument("invalid USB write size or timeout");
@@ -109,10 +111,12 @@ public:
             throw Error(ERR_FAILED, "short USB write; command delivery is ambiguous");
     }
     void stop() override {
+        std::lock_guard guard(stop_mutex_);
         if (closed_) return;
         stopping_ = true;
         if (worker_.joinable()) worker_.join();
         else drain();
+        std::lock_guard io(io_mutex_);
         std::string failure;
         if (create_attempted_ && handle_) {
             try { control(0); } catch (const std::exception &e) { failure = e.what(); }
@@ -219,7 +223,11 @@ private:
         while (bulk_.pending || interrupt_.pending) {
             timeval timeout{0, 100000};
             const int result = libusb_handle_events_timeout(context_.value, &timeout);
-            if (result < 0 && result != LIBUSB_ERROR_INTERRUPTED) fault("USB event failure while draining");
+            if (result < 0 && result != LIBUSB_ERROR_INTERRUPTED) {
+                fault("USB event failure while draining");
+                bulk_.pending = interrupt_.pending = false;
+                break;
+            }
         }
     }
     void pump() {
@@ -260,6 +268,7 @@ private:
     Failure failure_;
     Input bulk_, interrupt_;
     std::thread worker_;
+    std::mutex stop_mutex_, io_mutex_;
     std::atomic<bool> stopping_{false};
     bool started_ = false, closed_ = false, create_attempted_ = false;
 };
