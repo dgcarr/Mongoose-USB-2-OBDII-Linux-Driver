@@ -88,8 +88,9 @@ steps can now be written as `tools/scripts` files and run with `mongoose-client 
 5. [x] **BLOCK filters (table selector 1, type 2).** Done and confirmed on the car (h6): `0x7E8`
    disappears, `0x7E9` and 70 other IDs stay, removal from table 1 works. `channel_tests` pins the
    wire bytes. `ERR_NOT_SUPPORTED` remains for BLOCK on an ISO15765 channel by design.
-6. **`PASS_FILTER` on an ISO15765 channel.** Try it on the wire; record whether the
-   firmware accepts it and what it changes. Implement or keep refusing, by result.
+6. **`PASS_FILTER` on an ISO15765 channel.** Kept refusing (`ERR_NOT_SUPPORTED`), by decision: J2534 ISO15765
+   traffic is gated by flow-control filters, no captured wire form exists for a pass filter on that channel, and
+   guessing one on a live vehicle is not worth it. Revisit only with a Windows capture (Phase 2, `g3`).
 7. [x] **Clear-buffer IOCTLs (h7).** Done: RX, TX, MSG_FILTERS and PERIODIC_MSGS. On the car
    `CLEAR_RX_BUFFER` discarded a second of queued frames (next frame 2.0 s newer) and
    `CLEAR_MSG_FILTERS` stopped the flow. `CLEAR_PERIODIC_MSGS` is a no-op until step 11.

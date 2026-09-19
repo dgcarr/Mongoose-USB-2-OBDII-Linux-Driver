@@ -960,7 +960,8 @@ Still open, and needing something this project does not have or has decided not 
   with frames waiting, and the flow-control table filled to its 64 limit.
 - **Independent proof of zero receive loss:** nothing counts the frames the bus carried apart from the
   adapter. A second CAN logger would.
-- **Full J2534 conformance** (a systematic pass over every export's edge cases) and packaging.
+- Live-traffic regression of the rewritten write and periodic paths, when the vehicle is next awake (the conformance
+  pass and packaging are done; see the deployment readiness section below).
 - The filter-table maximum on the adapter (stopping short of allocator exhaustion) and extended-address
   ISO15765 reassembly, which no capture exercises.
 
