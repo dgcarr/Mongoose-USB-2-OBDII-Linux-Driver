@@ -1,10 +1,15 @@
 # Implementation and validation status
 
-2026-09-13 Australia/Sydney (captures use 2026-09-12 UTC).
-This is an experimental device-management and CAN channel-lifecycle library, **not a complete J2534 driver**.
-The 04.04 version string identifies the target interface, not a compliance claim.
+Bench work 2026-09-13 Australia/Sydney (captures use 2026-09-12 UTC); live-vehicle work 2026-09-19.
+This is an experimental library: device management, raw CAN and 11-bit ISO15765 channels validated
+on a live vehicle, **not a complete J2534 driver**. The 04.04 version string identifies the target
+interface, not a compliance claim. The ordered list of what remains is `plan.md`.
 
-## Hardware results
+The sections run in the order the work was done. Those dated 2026-09-13 are **bench** results with
+the adapter on USB alone and no vehicle; where a later live-vehicle section supersedes a bench
+statement, the bench section says so.
+
+## Hardware results (bench, 2026-09-13)
 
 Adapter 18e1:0104, serial AOLHE0000003666A, USB only; user confirmed no vehicle attached.
 
@@ -76,13 +81,15 @@ libusb figures above:
 - Exclusivity: `flock` plus `TIOCEXCL` means a second instance, and any unrelated
   opener such as `dd`, fails with `EBUSY` -> `ERR_DEVICE_IN_USE`; the lock clears on
   close with no stale state.
-- **Partly measured now.** A pty-backed harness drives the real tty reader, line
-  discipline, decoder and queue at 311500 msg/s with zero loss (see the load-harness
-  section below), so the host side is not the constraint. What remains unmeasured is
-  `cdc_acm` itself under sustained inbound traffic: the libusb path used two outstanding
-  8 KB URBs, while the tty path goes through the n_tty flip buffer, which throttles
-  rather than drops when the reader lags. Vehicle traffic is where that would first
-  matter, so parity is still not claimed.
+- **Measured.** A pty-backed harness drives the real tty reader, line discipline,
+  decoder and queue at 311500 msg/s with zero loss (see the load-harness section below),
+  so the host side is not the constraint. `cdc_acm` itself under sustained inbound
+  traffic was then measured on a live vehicle on 2026-09-19: 2448 msg/s for five minutes
+  and 2456 msg/s for an hour, matching the Windows figure, with no overflow (see "Sustained
+  receive on a live vehicle" and "One-hour diagnostic soak"). The libusb path used two
+  outstanding 8 KB URBs while the tty path goes through the n_tty flip buffer, which
+  throttles rather than drops when the reader lags; that difference was never a problem
+  at vehicle rates. Zero loss is inferred from timestamp gaps, not independently counted.
 - **Now exercised:** the partial-write retry loop. No read-only opcode produces a frame
   near the 0x1800 limit, so hardware alone could not reach it; the pty harness fills the
   buffer and the loop reports `partial tty write; command delivery is ambiguous` on the
@@ -99,15 +106,21 @@ libusb figures above:
 | ReadVersion | Yes | Yes | Firmware value retrieved |
 | READ_VBATT / READ_PROG_VOLTAGE | Yes | Yes | Raw values retrieved; accuracy pending |
 | ABI and GetLastError | Standard interface | Yes | Native client / offline tests |
-| CAN Connect/Disconnect | Captured vendor frames | Yes | Linux USB-only success; no vehicle/12 V |
+| CAN Connect/Disconnect | Captured vendor frames | Yes | Bench success; live vehicle: ISO15765 open/close 100 cycles, raw CAN across every live run |
 | CAN receive queue / ReadMsgs | Captured vendor frames | Yes | Live Volvo bus: ~2100 frames/s decoded end to end (2026-09-19) |
 | CAN PASS filters | Captured vendor frames | Yes | Live bus: wildcard passes all, `0x7E8`/`0x7F8` mask passes none of the non-matching IDs |
 | CAN transmit / WriteMsgs | Captured vendor frames | Yes | Live bus: timed write confirmed by `iMsgTxDone`; raw frames need ISO-TP PCI by hand; two ECUs replied |
 | ISO15765 receive reassembly | Captured host reassembly / firmware flow control | Yes | Reproduces the captured VIN exchange offline |
 | ISO15765 channel | Captured open, flow-control filter, single-frame request | Yes, 11-bit, single-frame transmit | Live Volvo: VIN request answered, multi-frame reply reassembled (2026-09-19) |
-| ISO15765 timing / segmented transmit / 29-bit | Partial | No | STmin, block size, N_Bs unvaried; nothing captured for the rest |
+| ISO15765 timing (BS, STMIN) | Vendor decompile | Yes, via `SET_CONFIG` | Live: STMIN 20 ms gives 89 ms over 4 gaps; BS 2 gives 51 ms |
+| ISO15765 segmented transmit | Vendor write path (no host segmentation) | Yes, up to 4095 bytes | Live: a 9-byte UDS request answered by the ECU |
+| ISO15765 29-bit / N_Bs and other timeouts varied | Partial | 29-bit no; timeouts settable | Not exercised |
 | K-line / J1850PWM | Partial | No | Suitable hardware required |
-| BLOCK filters / periodic / configuration | Partial | No | Pending |
+| BLOCK filters | Vendor builder decompile | Yes (CAN) | Live bus: blocks one ECU, passes the rest, removes cleanly |
+| Buffer and filter-table IOCTLs | Vendor senders 1000daf0/1000dbf0, bench `cTableClear` | Yes | Live bus: CLEAR_RX discards the queue, CLEAR_MSG_FILTERS stops the flow |
+| `GET_CONFIG` / `SET_CONFIG` (CAN, ISO15765) | Vendor decompile, `PROTOCOL.md` 7e | Yes | Live: all 19 ISO IDs read back as J2534 defaults; BS/STMIN change the ECU's frame timing |
+| `LOOPBACK` | Vendor `loopbackBuf`, 7e | Yes (host-side) | Live: frame returns with `RxStatus 1` |
+| Periodic messages (CAN) | Vendor senders `1000d220`/`1000d3c0`/`1000d4d0` | Yes | Live: 1 s period, stops cleanly |
 | Programming-voltage output | Partial | No | Pending electrical validation |
 
 All 14 core exports exist. CAN Connect/Disconnect, PASS filters, ReadMsgs and
@@ -115,13 +128,15 @@ WriteMsgs are implemented; other protocols remain unsupported. One CAN-family re
 is reserved per device, with a second CAN or ISO15765 connection refused locally.
 Periodic and BLOCK-filter APIs reject invalid IDs and report ERR_NOT_SUPPORTED for
 live channels. Unsupported IOCTLs and voltage output never report success. The Linux
-driver has sent no bus messages or firmware writes; the Windows reference harness has
-exercised OBD requests.
+driver has sent no firmware writes. Since 2026-09-19 it has put read-only OBD-II requests on
+a live bus (raw CAN and ISO15765), and the Windows reference harness had already done so.
 
-Read the receive and filter rows precisely. The adapter accepts our filter frames and
-returns handles, and ReadMsgs drains a queue that the reader thread fills. Neither has
-ever had a single bus frame to act on, so nothing here establishes that a filter
-filters or that a received frame decodes correctly end to end.
+Read the receive and filter rows against the section that measured them. Until 2026-09-19 the
+bench had no bus frame for a filter to act on, so the filter and receive rows rested on
+acceptance evidence alone. The live-vehicle sections now show a wildcard filter passing traffic,
+a narrow one blocking it, and received frames decoding end to end. What they do not show is
+independent proof of zero loss, or anything about BLOCK filters, `PASS_FILTER` on an ISO15765
+channel, periodic messages, configuration, or 29-bit addressing, which remain unimplemented.
 
 ## Tests
 
@@ -139,9 +154,9 @@ synchronized competing lifecycle calls, plus pass-filter construction, filter ha
 mapping, removal, receive decoding against 32 captured inbound frames, queue overflow
 and malformed-frame rejection. Every scripted wire exchange must be consumed.
 
-All eight CTest entries pass in normal, ASan/UBSan and no-libusb builds after this
-change. Earlier Clang/ThreadSanitizer/fuzzer results below describe the preceding
-baseline, not a fresh run of the channel implementation.
+All 12 CTest entries (the earlier ten plus `script_syntax` and `config`) pass in the normal, ASan/UBSan,
+ThreadSanitizer and no-libusb builds, re-run on 2026-09-19. Earlier Clang/ThreadSanitizer/fuzzer results below describe
+the preceding baseline, not a fresh run of the current code.
 
 The preceding baseline passed under GCC, Clang, ASan/UBSan and ThreadSanitizer.
 The `MONGOOSE_FUZZ` libFuzzer target was run over the framing codec for roughly
@@ -283,6 +298,14 @@ anyway. `0x100` means the adapter accepted the frame, not that it sent it. Only 
 
 Nothing here shows that a frame reached a wire. That needs a bus.
 
+**Correction, 2026-09-19.** The probe's frame was described as mode 01 PID 00 but the bytes it
+sent were `000007df0902`, a mode 09 PID 02 request with no ISO-TP length byte, so it was not a
+valid single frame. The queued-versus-confirmed conclusion above does not depend on the
+payload. The probe now sends the framed mode 01 request the text always described
+(`02 01 00`, padded to 8 bytes), and on the live car it returns `0x100` and then one
+`iMsgTxDone`. `mongoose-client --can-transmit-check` had the same defect and is fixed the same
+way.
+
 Evidence: `analysis/captures/linux-transmit-probe-20260913T120454Z.*`.
 
 ## The sequence-number quarantine, settled (2026-09-13)
@@ -357,8 +380,9 @@ and the timed write reports `ERR_TIMEOUT` with `confirmed=0`. Nothing is acknowl
 because there is no bus, and the driver now says so instead of reporting success for a
 frame that never left the controller.
 
-What is still unproven: that the timed path reports success on a live bus. The Windows
-evidence says it should.
+What was still unproven: that the timed path reports success on a live bus. It does: both
+read-only queries in the 2026-09-19 vehicle run returned status 0 with `confirmed=1` (see
+"First Linux run on a live vehicle").
 
 Evidence: `analysis/captures/linux-transmit-confirm-20260913T122804Z.*`.
 
@@ -403,7 +427,8 @@ consecutive frames. The behaviour that matters:
 - A sequence gap **discards the whole partial message** rather than stitching a hole into
   it -- the vendor logs `ISO15765 SequenceNum got %d expected %d, killing receive` and
   clears its state.
-- A first frame arriving mid-assembly abandons the partial message and starts over.
+- A first frame arriving mid-assembly abandons the partial message and starts over. This applies
+  per source CAN ID; see "Multi-ECU multi-frame replies" for why.
 - A single frame arriving mid-assembly is delivered and **leaves the partial message
   intact**, so later consecutive frames still complete it. That looks wrong and is what
   the vendor does; it is reproduced deliberately and marked as such in the code.
@@ -578,33 +603,365 @@ Not covered: 29-bit ISO15765 (no capture of its filter layout, so refused with
 `ERR_INVALID_FLAGS`), segmented transmit, extended addressing, `PASS_FILTER` on an ISO15765
 channel, and any variation of STmin or block size.
 
+## Linux script runner against the Windows reference (2026-09-19)
+
+`mongoose-client [serial:SERIAL] --script FILE [--gap MS]` runs the same step files under
+`tools/scripts/` that the Windows harness runs, with the same verbs, symbol tables and log lines,
+so one experiment can be run on both stacks and compared. `mongoose-client --script-check FILE...`
+parses without touching the adapter; the `script_syntax` CTest runs it over every script so the two
+harnesses cannot drift apart. There is deliberately no step for `PassThruSetProgrammingVoltage`.
+
+First live comparison, `e1-obd-mode01-pid00` (ISO15765, flow-control filter `0x7E8`/`0x7E0`, mode 01
+PID 00 to `0x7DF`), same Volvo as the Windows capture. Every step returned the same result on both
+stacks, and both received `000007e84100983ba013`. **One real difference, since fixed:** Windows also
+delivered a message ahead of the reply, `RxStatus 9` (`TX_MSG_TYPE | TX_DONE`), TxFlags `0x40`, size
+4, `ExtraDataIndex` 0, data `000007df` -- the transmitted request's CAN ID as J2534's transmit
+indication for ISO15765. The first Linux run delivered only the reply; the same message is in
+Windows capture E2.
+
+The fix: `CanReceiver::note_transmit` records each ISO15765 request before it is sent, and the
+adapter's `iMsgTxDone` (which carries only a timestamp) is paired with the oldest recorded request
+in transmit order, queuing the message with the adapter's own timestamp. The start-of-message
+indication now reports `ExtraDataIndex` 0 as Windows does, where it previously reported 4. Raw CAN
+delivers no such message, and no capture shows otherwise. `isotp_tests` pins the message fields,
+the pairing order, a refused write leaving nothing behind, an unrecorded confirmation, a
+confirmation for another node, raw CAN, and `stop()`.
+
+After the fix, `e1` and `e2` run on Linux against the same car and compared with the Windows logs
+with timestamps and error text stripped (`e2` also with the VIN bytes) show no differing line. The
+one remaining textual difference is the `ReadMsgs` error string, which is ours ("CAN read returned
+fewer messages than requested" against Windows "Only read 2 of 16 messages"); the result code, 9, is
+the same.
+
+Evidence: `analysis/captures/linux-script-e1-20260919T075555Z.txt` (before the fix),
+`analysis/captures/linux-script-e2-20260919T081049Z.txt` (after, VIN redacted), against
+`analysis/captures/windows/20260913T161923-e1-obd-mode01-pid00/api.log` and
+`.../20260913T161953-e2-obd-mode09-pid02-vin/api.log`.
+
+## ISO15765 replies, silence and addressing on a live vehicle (2026-09-19)
+
+Three scripts run with `mongoose-client --script` on the same Volvo, all read-only OBD-II (services
+`01`/`09`) or a UDS `0x22` read, 500 kbit, one ISO15765 channel.
+
+- **No reply is a partial read, not an error.** `e4` sent mode 01 PID `0x7F` (an unsupported PID) to
+  `0x7DF`. No ECU answered in 3 s, and the read returned exactly one message, the transmit
+  indication, with result 9 (`ERR_TIMEOUT`, partial). With nothing queued at all the read is
+  `ERR_BUFFER_EMPTY`. Both are pinned in `isotp_tests`. There is no Windows capture of `e4`, so this
+  is our own evidence of the adapter's behaviour, not a comparison.
+- **Two flow-control filters coexist on one channel.** `0x7E8`/`0x7E0` and `0x7E9`/`0x7E1` were added
+  together (handles 3 and 4) and both removed cleanly.
+- **Physical addressing works for both ECUs.** Mode 01 PID 00 to `0x7E0` was answered from `0x7E8`
+  and to `0x7E1` from `0x7E9`, with the same supported-PID masks the functional request drew. The VIN
+  request to `0x7E0` came back as a start-of-message indication and one 24-byte message, reassembled.
+- **Silence holds for physical requests too.** PID `0x7F` to `0x7E0` and to `0x7E1` drew no reply.
+- **A request an ECU cannot serve draws a negative response** as an ordinary 7-byte message with
+  `RxStatus 0`, needing no special handling: mode 09 with an unsupported info type (`09 FF`) got
+  `7F 09 12` (sub-function not supported), and UDS `22 FF FF` got `7F 22 31` (request out of range),
+  both from `0x7E8`.
+
+Not covered: no ECU other than `0x7E8`/`0x7E9` was tried, and `ISO15765_FRAME_PAD` off. (Whether
+the second ECU sends multi-frame replies is answered in the next section: it does.) The negative responses' CAN-level padding bytes were not
+captured (the library reports only the reassembled message), so the test uses zeros for them.
+
+Evidence: `analysis/captures/linux-script-e4-20260919T081209Z.txt`,
+`linux-script-h1-20260919T081246Z.txt` (VIN redacted), `linux-script-h2-20260919T081316Z.txt`.
+Scripts: `tools/scripts/h1-physical-addressing.txt`, `h2-negative-response.txt`.
+
+## Multi-ECU multi-frame replies, and a reassembler bug they exposed (2026-09-19)
+
+`h3-multiframe-reads` sends functional read-only requests with a flow-control filter for each ECU:
+mode 09 info types 00, 04 (calibration IDs), 06 (calibration verification numbers) and 0A (ECU
+name), then modes 03, 07 and 0A (stored, pending and permanent DTCs). Mode 04, which clears codes,
+is never sent.
+
+**The bug.** For PIDs 04 and 0A both ECUs began a multi-frame reply (two start-of-message
+indications, `0x7E8` and `0x7E9`), but only one message completed each time. `IsoTpReassembler` held
+one assembly, so the second ECU's first frame discarded the first ECU's partial message, which is the
+vendor's rule for a first frame that interrupts a segmented receive. That rule is right within one
+sender and wrong across senders: interleaved replies to a functional request are the ordinary OBD-II
+case. No Windows capture has two ECUs sending multi-frame replies, so the vendor's own handling of
+this is unobserved; Windows may well have the same defect.
+
+**The fix.** One conversation per source CAN ID, at most 32 at a time (the oldest is given up when a
+33rd starts, so unfinished conversations cannot grow memory or lock out a real reply). Within one ID
+every vendor rule is unchanged: a first frame restarts that ID's message, a single frame leaves it
+intact, a sequence gap kills it. A gap or restart on one ECU no longer touches another's.
+`isotp_tests` reproduces the failure from the two captured messages (frames built from them by the
+ISO 15765-2 split), and covers the restart, gap and limit cases. The existing reassembler tests pass
+unchanged. Re-run on the car, `09 04` returns both ECUs' calibration IDs (39 and 23 bytes) and `09 0A`
+returns both names (`ECM-EngineControl` from `0x7E8`, `TCM-TransmisCtrl` from `0x7E9`).
+
+Also observed: PID 06 is a single frame from `0x7E9` and an 11-byte segmented message from `0x7E8`;
+modes 03 and 07 return an empty list (`43 00`, `47 00`) from both ECUs, and mode 0A (permanent DTCs)
+is answered by `0x7E9` alone. The car has no stored DTCs, so a multi-frame **DTC list** has not been
+exercised; the calibration and ECU-name replies stand in as multi-frame evidence. Mode 02 (freeze
+frame) was not run.
+
+The reassembler was rebuilt under ASan/UBSan (11/11) and the libFuzzer target over it ran 17213
+executions in 91 s with no crash, leak or finding; that is far fewer than the earlier 175k and 545k
+runs and the reason is not known, so treat the fuzz result as a smoke test.
+
+Evidence: `analysis/captures/linux-script-h3-20260919T081450Z-single-assembly.txt` (the bug) and
+`...T081902Z-per-id-fix.txt` (fixed). Script: `tools/scripts/h3-multiframe-reads.txt`.
+
+## ISO15765_FRAME_PAD on and off (2026-09-19)
+
+`h4-no-padding` repeats a functional mode 01 PID 00 request and a physical VIN request through an
+ISO15765 channel with `ISO15765_FRAME_PAD` off (flags `NONE` on the flow-control filter and the
+writes). Both writes were accepted and confirmed transmitted (`iMsgTxDone`, the transmit-done
+message shows TxFlags 0), and **no ECU answered either request**, though the same requests are
+answered every time with padding on.
+
+`h5-short-vs-padded-raw` separates the ECUs from the library. On a raw CAN channel, where the frame
+goes out exactly as written, the same mode 01 PID 00 request (PCI 02, service 01, PID 00) to `0x7DF`
+was sent three ways: three bytes (DLC 3), eight bytes padded with `0x00`, and eight bytes padded with
+`0x55`. The three-byte frame drew no reply; **both eight-byte frames drew a reply from each ECU**,
+`0x7E8` and `0x7E9`, with the usual supported-PID masks. So the silence in H4 is the Volvo's ECUs
+ignoring a short request frame, not a library fault, and the padding byte value does not matter to them.
+
+Consequence: on this car every request needs `ISO15765_FRAME_PAD`. The library passes the flag
+through to the adapter and does not add padding itself. Every tool in this repository already sets it.
+
+Not established: what byte value the adapter itself pads with (no independent view of the
+transmitted frame), and whether the adapter pads a flow-control frame when the flag is off. A raw
+capture of the request as it goes out would need a second CAN node or logger.
+
+Evidence: `analysis/captures/linux-script-h4-20260919T082333Z.txt` and
+`linux-script-h5-20260919T082400Z.txt` (filtered: ~9,500 unrelated bus frames removed, as its header
+states). Scripts: `tools/scripts/h4-no-padding.txt`, `h5-short-vs-padded-raw.txt`.
+
+## BLOCK filters on a live vehicle (2026-09-19)
+
+`StartMsgFilter(BLOCK_FILTER)` is implemented on a raw CAN channel. The layout was the one open
+question: the vendor builder `1000e600` (decompiled, `analysis/decompiled/senders/1000e600.c`)
+selects table selector 0 with type byte 1 for a pass filter and **table selector 1 with type byte 2**
+for a block filter, with the rest of the body identical. No Windows capture of a block filter exists
+(`d3-block-filter` was never run), so the pairing came from the decompile alone until this run.
+Each filter now remembers the wire table it was added to, and `StopMsgFilter` removes it from that
+table, so a block filter is removed with selector 1.
+
+On the car (`h6-block-filter-live`, raw CAN, engine state as in earlier runs): a pass-all filter, then
+a BLOCK filter for `0x7E8`, then the padded functional mode 01 PID 00 request.
+
+| Window | `0x7E8` frames | `0x7E9` frames | Distinct other IDs |
+|---|---|---|---|
+| pass-all only (before the request) | 0 | 0 | 69 |
+| BLOCK `0x7E8` active, request sent | **0** | 1 | 70 |
+| BLOCK removed, request sent again | 1 | 1 | 71 |
+
+The adapter accepted the block filter and its removal, blocked exactly the one ID, and passed
+everything else. The selector/type pairing is therefore confirmed on hardware, not only by the
+decompile. `channel_tests` pins the wire bytes for add (`0100000000000204 000007ff 000007e8`) and for
+removal from table 1, and that a removed block filter is then an invalid ID.
+
+Not covered: BLOCK filters on an ISO15765 channel (the adapter's flow-control table is separate, and
+J2534 defines no block filter there), combinations of several block filters, and the case of a block
+filter with no pass filter (J2534 says nothing is received without a pass filter; not tested).
+
+Evidence: `analysis/captures/linux-script-h6-*.txt` (filtered: bus frames outside `0x700`-`0x7FF`
+removed, with the tally computed from the full log in its header). Script:
+`tools/scripts/h6-block-filter-live.txt`.
+
+## Buffer and filter-table IOCTLs on a live vehicle (2026-09-19)
+
+`PassThruIoctl` now implements `CLEAR_RX_BUFFER`, `CLEAR_TX_BUFFER`, `CLEAR_MSG_FILTERS` and
+`CLEAR_PERIODIC_MSGS` on a channel (the channel ID goes in the first argument, as J2534 says for
+channel IOCTLs; `READ_VBATT` and `READ_PROG_VOLTAGE` still take a device).
+
+- **Wire forms.** `cIoctl` (`0x11`) with a four-byte selector, 2 for TX and 3 for RX, as the vendor
+  senders `1000daf0` and `1000dbf0` build it, each waiting for the response. `CLEAR_MSG_FILTERS` sends
+  `cTableClear` (`0x10`) with the table selector, once for each table the channel actually filled (0
+  pass, 1 block, 2 flow control), and forgets those handles; with no filters it sends nothing.
+  `CLEAR_PERIODIC_MSGS` sends nothing because no periodic message can exist yet.
+- **Host side.** `CLEAR_RX_BUFFER` also empties the host receive queue, any partly reassembled
+  ISO15765 conversation and a pending overflow report (which described discarded data), after the
+  adapter's response so that frames arriving later are kept. `CLEAR_TX_BUFFER` forgets the recorded
+  requests that will never be confirmed, so a later transmit-done cannot pair with one of them.
+  A firmware refusal is returned as an error and flushes nothing.
+- **Tests.** `channel_tests` pins the wire bytes, that queued frames disappear and later ones are kept,
+  the refusal path, that cleared filters' handles become invalid, and that clears with nothing to clear
+  send nothing.
+
+Live (`h7-clear-buffers-live`, raw CAN, pass-all on the ~2450 frame/s bus): after a second of queuing
+the oldest frame was at device time 3500 us; after another second and `CLEAR_RX_BUFFER` the next frame
+was at 2004100 us, 2.0006 s later, so the stale queue was discarded. `CLEAR_TX_BUFFER` and
+`CLEAR_MSG_FILTERS` returned status 0; after the filter clear and a final `CLEAR_RX_BUFFER` a 500 ms
+read returned nothing (`ERR_BUFFER_EMPTY`), so the table clear did remove the pass-all filter.
+
+Not covered: `CLEAR_TX_BUFFER` with frames actually waiting to send (a transmit is confirmed within
+milliseconds on this bus, so the queue is never observably non-empty), and `CLEAR_MSG_FILTERS` on an
+ISO15765 channel (table 2 is the same wire form, not run live).
+
+Evidence: `analysis/captures/linux-script-h7-*.txt`. Script: `tools/scripts/h7-clear-buffers-live.txt`.
+
+## Configuration, loopback, periodic messages and segmented transmit (2026-09-19)
+
+These four were the "needs the Windows machine" items. They did not: decompiling the vendor DLL with
+Ghidra (`analysis/ExtractCallers.java`, `analysis/ExtractByName.java`, output under
+`analysis/decompiled/{config,periodic,write,outbound2,filter}/`) supplied every wire layout and rule, and
+the car then confirmed each one. The findings are in `PROTOCOL.md` section 7e.
+
+**`GET_CONFIG` and `SET_CONFIG`** (`src/config.cpp`, `PassThruIoctl`), for CAN and ISO15765, with the
+vendor's ID-to-selector map, ranges and error codes; `NON_VOLATILE_STORE_2..10` are refused, and two
+electrical parameters (`DT_PULLUP_VALUE`, `DT_HALF_DUPLEX`) are readable but not settable. Read on the car
+(`h8`, `h9`, one parameter per call): raw CAN `DATA_RATE` 500000, sample point 80, jump width 15, loopback
+0; ISO15765 the same plus BS 0, STMIN 0, BS_TX and STMIN_TX 65535, WFT_MAX 0, N_BR_MIN 0, pad value 0, the
+four N_* timeouts 1000, N_CS_MIN 0, pull-up 0, half duplex 0 -- all 19 IDs answered with J2534 defaults
+through the map. An ID the channel does not have returns `ERR_NOT_SUPPORTED`; `J1962_PINS` returns
+`ERR_FAILED`; an ISO-only ID on a CAN channel is `ERR_NOT_SUPPORTED`.
+
+**ISO-TP timing.** `SET_CONFIG` of `ISO15765_BS` and `ISO15765_STMIN` reaches the adapter's own
+flow-control frames and controls how the ECU sends a multi-frame reply. `h10` requests mode 09 PID 04 (a
+35-byte reply, first frame plus five consecutive frames) from the engine ECU, five times per setting. Time
+from first to last frame, from the start-of-message and completed-message timestamps:
+
+| BS | STMIN | runs (ms) | mean |
+|---|---|---|---|
+| 0 | 0 | 15.9 9.2 9.3 9.7 11.6 | 11.1 |
+| 0 | 20 | 89.0 89.2 89.7 89.3 89.7 | 89.4 |
+| 2 | 0 | 15.6 15.2 9.3 9.7 9.7 | 11.9 |
+| 2 | 20 | 49.7 55.6 53.5 49.5 48.7 | 51.4 |
+
+STMIN 20 ms over the four gaps between five consecutive frames is 80 ms plus about 9 ms, and the runs
+agree to 0.7 ms. With BS 2 the consecutive frames go in blocks of two, and STmin applies only between the
+frames inside a block, so two gaps, 40 ms plus the flow-control round trips: 51 ms, faster than BS 0 with
+the same STMIN, exactly as ISO 15765-2 says. Defaults were restored and read back after the run. N_As,
+N_Ar, N_Bs, N_Cr and the other timeouts are settable but were not varied.
+
+**`LOOPBACK`** is a host-side flag in the vendor too (never sent to the firmware); with it set, a
+confirmed transmit is queued back as a received message with `RxStatus TX_MSG_TYPE` carrying the whole
+frame and the adapter's timestamp, after the transmit-done message on ISO15765. On raw CAN (`g4`) with
+LOOPBACK 0 the write was confirmed and a 500 ms read returned nothing; with LOOPBACK 1 the same write
+returned `000007df0201005555555555` with `RxStatus 1` and timestamp 2108900; restored to 0.
+
+**Periodic messages** (raw CAN only; ten per channel; interval 5..65535 ms): `cTableAddEntry` on table 4,
+`cTableRemoveEntry` and `cTableClear` with selector 4, all from the vendor senders. `g1` on the car: a
+read-only mode 01 PID 00 request every 1000 ms drew a reply from each ECU at 0.41, 1.41, 2.41, 3.42 and 4.42 s
+(one period 1.000-1.010 s), and after `StopPeriodicMsg` a two-second read returned nothing. A channel with live
+periodic messages has the table cleared before it is closed, so nothing can keep transmitting. A running
+periodic message is confirmed by the adapter too, so only confirmations that pair with a recorded write now
+count toward a timed `WriteMsgs`; `channel_tests` pins that an unrelated confirmation does not satisfy one.
+
+**Segmented ISO15765 transmit.** The vendor does not segment: its write path (`1000c270`) and frame builder
+(`1006b090`) copy the message as given, so the adapter segments it. The single-frame limit is lifted: an ID
+plus 1..4095 bytes goes out in one `cOutboundData`. `e5` on the car sent the 9-byte UDS request
+`22 F190 F187 F18C F194` to the engine ECU; the write was confirmed and the ECU answered with a positive
+`0x62` response, a 42-byte multi-frame message our reassembler completed. Two of the four identifiers came
+back, `F190` and `F18C`. `F18C` straddles the boundary between the two frames we sent, so the ECU could only
+have answered it by reassembling them correctly. `F187` and `F194` were not in the reply; that fits an ECU
+that does not support them (UDS ECUs omit unsupported identifiers), but that reading is an inference. The
+payload, which carries the VIN and module identifiers, is masked in the saved evidence.
+
+**Confirmations paired by sequence, and a transmit chan field.** The vendor tags every transmitted message
+with the command's sequence and a count of messages still to send, and matches `iMsgTxDone` against both
+(`1000bcb0`). The driver now records each request under its sequence before it is sent (`Session::command`
+reports the sequence first, since the confirmation can beat the command response) and pairs by sequence,
+discarding older unpaired records, instead of by arrival order. The data command's chan field is the
+number of messages remaining in the call, 1 for a single write; `WriteMsgs` of several messages now sends 3, 2,
+1. `channel_tests` covers a full ISO15765 exchange through the public API: filter, timed write, confirmation
+ahead of the response, three reply frames, and the read returning the transmit-done, start-of-message and
+reassembled messages in order.
+
+**Two more vendor answers.** PASS and BLOCK filters on an ISO15765 channel are refused ("ISO15765 cannot
+establish Pass/Block filters", error code 7), so this driver keeps refusing them; flow-control filters are
+capped at 64 ("Only 64 filters are permitted total"), now enforced. The vendor also caps pass/block filters
+at 10 when a device field equals 1; Windows capture D2 accepted at least 40, so that field is not 1 on this
+unit and the sample-point limits gated by the same field (68..80 on CAN, 80 only on ISO15765) are looser in
+the vendor than the ones enforced here.
+
+**A driver bug this exposed.** An ISO15765 channel was closed on the CAN node (`0x0501`) instead of its own
+(`0x0601`), because `Disconnect` reset the recorded protocol first. The adapter tolerated it, so the earlier
+100-cycle run passed, but the vendor closes on `0x0601` (Windows capture E1) and it now does too. After the
+fix both 100-cycle runs still pass (ISO15765: 5.05 ms mean request-to-reply; raw CAN: 5.04 ms).
+
+**One hour on the ISO15765 path.** `--vehicle-hour-iso` (new): two flow-control filters, a functional mode 01
+request every second (PIDs 00, 05, 0C, 0D) and mode 09 PID 04 every tenth second, whose two ECUs answer with
+interleaved multi-frame messages. 3600 s: 3600 requests; **3240 of 3240 single-frame replies and 360 of 360
+two-ECU multi-frame replies complete**; 0 write failures, read errors, overflows or stray messages; 3600
+transmit-done messages and 720 start-of-message indications as expected; reply time 9.14 ms mean, 26.22 ms
+worst at 5 ms read granularity; resident memory 4896 kB at start and 5108 kB at the end, unchanged for the
+last 50 minutes. It ran on the build before the sequence pairing, configuration, periodic and loopback
+changes above, so it covers per-ID reassembly and the transmit-done message but not that later code; the
+two 100-cycle runs and the scripts above ran on it.
+
+**Tests.** 12 CTest entries (the new `config` among them), including wire scenarios for configuration,
+periodic messages and their limit, ISO15765 configuration, the flow-control limit and the ISO15765 exchange.
+All 12 pass in the normal, ASan/UBSan, ThreadSanitizer (zero warnings) and no-libusb builds, run on the final tree. The libFuzzer target now also drives the periodic,
+block-filter and ISO15765 transmit encoders, the configuration table and the sequence-paired receiver with
+loopback: 4417 executions in 2 minutes, no crash, and that is a smoke test given how slowly it ran.
+
+Evidence: `analysis/captures/linux-script-{h8,h9,h10,g4,g1,e5}-*.txt`, `linux-vehicle-hour-iso-*.txt`,
+`linux-vehicle-cycles-{raw,iso-rerun}-*.txt`. Scripts: `tools/scripts/h8-getconfig-can.txt`,
+`h9-getconfig-iso15765.txt`, `h10-stmin-bs-matrix.txt` and the `g1`, `g4`, `e5` scripts written for Windows,
+which run unchanged through `mongoose-client --script`.
+
+## Ignition off, bus sleep and wake (2026-09-19)
+
+`mongoose-client --vehicle-ignition` (new) is a passive observer: one raw 500 kbit channel with a wildcard filter,
+one log line a second (frame rate, bus active or quiet, `READ_VBATT`, read errors by code), and a read-only mode 01
+PID 00 request every ten seconds, sent only while frames are arriving. You switched the ignition off, locked the
+car, and later switched it on again with the channel open the whole time.
+
+**Run 1** (`linux-vehicle-ignition-run1-*.txt`, 359 s). The ignition went off about 17 s in. Traffic stepped down
+in stages, 2470 to 2100 to 1300 to about 700 frames/s over roughly 15 s, as modules shut down, and the engine ECU
+stopped answering (31 of the 36 requests went unanswered). The bus **stayed active at about 700 frames/s for the
+remaining six minutes**.
+
+**Run 2** (`linux-vehicle-ignition-run2-*.txt`, 168 s), started about 6.5 min after the ignition went off. After two
+unanswered requests the observer transmits nothing more. **The bus went quiet 32.8 s in**, 22 s after the last
+request, and stayed quiet (0 frames/s). The ignition was switched on at about 68 s: **the bus woke at 67.9 s**, the
+first request after the wake went unanswered (the engine ECU was still starting), every later one was answered in
+20.1 ms, and traffic returned to about 2470 frames/s. The channel was never reopened.
+
+What the driver did, over both runs (about 9 minutes, 300000+ frames): no read error, overflow or write failure of
+any kind; the same channel and filter delivered frames before the sleep and after the wake; device timestamps kept
+counting; `ReadMsgs` returned the ordinary empty result through the quiet spell. No `eVbattLoss` (`0x020a`) indication
+appeared, which is expected: the adapter kept its 12 V through the OBD connector throughout, so nothing here
+exercises the vendor's voltage-loss path.
+
+Read the two claims that go beyond that carefully. (1) Whether the periodic requests kept the bus awake in run 1 is
+**not established**: the bus went quiet about 7 min after the ignition went off, and run 1 stopped at 6 min, so
+the two runs are equally consistent with a sleep timer of about seven minutes and with requests delaying sleep. A
+run that is silent from the start would separate them. What run 2 does show is that listening alone does not
+prevent sleep or wake. (2) Battery voltage read 12.6 V with the ignition on and the engine off, rose to 13.0-13.3 V
+after the ignition went off, and settled at 12.7-12.8 V after the wake. A rise on ignition-off is unusual;
+something charging the battery would explain it, but the cause was not determined.
+
+Not tested: pulling the USB cable with traffic running, and the adapter losing vehicle power while USB stays
+connected (the `eVbattLoss` path).
+
 ## Next blocking work
 
-Every item this list carried that the bench could reach is now done: pass filters and the
-receive queue, the filter-table probe, CAN transmit and its delivery reporting, the
-sequence-number ceiling, sustained receive with back-pressure, and ISO15765 reassembly.
-What is left needs a vehicle, and saying so is the point of this section -- none of it can
-be closed by more work on a desk.
-
-Vehicle-blocked:
+The ordered plan is `plan.md`; this section only records what the validation evidence leaves open.
+Everything the bench could settle is done, and the live-vehicle runs of 2026-09-19 closed most of the
+vehicle items. Done on the live Volvo:
 
 1. ~~Prove filters filter, transmit transmits and received frames decode end to end.~~
-   Done on the live Volvo, 2026-09-19 (see "First Linux run on a live vehicle").
-2. ~~Confirm that a timed `WriteMsgs` reports success on a live bus.~~ Done: `confirmed=1` on
-   both raw CAN and ISO15765 channels.
-3. ISO15765 **timing** -- STmin, block size and N_Bs remain untested and unvaried. The
-   channel itself is wired to the reassembler and answers a live VIN request; segmented
-   transmit and 29-bit addressing are not attempted (see the ISO15765 section above).
-4. ~~`cdc_acm` throughput parity.~~ Measured 2026-09-19, see below.
-5. Complete remaining protocol engines, periodic messages and IOCTLs with suitable
-   vehicles/fixtures. C3/C4 are settled for this adapter: only one CAN-family channel can
-   be open; further chan-field semantics cannot be inferred here.
-6. ~~Run 100 hardware cycles and a one-hour diagnostic soak~~ Both done 2026-09-19, see below.
-   Remaining under this heading is only durability beyond an hour and other vehicles.
+2. ~~Confirm that a timed `WriteMsgs` reports success on a live bus.~~
+3. ~~`cdc_acm` throughput parity.~~
+4. ~~100 hardware cycles and a one-hour diagnostic soak.~~ Both done on raw CAN and on ISO15765.
+5. ~~ISO15765 timing (BS, STMIN), segmented transmit.~~ Measured and working.
+6. ~~TX-done messages, `LOOPBACK`, periodic messages, `GET_CONFIG`/`SET_CONFIG`, BLOCK filters,
+   the buffer IOCTLs.~~ Implemented and checked on the car. Raw CAN delivers no transmit-done message
+   without `LOOPBACK`, by the vendor's own logic (`PROTOCOL.md` 7e).
+7. `PASS_FILTER` on an ISO15765 channel is refused by the vendor and by this driver, by design.
 
-Bench work that remains possible but was deliberately not done: the filter-table maximum
-(stopping short of allocator exhaustion), the channel IOCTLs for clearing buffers, and
-extended-address ISO15765 reassembly, which no capture exercises.
+Still open, and needing something this project does not have or has decided not to do:
 
-Electrical testing and full J2534 conformance remain outstanding. Firmware
-updating, Wine and SocketCAN are out of scope.
+- **Other protocols:** K-line (ISO9141/14230, `FIVE_BAUD_INIT`, `FAST_INIT`), J1850 VPW/PWM and
+  the pin-switched `*_PS` protocols need a vehicle or bench ECU on those buses. There is no wire
+  evidence for any of them beyond the vendor's static code.
+- **29-bit ISO15765** and J1939: no capture of the filter layout, and this car has no 29-bit ECU.
+- **Programming voltage output:** electrical, not to be tried on a vehicle; `SetProgrammingVoltage`
+  returns `ERR_NOT_SUPPORTED`.
+- **Not exercised on the car:** unplugging USB under load and losing vehicle power under USB (the ignition-off and wake cycle is done, see above), `DATA_RATE` and the sample point/jump width settings (they change the
+  bus timing), the ISO15765 timeouts N_As/N_Ar/N_Bs/N_Cr (settable, never varied), `DT_PULLUP_VALUE` and
+  `DT_HALF_DUPLEX` (readable only here), more than one periodic message on the wire, `CLEAR_TX_BUFFER`
+  with frames waiting, and the flow-control table filled to its 64 limit.
+- **Independent proof of zero receive loss:** nothing counts the frames the bus carried apart from the
+  adapter. A second CAN logger would.
+- **Full J2534 conformance** (a systematic pass over every export's edge cases) and packaging.
+- The filter-table maximum on the adapter (stopping short of allocator exhaustion) and extended-address
+  ISO15765 reassembly, which no capture exercises.
+
+Firmware updating, Wine and SocketCAN are out of scope.

@@ -1,14 +1,19 @@
 # MongoosePro JLR — research status
 
-Updated 2026-09-13. The current technical reference is [PROTOCOL.md](PROTOCOL.md).
-Implementation update: Linux discovery, open/close, firmware version and voltage
-queries, CAN channel setup, CAN pass filters and raw CAN transmit now succeed on the
-USB-only adapter, ReadMsgs drains a host receive queue, and ISO15765 multi-frame
-responses reassemble offline against the captured VIN exchange. See
-[current validation](docs/VALIDATION.md) and `analysis/captures/linux-*.trace`. With no
-bus attached, no filter has ever been asked to pass a frame, and the single frame ever
-transmitted was queued without confirmation that it left the controller. Windows reference captures on a
-2017 Volvo XC60 D5 AWD now resolve the CAN channel lifecycle and inform the next work.
+Updated 2026-09-19. The current technical reference is [PROTOCOL.md](PROTOCOL.md); the ordered
+list of remaining work is [plan.md](plan.md).
+Implementation update: Linux discovery, open/close, firmware version and voltage queries, raw CAN
+and 11-bit ISO15765 channels, pass and flow-control filters, transmit with delivery confirmation
+and multi-frame receive reassembly all work on the bench **and on a live 2017 Volvo XC60**: an
+hour of sustained receive and diagnostic requests, 100 hardware lifecycle cycles, and a VIN read.
+Since then: BLOCK filters, periodic messages, the buffer and configuration IOCTLs (`GET_CONFIG`,
+`SET_CONFIG`, `LOOPBACK`, ISO-TP block size and STmin) and multi-frame ISO15765 transmit, all recovered
+from the vendor DLL with Ghidra (`analysis/ExtractCallers.java`, `ExtractByName.java`; findings in
+[PROTOCOL.md](PROTOCOL.md) section 7e) and confirmed on the car, plus an hour on the ISO15765 path. See
+[current validation](docs/VALIDATION.md) and `analysis/captures/linux-*`. What is not done: 29-bit
+ISO15765, and every protocol other than CAN (K-line, J1850, the `*_PS` pair, programming voltage), which
+need hardware this project does not have. The Windows session in `docs/PHASE2-WINDOWS.md` is an optional
+cross-check now, not a dependency.
 The chronological research log, including superseded hypotheses, is preserved in
 [the history archive](analysis/history/NOTES-before-consolidation.md).
 
@@ -80,25 +85,9 @@ its original `analysis/probe.py` path, which is left intact so the record stays 
 
 ## Next work
 
-Filters and the receive queue are built and hardware-accepted (2026-09-13), so the work
-now divides by what the bench can actually settle.
-
-1. Probe the filter table on the bench: capacity beyond D2's 40, `cTableClear` (`0x10`,
-   never exercised in any capture), and `cGetValue` selector `0x2f`.
-2. Resolved: a timed `WriteMsgs` now waits for `iMsgTxDone` and reports what the adapter
-   confirmed it sent, not what it accepted. So is the sequence quarantine that used to
-   cap the driver at 25 commands/second -- sequences are released on response, measured
-   at 6385 commands/second on hardware.
-3. Resolved: a pty-backed load harness drives the real tty reader, decoder and queue at
-   311500 msg/s with zero loss, about 127x the Windows D4 baseline, and exercises the
-   partial-write path for the first time. It does not cover the cdc_acm URB path, so
-   adapter parity is still unproven.
-4. Resolved: the ISO15765 host reassembler reproduces the captured VIN exchange byte for
-   byte, following the vendor's own dispatch including its kill-on-sequence-gap rule.
-   The channel itself stays unsupported, since its timing parameters need a vehicle.
-5. Vehicle-blocked, and now the whole remaining list: that filters filter, that transmits
-   transmit, ISO15765 timing, cdc_acm throughput parity, the other protocol engines, and
-   the 100-cycle and one-hour soak gates.
+See [plan.md](plan.md) for the ordered list. In short: everything the bench and this one car could settle
+is done and recorded in `docs/VALIDATION.md`. What is open needs hardware or a decision: the other
+protocols, 29-bit ISO15765, a J2534 conformance pass, packaging, and whether to keep the libusb backend.
 
 See [reproduction instructions](analysis/REPRODUCE.md) and the
 [sender index](analysis/SENDERS.md) for the saved evidence and Ghidra scripts.

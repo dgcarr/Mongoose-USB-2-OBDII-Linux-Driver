@@ -4,7 +4,8 @@ Updated 2026-09-13. Static evidence from the supplied DLL and kernel driver, cro
 with x86/x64 assembly. **Linux discovery, device open/close and value queries now succeed.**
 See `docs/VALIDATION.md` and `analysis/captures/linux-*.trace` for the new hardware
 evidence. The static-research descriptions below describe their original evidence
-boundary; they do not override the newer validation record. No vehicle was attached.
+boundary; they do not override the newer validation record. Sections 7a and 7c are bench results
+with no vehicle; live-vehicle results are in `docs/VALIDATION.md`.
 “Observed” below means code behavior; it does not claim hardware validation.
 Earlier speculative framing is archived in `analysis/history/PROTOCOL-before-deep-ghidra.md`.
 
@@ -666,7 +667,8 @@ a monotonic `0x68` stride; the larger sample corrects it. Treat handles as opaqu
 
 ### Transmit: `0x100` means queued, not transmitted
 
-One OBD-II mode 01 PID 00 frame was sent from Linux with no bus attached
+One OBD-II request (described as mode 01 PID 00, but the bytes sent were an un-framed mode 09 PID 02;
+see the correction in `docs/VALIDATION.md`) was sent from Linux with no bus attached
 (`analysis/captures/linux-transmit-probe-20260913T120454Z.*`). `cOutboundData` returned
 status `0x100`, reproducing the queued status the Windows capture recorded, and **no
 `iMsgTxDone` (`0x0106`) indication arrived within two seconds**.
@@ -702,6 +704,110 @@ A read-only burst then ran 20000 commands at 6385 per second, recycling each of 
 sequence values about 78 times roughly 40 ms apart, with every response echoing the
 selector of the command it answered. Nothing in 21000 commands suggests this firmware
 emits a delayed duplicate response.
+
+## 7d. Firmware value selectors (Linux sweep, 2026-09-19)
+
+`mongoose-diag --value-sweep` issues only `cGetValue` (`0x0c`, a four-byte selector) for selectors
+`0..0x7f`, on the board node and on an open CAN channel and ISO15765 channel node. A refusal is
+`status 3 "cGetValue: Unsupported or Invalid Resource ID 0 or type 3"` on the board node and
+`status 0x200 "CanGetValue: Unsupported or Invalid Parameter type."` on a channel node, so an unknown
+selector costs one error string. Evidence: `analysis/captures/linux-value-sweep-*.txt`.
+
+| Selector | Board | CAN ch. | ISO15765 ch. | Reading |
+|---|---|---|---|---|
+| `0x01` | 0 | 0 | 0 | unknown; a LOOPBACK-like flag |
+| `0x02` | 11981 | 12017 | 12017 | programming-voltage measurement, mV (car on, ignition) |
+| `0x03` | 12407 | 12407 | 12442 | battery voltage, mV (`READ_VBATT`) |
+| `0x04` | -- | 500000 | 500000 | the channel's baud rate: `DATA_RATE` |
+| `0x14` | -- | 80 | 80 | bit sample point, %: J2534 default 80 |
+| `0x15` | -- | 15 | 15 | synchronization jump width, %: J2534 default 15 |
+| `0x1b`,`0x1c` | -- | -- | 0, 0 | ISO15765 only; adjacent pair, values match BS and STmin defaults |
+| `0x1d`,`0x1e` | -- | -- | 0xffff, 0xffff | ISO15765 only; values match BS_TX and STMIN_TX defaults |
+| `0x21`,`0x22` | -- | -- | 0, 0 | ISO15765 only, unknown |
+| `0x23`,`0x24`,`0x25`,`0x28` | -- | -- | 1000 each | ISO15765 only; look like ms timeouts (N_A-style) |
+| `0x26`,`0x27`,`0x2c`,`0x2d` | -- | -- | 0 | ISO15765 only, unknown |
+| `0x2a`,`0x2b` | 0x01010800, 0x01011000 | same | same | bootloader and firmware version |
+| `0x2f`,`0x30` | 1, 1 | 1, 1 | 1, 1 | unknown (`0x2f` seen in the vendor open path) |
+| `0x31` | -- | 0 | 0 | channel only, unknown |
+| `0x32` | 12407 | 12442 | 12442 | tracks battery voltage (`0x03`) |
+| `0x36` | 5 | 5 | 5 | board type (`cGetBoardInfo` body+8 is also 5) |
+| `0x37` | 28900 | 89300 | 137900 | rises across the three sweeps: the device microsecond counter |
+| `0x38` | 0xfea8a821 | same | same | constant; a device identifier |
+
+The channel-node selectors that follow J2534 defaults (baud, sample point, jump width and the ISO15765
+block of zeros, `0xffff` and 1000) strongly suggest the firmware keeps the SConfig parameters itself,
+but **which SConfig ID maps to which selector is not established.** Only `0x04` = `DATA_RATE` and
+`0x14`/`0x15` = sample point/jump width rest on more than a plausible default, and even those have
+only ever been read at their one value on the 500 kbit bus. The vendor's mapping lives in a
+per-protocol virtual method (`vtable+0x60` in `PassThruIoctl`, decompiled at
+`analysis/decompiled/PassThruIoctl.c` case 1) that is not in the decompiled corpus. The Windows
+`f2-getconfig-sweep-low` capture would name the selector the vendor sends for each SConfig ID.
+
+## 7e. Vendor configuration and loopback, from the decompile (2026-09-19)
+
+Method: Ghidra 12 headless on `vendor/driver/monpj432.dll`, with `analysis/ExtractCallers.java`
+(new) decompiling every caller of the two firmware value senders, `1000dd00` cGetValue and `1000de10`
+cSetValue. 42 functions are in `analysis/decompiled/config/` (`callers.txt` lists the call sites). Each
+is a per-protocol getter or setter that maps SConfig IDs to firmware selectors; a class handles the IDs
+it owns and delegates the rest to its base. This closes what section 7d left open, without a Windows
+capture: the map below was then checked against the live firmware sweep and every value fits.
+
+**Wire forms.** cGetValue (`0x0c`): body+12 selector, response+20 echo, response+24 value, routed to the
+channel node, chan 0. cSetValue (`0x0b`, `1000de10`): body+12 selector, body+16 value, same routing;
+the response carries status only.
+
+**SConfig ID to firmware selector**, ISO15765 class (`1001ecb0` get, `1001ef70` set) and, for the first
+five rows, raw CAN (`10018960` get, `10018b30` set):
+
+| SConfig | ID | Selector | SET accepts | Live default |
+|---|---|---|---|---|
+| DATA_RATE | 0x01 | 0x04 | 1..1 Mbit (vendor asks a rate helper) | 500000 |
+| LOOPBACK | 0x03 | host only | 0, 1 | (host flag) |
+| BIT_SAMPLE_POINT | 0x17 | 0x14 | CAN 68..80; ISO15765 80 only | 80 |
+| SYNC_JUMP_WIDTH | 0x18 | 0x15 | 0..100 | 15 |
+| DT_PULLUP_VALUE | 0x10008 | 0x31 | 0, 1 | 0 |
+| ISO15765_BS | 0x1e | 0x1b | 0..255 | 0 |
+| ISO15765_STMIN | 0x1f | 0x1c | 0..255 | 0 |
+| BS_TX | 0x22 | 0x1d | 0..255 or 0xFFFF | 0xFFFF |
+| STMIN_TX | 0x23 | 0x1e | 0..255 or 0xFFFF | 0xFFFF |
+| ISO15765_WFT_MAX | 0x25 | 0x21 | 0..255 | 0 |
+| N_BR_MIN | 0x2a | 0x26 | 0..65535 | 0 |
+| ISO15765_PAD_VALUE / DT_ISO15765_PAD_BYTE | 0x2b / 0x10000001 | 0x22 | 0..255 | 0 |
+| N_AS_MAX / N_AR_MAX / N_BS_MAX | 0x2c / 0x2d / 0x2e | 0x23 / 0x24 / 0x25 | 1..65535 | 1000 |
+| N_CR_MAX | 0x2f | 0x28 | 1..65535 | 1000 |
+| N_CS_MIN | 0x30 | 0x27 | 0..65535 | 0 |
+| DT_HALF_DUPLEX | 0x10000007 | 0x2c | 0, 1 | 0 |
+
+Everything else is `ERR_NOT_SUPPORTED` (the vendor's "Invalid parameter %s", error code 1); an out-of-range
+value is `ERR_INVALID_IOCTL_VALUE` (5, "Invalid baudrate %d" for the rate); `J1962_PINS` (`0x8001`) is
+`ERR_FAILED` unless the protocol is one of the `*_PS` IDs; `NumOfParams` outside 1..50, or a non-NULL
+output, is `ERR_FAILED`. The getters return the firmware's value raw: there is no unit conversion.
+`ISO15765_PAD_VALUE` also stores the byte host-side in the channel object, which nothing here uses.
+The 68..80 sample-point range on CAN and the 80-only rule on ISO15765 are gated in the vendor on a
+field of the device object (`+0xc240 == 1`) whose meaning is not known; the driver enforces them
+unconditionally, which can only be stricter than the vendor.
+
+**Hazard, not implemented:** `NON_VOLATILE_STORE_2..10` (`0xC002`-`0xC00A`) appear in the ID table and
+write non-volatile memory. They are in neither route table and `SET_CONFIG` refuses them.
+
+**LOOPBACK lives on the host.** The vendor never sends it to the firmware: SET range-checks 0..1 and
+stores a flag in the channel object, GET returns it. It takes effect in the indication handler
+`1000bcb0`, which keeps a `loopbackBuf` of every transmitted message tagged with the command's sequence
+and channel. On `iMsgTxDone` (`0x106`) it pops entries until one matches the indication's sequence
+(+6) and chan (+8), discarding older unmatched ones ("loopbackBuf head ... didn't match wire"), then:
+
+- for ISO15765 (protocol 6, `0x8005`, `0x8007`, `0x8010`) it always queues a message with RxStatus
+  `TX_MSG_TYPE|0x08` = 9, the ID alone (size 4), ExtraDataIndex 0, the request's TxFlags and the
+  indication's timestamp: the message Windows captures E1 and E2 show ahead of the reply;
+- then, only if the loopback flag is set, it queues the whole transmitted message as a received one with
+  RxStatus `TX_MSG_TYPE` (1; `0x100` added for a 29-bit ID) and the same timestamp;
+- **raw CAN therefore delivers nothing when LOOPBACK is off**, and the frame echo when it is on. This
+  answers what the Windows `e3` script was to ask, and it matches what the Linux driver already did.
+
+**A driver bug this exposed.** `Disconnect` reset the recorded protocol to CAN before building the
+CloseChannel, so an ISO15765 channel was closed on the CAN node (`0x0501`) where the vendor closes it
+on its own (`0x0601`, seen in Windows capture E1). The adapter accepted it, so nothing failed on
+hardware, but it is fixed.
 
 ## 8. Remaining work and validation boundary
 
