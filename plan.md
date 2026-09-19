@@ -206,6 +206,20 @@ kernel headers here, and a kernel module could crash the machine while it is on 
   found one more warning (an always-false `CHECK(!"...")` idiom), fixed.
 - [x] ABI and versioning policy, thread-safety statement (the error text is per thread) in `docs/USING.md` and
   the man page, and a `CHANGELOG.md`.
+- [ ] **CI is red on one job (open, 2026-09-19).** First run (commit `f53d74b`): 6 of 7 jobs passed; the
+  **ThreadSanitizer** job failed 6 of 12 tests on GitHub's Ubuntu 24.04 / GCC 13 with "unlock of an unlocked mutex"
+  in `Session::command` (`std::timed_mutex` unlock; `try_lock_until` on a steady clock at `src/session.cpp:45`).
+  Diagnosis: GCC 13's `libtsan.so.2` has no interceptor for `pthread_mutex_clocklock`, which libstdc++ uses there, so
+  TSan never sees the lock. Local GCC 16 does not show it, and the tests are clean locally. **The first fix, `92d7af4`
+  (`-D_GLIBCXX_USE_PTHREAD_MUTEX_CLOCKLOCK=0`), does not work**: libstdc++'s own `c++config.h` unconditionally
+  `#define`s that macro to 1, which overrides the command-line flag. It was pushed and the run
+  (`35441703039`) failed identically; I only proved it did not break the build, not that it fixed anything.
+  Options, none tried yet: (a) a TSan suppression file (`mutex:std::timed_mutex::unlock` via
+  `TSAN_OPTIONS=suppressions=`), the least invasive; (b) build the TSan job with clang; (c) a newer GCC (`g++-14`)
+  in the job; (d) change `Session` to avoid `try_lock_until` on a steady clock (not recommended: wall-clock jumps
+  would then affect command waits). I wanted to reproduce it first with `pkexec docker run ubuntu:24.04` (Docker
+  needs root here) and you declined that prompt, so nothing is reproduced. Check with `gh run list` and
+  `gh run view <id> --log-failed`. Also cosmetic: `actions/checkout@v4` warns about Node 20 deprecation.
 - [ ] **Needs you:** no `LICENSE` file exists. Choosing a licence is yours to decide; packages need one.
 
 ## Decision on the remaining protocols (2026-09-19)
