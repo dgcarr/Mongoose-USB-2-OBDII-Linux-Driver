@@ -1,16 +1,16 @@
+# Maintainer: David Carr <6156104+dgcarr@users.noreply.github.com>
 # Builds the working tree that contains this file (packaging/arch/ inside the repository), for local use:
 #   cd packaging/arch && makepkg -f
 # It copies the tree rather than fetching a tag because the project has no releases yet. A distribution
 # package would replace `prepare` with a `source=()` tarball and a checksum.
 #
-# PLACEHOLDERS: no licence has been chosen for this project (`license=` below) and no maintainer named.
 pkgname=mongoose-j2534
 pkgver=0.1.0
 pkgrel=1
 pkgdesc='Unofficial J2534 pass-thru library for the MongoosePro JLR adapter (CAN and ISO15765); use at your own risk'
 arch=(x86_64 aarch64)
 url='https://github.com/dgcarr/mongoose_driver'
-license=(LicenseRef-unspecified)
+license=(LGPL-2.1-or-later)
 depends=(glibc gcc-libs libusb)
 makedepends=(cmake)
 options=(!lto)
@@ -39,4 +39,5 @@ check() {
 
 package() {
     DESTDIR="$pkgdir" cmake --install "$srcdir/build"
+    install -Dm644 "$srcdir/tree/LICENSE" "$pkgdir/usr/share/licenses/$pkgname/LICENSE"
 }

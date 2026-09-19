@@ -14,3 +14,15 @@
 This is an experimental native C++20 J2534 library for the MongoosePro JLR USB adapter (`18e1:0104`). It talks to the hardware as an ordinary `cdc_acm` serial device — no vendor SDK, no Windows DLL — reconstructed from the closed driver with Ghidra, then checked against the wire.
 
 Start with [docs/USING.md](docs/USING.md) to use it, [docs/VALIDATION.md](docs/VALIDATION.md) for what has been tested and how, and [plan.md](plan.md) for what is left. The spirit is research first and claims last. Linux can already discover the adapter, open it, stand up a CAN channel and speak the framed command set, but nothing here pretends to be a finished diagnostic stack. It has been run on a live car for an hour of traffic and a hundred lifecycle cycles, but only over CAN, and large parts of J2534 are still ahead.
+
+## Licence
+
+The driver's own code and documentation are licensed under the **GNU Lesser General Public License,
+version 2.1 or (at your option) any later version**: see [LICENSE](LICENSE). Programs that load the library
+at run time, as J2534 clients do, need not themselves be licensed under the LGPL.
+
+The LGPL covers only what was written for this project. The vendor's Windows driver files (`vendor/`) and the
+Ghidra decompilations and disassemblies made from them (`analysis/decompiled/`, `analysis/disassembly/`) belong
+to their owners. They are not tracked in this repository, are ignored by git, and are not licensed by this
+project or included in any package it builds. Notes elsewhere that cite those paths refer to a local research
+copy; a fresh clone does not have it, and `analysis/REPRODUCE.md` says how to regenerate it from a driver you have.
