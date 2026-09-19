@@ -1,8 +1,13 @@
-# MongoosePro JLR only. Install into /etc/udev/rules.d/ then reconnect the adapter.
+# MongoosePro JLR (USB 18e1:0104). From a package this goes in /usr/lib/udev/rules.d/; by hand, copy it to
+# /etc/udev/rules.d/ and replug the adapter (or run `udevadm control --reload && udevadm trigger`).
 #
-# The driver's default cdc_acm backend needs no permission clauses: /dev/ttyACM* is
-# already root:dialout 0660, and systemd's own uaccess rule adds an ACL for the active
-# local user. This rule exists solely to keep ModemManager from probing the adapter's
-# CDC port and injecting AT commands when it is plugged in. It must match the tty, not
-# the usb_device, for ModemManager to honour it. The 60- prefix sorts ahead of 77-mm-*.
-SUBSYSTEM=="tty", SUBSYSTEMS=="usb", ATTRS{idVendor}=="18e1", ATTRS{idProduct}=="0104", ENV{ID_MM_DEVICE_IGNORE}="1"
+# The driver uses the adapter's CDC-ACM serial port (/dev/ttyACM*), which the kernel's cdc_acm driver creates
+# with no help from us. Two things are worth telling udev about it:
+#
+#  * TAG+="uaccess": give the user logged in at the active local seat access to the port through an ACL, the
+#    standard way to open a USB device to a desktop user without adding them to a group (dialout on Debian,
+#    uucp on Arch). Anyone else still needs the group, as usual.
+#  * ID_MM_DEVICE_IGNORE: keep ModemManager from probing the port and sending it AT commands when it is plugged
+#    in. This has to match the tty, not the usb_device, for ModemManager to honour it. The 60- prefix sorts
+#    ahead of ModemManager's own 77-mm-* rules and ahead of 73-seat-late, which acts on the uaccess tag.
+SUBSYSTEM=="tty", SUBSYSTEMS=="usb", ATTRS{idVendor}=="18e1", ATTRS{idProduct}=="0104", TAG+="uaccess", ENV{ID_MM_DEVICE_IGNORE}="1"

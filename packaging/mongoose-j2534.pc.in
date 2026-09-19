@@ -1,0 +1,9 @@
+prefix=@CMAKE_INSTALL_PREFIX@
+libdir=@CMAKE_INSTALL_FULL_LIBDIR@
+includedir=@CMAKE_INSTALL_FULL_INCLUDEDIR@
+
+Name: mongoose-j2534
+Description: Linux J2534 pass-thru library for the MongoosePro JLR adapter (CAN and ISO15765)
+Version: @PROJECT_VERSION@
+Libs: -L${libdir} -lmongoose_j2534
+Cflags: -I${includedir}

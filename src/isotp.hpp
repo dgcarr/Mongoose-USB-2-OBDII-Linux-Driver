@@ -14,6 +14,11 @@ namespace mongoose {
 // Modelled on the vendor's own dispatch: 10021790 routes by PCI type, 10020fc0 handles
 // single frames, 10021070 first frames, 10021280 consecutive frames.
 //
+// One conversation is tracked per source CAN ID. A functional request is answered by several
+// ECUs at once, and their multi-frame replies interleave on the bus; a single shared assembly
+// would let one ECU's first frame discard another's partial message (seen on the live car with
+// mode 09 PIDs 04 and 0A). The vendor rules below apply within one ID, unchanged.
+//
 // Standard addressing only. The vendor shifts every offset by one byte for extended
 // addressing; that path is deliberately absent because no capture exercises it and
 // untested reassembly is worse than none.
@@ -28,17 +33,26 @@ public:
         // carries the ID alone, as the vendor's zero-length start-of-message does.
         Bytes data;
     };
+    // Concurrent conversations kept. When a new first frame arrives with all slots in use the
+    // oldest is discarded, so stale partial messages cannot pin memory or starve later ones.
+    static constexpr size_t max_conversations = 32;
     // One cInboundData payload: four ID bytes followed by the CAN data bytes.
     std::vector<Output> feed(std::span<const uint8_t> frame);
     void reset();
-    bool assembling() const { return assembling_; }
+    bool assembling() const { return !assemblies_.empty(); }
+    bool assembling(uint32_t id) const;
 private:
+    struct Assembly {
+        uint32_t id;
+        Bytes message;         // identifier plus the payload accumulated so far
+        size_t expected;       // total payload length announced by the first frame
+        uint8_t sequence;      // next consecutive-frame sequence, low nibble only
+    };
     std::vector<Output> single(std::span<const uint8_t> frame);
     std::vector<Output> first(std::span<const uint8_t> frame);
     std::vector<Output> consecutive(std::span<const uint8_t> frame);
-    Bytes message_;          // identifier plus the payload accumulated so far
-    size_t expected_ = 0;    // total payload length announced by the first frame
-    uint8_t sequence_ = 0;   // next consecutive-frame sequence, low nibble only
-    bool assembling_ = false;
+    std::vector<Assembly>::iterator find(uint32_t id);
+    void drop(uint32_t id);
+    std::vector<Assembly> assemblies_;  // oldest first
 };
 }

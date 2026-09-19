@@ -42,7 +42,8 @@ void codec_tests() {
     }
     Bytes combined = wire; combined.insert(combined.end(), wire.begin(), wire.end());
     Decoder decoder; CHECK(decoder.feed(combined).size() == 2);
-    Bytes bad{0,0,0,0,0xff,0xff,0x19,0xae}; bad.insert(bad.end(), wire.begin(), wire.end());
+    // Built from a runtime hex string: a braced list followed by insert() draws a GCC -Warray-bounds false positive.
+    Bytes bad = unhex("00000000ffff19ae"); bad.insert(bad.end(), wire.begin(), wire.end());
     Decoder resync; auto recovered = resync.feed(bad); CHECK(recovered.size() == 1 && recovered[0] == body); CHECK(resync.discarded() == 8);
     Decoder partial; CHECK(partial.feed(std::span(wire).first(wire.size()-1)).empty()); CHECK(partial.buffered() == wire.size()-1);
     CHECK(partial.feed(std::span(wire).last(1))[0] == body);

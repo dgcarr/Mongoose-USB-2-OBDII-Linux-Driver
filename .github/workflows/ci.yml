@@ -1,0 +1,100 @@
+name: ci
+on:
+  push:
+  pull_request:
+
+# Every job runs against recorded and scripted adapters: nothing here needs hardware, a vehicle or root.
+jobs:
+  build:
+    name: build and test (${{ matrix.compiler }})
+    runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        compiler: [gcc, clang]
+    steps:
+      - uses: actions/checkout@v4
+      - name: Dependencies
+        run: sudo apt-get update && sudo apt-get install -y cmake ninja-build libusb-1.0-0-dev clang
+      - name: Configure (warnings are errors)
+        run: |
+          if [ "${{ matrix.compiler }}" = clang ]; then export CC=clang CXX=clang++; else export CC=gcc CXX=g++; fi
+          cmake -S . -B build -G Ninja -DCMAKE_COMPILE_WARNING_AS_ERROR=ON
+      - run: cmake --build build
+      - run: ctest --test-dir build --output-on-failure
+
+  sanitizers:
+    name: ${{ matrix.name }}
+    runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: ASan and UBSan
+            flags: -DMONGOOSE_SANITIZERS=ON
+          - name: ThreadSanitizer
+            flags: -DCMAKE_C_FLAGS=-fsanitize=thread -DCMAKE_CXX_FLAGS=-fsanitize=thread -DCMAKE_EXE_LINKER_FLAGS=-fsanitize=thread -DCMAKE_SHARED_LINKER_FLAGS=-fsanitize=thread
+    steps:
+      - uses: actions/checkout@v4
+      - run: sudo apt-get update && sudo apt-get install -y cmake ninja-build libusb-1.0-0-dev
+      - run: cmake -S . -B build -G Ninja ${{ matrix.flags }}
+      - run: cmake --build build
+      - run: ctest --test-dir build --output-on-failure
+
+  no-libusb:
+    name: tty-only build (no libusb)
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - run: sudo apt-get update && sudo apt-get install -y cmake ninja-build
+      - run: cmake -S . -B build -G Ninja -DMONGOOSE_LIBUSB=OFF -DCMAKE_COMPILE_WARNING_AS_ERROR=ON
+      - run: cmake --build build
+      - run: ctest --test-dir build --output-on-failure
+      - name: The library must not link libusb
+        run: "! ldd build/libmongoose_j2534.so | grep -q libusb"
+
+  packaging:
+    name: packaging, install tree and docs
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - run: sudo apt-get update && sudo apt-get install -y cmake ninja-build libusb-1.0-0-dev groff pkgconf
+      - run: cmake -S . -B build -G Ninja
+      - run: cmake --build build
+      - name: Install to a staging root
+        run: DESTDIR="$PWD/stage" cmake --install build --prefix /usr
+      - name: Man pages lint
+        run: for f in docs/man/*; do groff -man -ww -z -Tutf8 "$f"; done
+      - name: udev rule
+        run: udevadm verify packaging/60-mongoose-j2534.rules
+      - name: Scripts parse
+        run: build/mongoose-client --script-check tools/scripts/*.txt
+      - name: pkg-config and CMake package work for a consumer
+        run: |
+          cmake --install build --prefix "$PWD/prefix"
+          PKG_CONFIG_PATH="$PWD/prefix/lib/pkgconfig" pkg-config --cflags --libs mongoose-j2534
+          mkdir consumer && cp examples/obd_request.c consumer/
+          printf 'cmake_minimum_required(VERSION 3.20)\nproject(consumer C)\nfind_package(mongoose-j2534 0.1 REQUIRED)\nadd_executable(consumer obd_request.c)\ntarget_link_libraries(consumer PRIVATE mongoose::j2534)\n' > consumer/CMakeLists.txt
+          cmake -S consumer -B consumer/build -DCMAKE_PREFIX_PATH="$PWD/prefix"
+          cmake --build consumer/build
+      - name: Hardening of the built library
+        run: |
+          readelf -lW build/libmongoose_j2534.so | grep -q GNU_RELRO
+          readelf -dW build/libmongoose_j2534.so | grep -q BIND_NOW
+          ! readelf -lW build/libmongoose_j2534.so | grep GNU_STACK | grep -q RWE
+          nm -D build/libmongoose_j2534.so | grep -q __stack_chk_fail
+      - name: Debian package
+        run: cd build && cpack -G DEB && ls *.deb
+
+  fuzz-smoke:
+    name: fuzz smoke test
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - run: sudo apt-get update && sudo apt-get install -y cmake ninja-build clang libusb-1.0-0-dev
+      - run: CC=clang CXX=clang++ cmake -S . -B build -G Ninja -DMONGOOSE_FUZZ=ON -DBUILD_TESTING=OFF
+      - run: cmake --build build --target mongoose-fuzz
+      - name: One minute over the captured fixtures
+        run: |
+          mkdir corpus && cp tests/fixtures/*.frames tests/fixtures/*.expected corpus/
+          build/mongoose-fuzz corpus -max_total_time=60

@@ -48,6 +48,49 @@ int main() {
             CHECK(PassThruClose(device) == 0);
             CHECK(PassThruClose(device) == ERR_INVALID_DEVICE_ID);
         }
+        // J2534-1 04.04 argument and handle rules that need no adapter: every NULL pointer the spec names, an
+        // invalid handle for each function, and the error codes for identifiers the driver does not know.
+        CHECK(PassThruGetLastError(nullptr) == ERR_NULL_PARAMETER);
+        CHECK(PassThruReadVersion(1, nullptr, message, message) == ERR_NULL_PARAMETER);
+        CHECK(PassThruReadVersion(1, message, nullptr, message) == ERR_NULL_PARAMETER);
+        CHECK(PassThruReadVersion(1, message, message, nullptr) == ERR_NULL_PARAMETER);
+        CHECK(PassThruReadVersion(12345, message, message, message) == ERR_INVALID_DEVICE_ID);
+        CHECK(PassThruConnect(12345, CAN, 0, 500000, &device) == ERR_INVALID_DEVICE_ID);
+        CHECK(PassThruConnect(1, CAN, 0, 500000, nullptr) == ERR_NULL_PARAMETER);
+        CHECK(PassThruSetProgrammingVoltage(12345, 13, 18000) == ERR_INVALID_DEVICE_ID);
+        {
+            uint32_t opened = 0; CHECK(PassThruOpen(nullptr, &opened) == 0);
+            uint32_t channel = 99;
+            CHECK(PassThruConnect(opened, 0, 0, 500000, &channel) == ERR_INVALID_PROTOCOL_ID && channel == 0);   // protocol 0 is not one
+            CHECK(PassThruConnect(opened, ISO15765 + 1, 0, 500000, &channel) == ERR_INVALID_PROTOCOL_ID);
+            CHECK(PassThruConnect(opened, CAN, 0, 0, &channel) == ERR_INVALID_BAUDRATE && channel == 0);
+            CHECK(PassThruConnect(opened, J1850VPW, 0, 10400, &channel) == ERR_NOT_SUPPORTED);
+            CHECK(PassThruConnect(opened, ISO9141, 0, 10400, &channel) == ERR_NOT_SUPPORTED);
+            // Ioctl: an unknown ID, or one that does not apply to CAN, is ERR_INVALID_IOCTL_ID before the handle is
+            // looked at, as the vendor does; a known one with a bad handle names the handle.
+            for (uint32_t ioctl : {0u, 6u, 11u, 12u, 13u, 15u, 0x8000u, 0x10102u, 0xffffffffu, static_cast<uint32_t>(FIVE_BAUD_INIT), static_cast<uint32_t>(FAST_INIT)}) {
+                CHECK(PassThruIoctl(opened, ioctl, nullptr, nullptr) == ERR_INVALID_IOCTL_ID);
+                CHECK(PassThruIoctl(12345, ioctl, nullptr, nullptr) == ERR_INVALID_IOCTL_ID);
+            }
+            CHECK(PassThruIoctl(12345, READ_VBATT, nullptr, &device) == ERR_INVALID_DEVICE_ID);
+            CHECK(PassThruIoctl(opened, READ_VBATT, nullptr, nullptr) == ERR_NULL_PARAMETER);
+            for (uint32_t ioctl : {static_cast<uint32_t>(GET_CONFIG), static_cast<uint32_t>(SET_CONFIG), static_cast<uint32_t>(CLEAR_TX_BUFFER),
+                                   static_cast<uint32_t>(CLEAR_RX_BUFFER), static_cast<uint32_t>(CLEAR_PERIODIC_MSGS), static_cast<uint32_t>(CLEAR_MSG_FILTERS)})
+                CHECK(PassThruIoctl(opened, ioctl, nullptr, nullptr) == ERR_INVALID_CHANNEL_ID);   // a device is not a channel
+            // Error text: 80 bytes at most, always terminated, and cleared by a call that succeeds.
+            CHECK(PassThruConnect(opened, 0, 0, 500000, &channel) != 0);
+            char text[80]; std::memset(text, 'x', sizeof(text));
+            CHECK(PassThruGetLastError(text) == 0 && std::memchr(text, '\0', sizeof(text)) && std::strlen(text) > 0);
+            // The error text belongs to the last failing call; the next call replaces it. (ReadVersion runs
+            // first only because the scripted adapter expects its two reads before the close.)
+            uint32_t battery = 0;
+            CHECK(PassThruIoctl(opened, READ_VBATT, nullptr, &battery) == 0);   // the scripted order: voltage, then version
+            char firmware[80], driver[80], api[80];
+            CHECK(PassThruReadVersion(opened, firmware, driver, api) == 0);
+            CHECK(std::strlen(driver) > 0 && std::strlen(driver) < 80 && std::strlen(api) < 80);
+            CHECK(PassThruClose(opened) == 0);
+            CHECK(PassThruGetLastError(text) == 0 && text[0] == '\0');
+        }
         PASSTHRU_MSG message_buffer{}; uint32_t count = 2, id = 5;
         CHECK(PassThruReadMsgs(1, &message_buffer, &count, 0) == ERR_INVALID_CHANNEL_ID && count == 0);
         count = 2;

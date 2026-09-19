@@ -1,0 +1,4 @@
+@PACKAGE_INIT@
+# Imported target: mongoose::j2534 (the shared library, with its include directory).
+include("${CMAKE_CURRENT_LIST_DIR}/mongoose-j2534Targets.cmake")
+check_required_components(mongoose-j2534)

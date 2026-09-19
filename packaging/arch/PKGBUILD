@@ -1,0 +1,42 @@
+# Builds the working tree that contains this file (packaging/arch/ inside the repository), for local use:
+#   cd packaging/arch && makepkg -f
+# It copies the tree rather than fetching a tag because the project has no releases yet. A distribution
+# package would replace `prepare` with a `source=()` tarball and a checksum.
+#
+# PLACEHOLDERS: no licence has been chosen for this project (`license=` below) and no maintainer named.
+pkgname=mongoose-j2534
+pkgver=0.1.0
+pkgrel=1
+pkgdesc='Unofficial J2534 pass-thru library for the MongoosePro JLR adapter (CAN and ISO15765); use at your own risk'
+arch=(x86_64 aarch64)
+url='https://github.com/dgcarr/mongoose_driver'
+license=(LicenseRef-unspecified)
+depends=(glibc gcc-libs libusb)
+makedepends=(cmake)
+options=(!lto)
+_repo="${_repo:-$startdir/../..}"
+
+prepare() {
+    rm -rf "$srcdir/tree"
+    mkdir "$srcdir/tree"
+    # The working tree without its build directories, git history or research database.
+    tar -C "$_repo" --exclude=./build --exclude=./.git --exclude=./analysis/ghidra_project \
+        --exclude='./packaging/arch/src' --exclude='./packaging/arch/pkg' --exclude='*.pkg.tar.*' -cf - . |
+        tar -C "$srcdir/tree" -xf -
+}
+
+build() {
+    # CMAKE_BUILD_TYPE=None so the flags from /etc/makepkg.conf (which already harden the build) are used as they are.
+    cmake -S "$srcdir/tree" -B "$srcdir/build" -DCMAKE_BUILD_TYPE=None -DCMAKE_INSTALL_PREFIX=/usr \
+        -DMONGOOSE_UDEV_RULES_DIR=lib/udev/rules.d
+    cmake --build "$srcdir/build"
+}
+
+check() {
+    # Every test runs against recorded or scripted adapters: none needs hardware.
+    ctest --test-dir "$srcdir/build" --output-on-failure
+}
+
+package() {
+    DESTDIR="$pkgdir" cmake --install "$srcdir/build"
+}

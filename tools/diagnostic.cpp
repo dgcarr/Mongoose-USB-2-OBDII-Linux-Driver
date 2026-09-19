@@ -167,7 +167,8 @@ int main(int argc, char **argv) {
         for (int i = 1; i < argc; ++i) {
             const std::string arg = argv[i];
             if (arg == "--list" || arg == "--discover" || arg == "--open-close" ||
-                arg == "--inspect" || arg == "--filter-probe" || arg == "--transmit-probe" || arg == "--read-burst") {
+                arg == "--inspect" || arg == "--filter-probe" || arg == "--transmit-probe" || arg == "--read-burst" ||
+                arg == "--value-sweep") {
                 if (!mode.empty()) throw std::invalid_argument("choose exactly one mode");
                 mode = arg;
             } else if ((arg == "--serial" || arg == "--device" || arg == "--replay" || arg == "--trace" ||
@@ -188,12 +189,14 @@ int main(int argc, char **argv) {
                     ceiling = static_cast<unsigned>(parsed);
                 }
             } else {
-                std::cerr << "Usage: mongoose-diag --list|--discover|--open-close|--inspect|--filter-probe|--transmit-probe|--read-burst "
+                std::cerr << "Usage: mongoose-diag --list|--discover|--open-close|--inspect|--filter-probe|--transmit-probe|--read-burst|--value-sweep "
                              "[--device SELECTOR] [--serial SERIAL] [--trace FILE] [--timeout-ms 10000] [--replay FILE]\n"
                              "  SELECTOR: serial:S | tty:[serial:S|/dev/ttyACMn] | usb:[serial:S]  (default: tty)\n"
                              "  --filter-probe opens a CAN channel and fills the filter table; it never transmits.\n"
                              "  --filter-ceiling N caps that fill (default 512).\n"
-                             "  --transmit-probe sends ONE OBD-II mode 01 PID 00 frame on a CAN channel.\n";
+                             "  --transmit-probe sends ONE OBD-II mode 01 PID 00 frame on a CAN channel.\n"
+                             "  --value-sweep reads firmware cGetValue selectors 0..0x7f on the board and on an open CAN\n"
+                             "                channel. Read-only: nothing is written or transmitted.\n";
                 return arg == "--help" ? 0 : 2;
             }
         }
@@ -249,7 +252,7 @@ int main(int argc, char **argv) {
         }
         mongoose::Session session(std::move(transport));
         std::exception_ptr failure;
-        bool opened = false, channel_opened = false;
+        bool opened = false, channel_opened = false, channel_opened_iso = false;
         // The probe stops here even if the firmware never refuses, so a wrong reply
         // cannot turn the fill into an unbounded loop against the adapter.
         const unsigned filter_ceiling = ceiling;
@@ -299,12 +302,14 @@ int main(int argc, char **argv) {
                     show("set-pin", pins); require_status(pins);
                     // OBD-II mode 01 PID 00 to the functional address: the standard
                     // read-only "what do you support" query, harmless on a real bus and
-                    // the same request the Windows reference captured.
+                    // the same request the Windows reference captured. A raw CAN channel
+                    // has no ISO-TP layer, so the single frame carries its own PCI byte
+                    // (02) and is padded to 8 bytes; unframed, an ECU would ignore it.
                     auto listener = std::make_shared<mongoose::CanReceiver>();
                     session.set_can_receiver(listener);
                     PASSTHRU_MSG frame{};
-                    frame.ProtocolID = CAN; frame.DataSize = 6;
-                    const auto bytes = mongoose::unhex("000007df0902");
+                    frame.ProtocolID = CAN; frame.DataSize = 12;
+                    const auto bytes = mongoose::unhex("000007df0201005555555555");
                     std::copy(bytes.begin(), bytes.end(), frame.Data);
                     auto sent = session.command(8, mongoose::can_transmit(frame, 0, 1000), deadline,
                                                 channel, mongoose::data_chan);
@@ -324,9 +329,53 @@ int main(int argc, char **argv) {
                         listener->read(&received, 1, count, 100);
                         std::cout << "received " << count << " frames, first size " << received.DataSize << '\n';
                     } catch (const mongoose::Error &error) {
-                        std::cout << "receive: " << error.what() << " (expected with no bus)\n";
+                        std::cout << "receive: " << error.what() << " (expected: this probe installs no pass filter)\n";
                     }
                     session.set_can_receiver({});
+                }
+                if (mode == "--value-sweep") {
+                    // cGetValue (0x0c) takes exactly a four-byte selector and answers with the selector at
+                    // +20 and the value at +24, or with NUL-terminated ASCII at +20 on refusal. It is the
+                    // adapter's own read path, so an unknown selector costs one error string.
+                    const auto sweep = [&](const char *label, uint16_t node) {
+                        for (unsigned selector = 0; selector < 0x80; ++selector) {
+                            const mongoose::Bytes payload{static_cast<uint8_t>(selector), 0, 0, 0};
+                            const auto response = session.command(0xc, payload, deadline, node);
+                            const auto status = mongoose::Session::status(response);
+                            std::cout << label << " selector=0x" << std::hex << selector << std::dec << " status=" << status;
+                            if (status == 0 && response.size() >= 28)
+                                std::cout << " echo=0x" << std::hex << mongoose::le32(response, 20)
+                                          << " value=0x" << mongoose::le32(response, 24) << std::dec
+                                          << " (" << mongoose::le32(response, 24) << ")";
+                            else if (response.size() > 20) {
+                                std::string text;
+                                for (size_t i = 20; i < response.size() && response[i]; ++i)
+                                    text += response[i] >= 32 && response[i] < 127 ? static_cast<char>(response[i]) : '.';
+                                std::cout << " text=\"" << text << '"';
+                            }
+                            std::cout << '\n';
+                        }
+                    };
+                    sweep("board", mongoose::board_node);
+                    constexpr auto channel = mongoose::channel_node(CAN);
+                    auto channel_open = session.command(6, mongoose::unhex("0000000020a10700"), deadline, channel);
+                    show("open-channel", channel_open); require_status(channel_open);
+                    channel_opened = true;
+                    auto pins = session.command(0x12, mongoose::unhex("01000000060000000e000000"), deadline, channel);
+                    show("set-pin", pins); require_status(pins);
+                    sweep("channel", channel);
+                    // An ISO15765 channel has its own parameters (block size, STmin, ...), so sweep one
+                    // too. Only one CAN-family channel can be open, so close the CAN one first.
+                    auto closed = session.command(7, {}, deadline, channel);
+                    show("close-channel", closed); require_status(closed);
+                    channel_opened = false;
+                    constexpr auto iso = mongoose::channel_node(ISO15765);
+                    auto iso_open = session.command(6, mongoose::unhex("0000000020a10700"), deadline, iso);
+                    show("open-iso15765", iso_open); require_status(iso_open);
+                    channel_opened_iso = true;
+                    auto iso_pins = session.command(0x12, mongoose::unhex("01000000060000000e000000"), deadline, iso);
+                    show("set-pin", iso_pins); require_status(iso_pins);
+                    sweep("iso15765", iso);
                 }
                 if (mode == "--filter-probe") {
                     constexpr auto channel = mongoose::channel_node(CAN);
@@ -346,6 +395,15 @@ int main(int argc, char **argv) {
                 show("close-channel", closed); require_status(closed);
             } catch (const std::exception &e) {
                 std::cerr << "close channel: " << e.what() << '\n';
+                if (!failure) failure = std::current_exception();
+            }
+        }
+        if (channel_opened_iso) {
+            try {
+                auto closed = patient_command(session, 7, {}, std::chrono::milliseconds(timeout), mongoose::channel_node(ISO15765));
+                show("close-iso15765", closed); require_status(closed);
+            } catch (const std::exception &e) {
+                std::cerr << "close ISO15765 channel: " << e.what() << '\n';
                 if (!failure) failure = std::current_exception();
             }
         }

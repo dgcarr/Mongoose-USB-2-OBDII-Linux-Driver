@@ -1,3 +1,4 @@
+#include "config.hpp"
 #include "replay.hpp"
 #include <algorithm>
 #include <atomic>
@@ -102,10 +103,16 @@ void unsupported_operations(uint32_t channel, int32_t expected) {
     // protocol field rather than reporting the whole call unsupported.
     CHECK(PassThruWriteMsgs(channel, &message, &count, 0) ==
           (expected == ERR_NOT_SUPPORTED ? ERR_MSG_PROTOCOL_ID : expected) && count == 0);
-    CHECK(PassThruStartPeriodicMsg(channel, &message, &id, 10) == expected && id == 0);
+    // Periodic messages are implemented, so a live channel rejects this empty message on its protocol field.
+    CHECK(PassThruStartPeriodicMsg(channel, &message, &id, 10) ==
+          (expected == ERR_NOT_SUPPORTED ? ERR_MSG_PROTOCOL_ID : expected) && id == 0);
     id = 9;
-    CHECK(PassThruStartMsgFilter(channel, BLOCK_FILTER, &message, &message, nullptr, &id) == expected && id == 0);
-    CHECK(PassThruStopPeriodicMsg(channel, 1) == expected);
+    // BLOCK_FILTER is implemented, so a live channel rejects this empty message on its protocol field.
+    CHECK(PassThruStartMsgFilter(channel, BLOCK_FILTER, &message, &message, nullptr, &id) ==
+          (expected == ERR_NOT_SUPPORTED ? ERR_MSG_PROTOCOL_ID : expected) && id == 0);
+    id = 9;
+    CHECK(PassThruStartMsgFilter(channel, 0x99, &message, &message, nullptr, &id) == expected && id == 0);
+    CHECK(PassThruStopPeriodicMsg(channel, 1) == (expected == ERR_NOT_SUPPORTED ? ERR_INVALID_MSG_ID : expected));
     CHECK(PassThruStopMsgFilter(channel, 1) == (expected == ERR_NOT_SUPPORTED ? ERR_INVALID_FILTER_ID : expected));
 }
 void lifecycle() {
@@ -276,9 +283,37 @@ void add_filter_step(Script &script, uint32_t handle, uint16_t status = 0, uint3
     wire.resize(28); put16(wire, 0, 24); put16(wire, 2, 24 ^ 0x51e6);
     put16(wire, 24, static_cast<uint16_t>(handle)); put16(wire, 26, static_cast<uint16_t>(handle >> 16));
 }
-void remove_filter_step(Script &script, uint32_t handle, uint16_t status = 0) {
-    Bytes payload(8, 0); put16(payload, 4, static_cast<uint16_t>(handle)); put16(payload, 6, static_cast<uint16_t>(handle >> 16));
+void remove_filter_step(Script &script, uint32_t handle, uint16_t status = 0, uint8_t table = 0) {
+    Bytes payload(8, 0); payload[0] = table;
+    put16(payload, 4, static_cast<uint16_t>(handle)); put16(payload, 6, static_cast<uint16_t>(handle >> 16));
     script.add(0x0e, payload, channel_node(CAN), status);
+}
+// A BLOCK filter is the pass-filter body with table selector 1 and type byte 2 (vendor builder
+// 1000e600). It is removed from table 1, not table 0; the adapter's handle space is per table on the
+// wire even though the handle values are opaque to us.
+void add_block_filter_step(Script &script, uint32_t handle) {
+    auto payload = unhex("0100000000000204000007ff000007e8");
+    script.add(0x0d, payload, channel_node(CAN), 0);
+    auto &wire = script.steps.back().exchange.in[0];
+    wire.resize(28); put16(wire, 0, 24); put16(wire, 2, 24 ^ 0x51e6);
+    put16(wire, 24, static_cast<uint16_t>(handle)); put16(wire, 26, static_cast<uint16_t>(handle >> 16));
+}
+void block_filter() {
+    auto script = prepare(); script->connect();
+    add_filter_step(*script, 0x0f5c);                 // a pass filter beside it, table 0
+    add_block_filter_step(*script, 0x0fc4);           // table 1, type 2
+    remove_filter_step(*script, 0x0fc4, 0, 1);        // removal names the table it was added to
+    remove_filter_step(*script, 0x0f5c, 0, 0);
+    script->disconnect(); script->add(5);
+    const auto device = open(), channel = connect(device);
+    auto mask = filter_message("000007ff"), pattern = filter_message("000007e8");
+    uint32_t pass = 0, block = 0;
+    CHECK(PassThruStartMsgFilter(channel, PASS_FILTER, &mask, &pattern, nullptr, &pass) == 0 && pass);
+    CHECK(PassThruStartMsgFilter(channel, BLOCK_FILTER, &mask, &pattern, nullptr, &block) == 0 && block && block != pass);
+    CHECK(PassThruStopMsgFilter(channel, block) == 0);
+    CHECK(PassThruStopMsgFilter(channel, block) == ERR_INVALID_FILTER_ID);
+    CHECK(PassThruStopMsgFilter(channel, pass) == 0);
+    CHECK(PassThruClose(device) == 0); script->finished();
 }
 uint32_t add_filter(uint32_t channel, uint32_t flags = 0) {
     auto mask = filter_message("000007ff", flags), pattern = filter_message("000007e8", flags);
@@ -324,6 +359,329 @@ void filter_contract() {
     CHECK(PassThruDisconnect(channel) == 0); // channel close owns implicit filter cleanup
     const auto replacement = connect(device);
     CHECK(PassThruStopMsgFilter(replacement, third) == ERR_INVALID_FILTER_ID);
+    CHECK(PassThruClose(device) == 0); script->finished();
+}
+Bytes inbound_frame();
+PASSTHRU_MSG can_message(const char *data, uint32_t flags = 0);
+Bytes tx_done_indication(uint16_t sequence, uint16_t node = channel_node(CAN));
+// CLEAR_RX_BUFFER, CLEAR_TX_BUFFER and CLEAR_MSG_FILTERS on a channel. Wire forms: cIoctl 0x11 with a
+// four-byte selector (2 = TX, 3 = RX) and cTableClear 0x10 with the table selector, one per table the
+// channel filled. CLEAR_PERIODIC_MSGS has nothing to clear yet and sends nothing.
+void clear_buffers() {
+    auto script = prepare(); script->connect();
+    add_filter_step(*script, 0x0f5c); add_block_filter_step(*script, 0x0fc4);
+    script->add(0x11, unhex("03000000"), channel_node(CAN));   // CLEAR_RX_BUFFER
+    script->add(0x11, unhex("02000000"), channel_node(CAN));   // CLEAR_TX_BUFFER
+    script->add(0x11, unhex("03000000"), channel_node(CAN), 7); // firmware refuses a clear
+    script->add(0x10, unhex("00000000"), channel_node(CAN));   // CLEAR_MSG_FILTERS: table 0 ...
+    script->add(0x10, unhex("01000000"), channel_node(CAN));   // ... then table 1
+    script->disconnect(); script->add(5);
+    const auto device = open(), channel = connect(device);
+    auto mask = filter_message("000007ff"), pattern = filter_message("000007e8");
+    uint32_t pass = 0, block = 0;
+    CHECK(PassThruStartMsgFilter(channel, PASS_FILTER, &mask, &pattern, nullptr, &pass) == 0);
+    CHECK(PassThruStartMsgFilter(channel, BLOCK_FILTER, &mask, &pattern, nullptr, &block) == 0);
+    // Frames already queued are discarded by CLEAR_RX; ones arriving afterwards are kept.
+    const auto frame = inbound_frame();
+    script->receive(frame); script->receive(frame);
+    PASSTHRU_MSG one{}; uint32_t count = 1;
+    CHECK(PassThruIoctl(channel, CLEAR_RX_BUFFER, nullptr, nullptr) == 0);
+    CHECK(PassThruReadMsgs(channel, &one, &count, 0) == ERR_BUFFER_EMPTY && count == 0);
+    script->receive(frame); count = 1;
+    CHECK(PassThruReadMsgs(channel, &one, &count, 0) == 0 && count == 1);
+    CHECK(PassThruIoctl(channel, CLEAR_TX_BUFFER, nullptr, nullptr) == 0);
+    script->receive(frame);
+    CHECK(PassThruIoctl(channel, CLEAR_RX_BUFFER, nullptr, nullptr) == ERR_FAILED);  // refused: nothing is flushed
+    count = 1; CHECK(PassThruReadMsgs(channel, &one, &count, 0) == 0 && count == 1);
+    CHECK(PassThruIoctl(channel, CLEAR_PERIODIC_MSGS, nullptr, nullptr) == 0);      // no wire traffic
+    // Both filters go, one table at a time, and their handles are forgotten.
+    CHECK(PassThruIoctl(channel, CLEAR_MSG_FILTERS, nullptr, nullptr) == 0);
+    CHECK(PassThruStopMsgFilter(channel, pass) == ERR_INVALID_FILTER_ID);
+    CHECK(PassThruStopMsgFilter(channel, block) == ERR_INVALID_FILTER_ID);
+    CHECK(PassThruIoctl(channel, CLEAR_MSG_FILTERS, nullptr, nullptr) == 0);        // nothing left: no wire traffic
+    CHECK(PassThruIoctl(device, CLEAR_RX_BUFFER, nullptr, nullptr) == ERR_INVALID_CHANNEL_ID);
+    CHECK(PassThruIoctl(channel + 100, CLEAR_TX_BUFFER, nullptr, nullptr) == ERR_INVALID_CHANNEL_ID);
+    CHECK(PassThruClose(device) == 0); script->finished();
+}
+// GET_CONFIG and SET_CONFIG. Wire forms from the vendor setters and getters (analysis/decompiled/config):
+// cGetValue 0x0c with a four-byte selector, answered with the selector at body+20 and the value at
+// body+24; cSetValue 0x0b with selector then value. LOOPBACK is host-side and sends nothing.
+void get_value_step(Script &script, uint16_t node, uint32_t selector, uint32_t value, uint16_t status = 0) {
+    Bytes payload(4, 0); put16(payload, 0, static_cast<uint16_t>(selector));
+    script.add(0x0c, payload, node, status);
+    auto &wire = script.steps.back().exchange.in[0];
+    wire.resize(32); put16(wire, 0, 28); put16(wire, 2, 28 ^ 0x51e6);
+    put16(wire, 24, static_cast<uint16_t>(selector)); put16(wire, 26, 0);
+    put16(wire, 28, static_cast<uint16_t>(value)); put16(wire, 30, static_cast<uint16_t>(value >> 16));
+}
+void set_value_step(Script &script, uint16_t node, uint32_t selector, uint32_t value, uint16_t status = 0) {
+    Bytes payload(8, 0); put16(payload, 0, static_cast<uint16_t>(selector));
+    put16(payload, 4, static_cast<uint16_t>(value)); put16(payload, 6, static_cast<uint16_t>(value >> 16));
+    script.add(0x0b, payload, node, status);
+}
+void config_can() {
+    auto script = prepare(); script->connect();
+    constexpr auto node = channel_node(CAN);
+    get_value_step(*script, node, 0x04, 500000);   // DATA_RATE
+    get_value_step(*script, node, 0x14, 80);       // BIT_SAMPLE_POINT
+    get_value_step(*script, node, 0x31, 0);        // DT_PULLUP_VALUE
+    set_value_step(*script, node, 0x15, 10);       // SYNC_JUMP_WIDTH = 10
+    set_value_step(*script, node, 0x14, 72);       // BIT_SAMPLE_POINT = 72
+    get_value_step(*script, node, 0x04, 1, 3);     // firmware refuses: status 3
+    get_value_step(*script, node, 0x14, 80);       // a reply that echoes the wrong selector is built below
+    script->steps.back().exchange.in[0][24] = 0x15;
+    script->disconnect(); script->add(5);
+    const auto device = open(), channel = connect(device);
+    SCONFIG items[3] = {{cfg_data_rate, 0}, {cfg_bit_sample_point, 0}, {cfg_dt_pullup_value, 9}};
+    SCONFIG_LIST list{3, items};
+    CHECK(PassThruIoctl(channel, GET_CONFIG, &list, nullptr) == 0);
+    CHECK(items[0].Value == 500000 && items[1].Value == 80 && items[2].Value == 0);
+    // LOOPBACK is host-side: no wire traffic in either direction.
+    SCONFIG loop[1] = {{cfg_loopback, 7}}; SCONFIG_LIST loops{1, loop};
+    CHECK(PassThruIoctl(channel, GET_CONFIG, &loops, nullptr) == 0 && loop[0].Value == 0);
+    loop[0].Value = 1; CHECK(PassThruIoctl(channel, SET_CONFIG, &loops, nullptr) == 0);
+    loop[0].Value = 0; CHECK(PassThruIoctl(channel, GET_CONFIG, &loops, nullptr) == 0 && loop[0].Value == 1);
+    loop[0].Value = 2; CHECK(PassThruIoctl(channel, SET_CONFIG, &loops, nullptr) == ERR_INVALID_IOCTL_VALUE);
+    loop[0].Value = 0; CHECK(PassThruIoctl(channel, GET_CONFIG, &loops, nullptr) == 0 && loop[0].Value == 1);  // unchanged
+    // SET sends one cSetValue per entry, in order.
+    SCONFIG sets[2] = {{cfg_sync_jump_width, 10}, {cfg_bit_sample_point, 72}}; SCONFIG_LIST set_list{2, sets};
+    CHECK(PassThruIoctl(channel, SET_CONFIG, &set_list, nullptr) == 0);
+    // Every entry is checked before any is written: the bad second entry stops the valid first one too.
+    SCONFIG mixed[2] = {{cfg_sync_jump_width, 10}, {cfg_bit_sample_point, 60}}; SCONFIG_LIST mixed_list{2, mixed};
+    CHECK(PassThruIoctl(channel, SET_CONFIG, &mixed_list, nullptr) == ERR_INVALID_IOCTL_VALUE);
+    SCONFIG jump[1] = {{cfg_sync_jump_width, 101}}; SCONFIG_LIST jumps{1, jump};
+    CHECK(PassThruIoctl(channel, SET_CONFIG, &jumps, nullptr) == ERR_INVALID_IOCTL_VALUE);
+    SCONFIG rate[1] = {{cfg_data_rate, 0}}; SCONFIG_LIST rates{1, rate};
+    CHECK(PassThruIoctl(channel, SET_CONFIG, &rates, nullptr) == ERR_INVALID_IOCTL_VALUE);
+    rate[0].Value = 1000001; CHECK(PassThruIoctl(channel, SET_CONFIG, &rates, nullptr) == ERR_INVALID_IOCTL_VALUE);
+    // Readable but not settable here: an electrical setting.
+    SCONFIG pull[1] = {{cfg_dt_pullup_value, 1}}; SCONFIG_LIST pulls{1, pull};
+    CHECK(PassThruIoctl(channel, SET_CONFIG, &pulls, nullptr) == ERR_NOT_SUPPORTED);
+    // Parameters the channel does not have.
+    SCONFIG pins[1] = {{cfg_j1962_pins, 0}}; SCONFIG_LIST pin_list{1, pins};
+    CHECK(PassThruIoctl(channel, GET_CONFIG, &pin_list, nullptr) == ERR_FAILED);
+    SCONFIG stmin[1] = {{cfg_iso15765_stmin, 0}}; SCONFIG_LIST stmins{1, stmin};
+    CHECK(PassThruIoctl(channel, GET_CONFIG, &stmins, nullptr) == ERR_NOT_SUPPORTED);   // ISO15765 only
+    // Argument shape, in the vendor's order.
+    CHECK(PassThruIoctl(channel, GET_CONFIG, nullptr, nullptr) == ERR_NULL_PARAMETER);
+    SCONFIG_LIST empty{0, items}; CHECK(PassThruIoctl(channel, GET_CONFIG, &empty, nullptr) == ERR_FAILED);
+    SCONFIG_LIST many{51, items}; CHECK(PassThruIoctl(channel, GET_CONFIG, &many, nullptr) == ERR_FAILED);
+    SCONFIG_LIST no_items{1, nullptr}; CHECK(PassThruIoctl(channel, GET_CONFIG, &no_items, nullptr) == ERR_NULL_PARAMETER);
+    uint32_t spare = 0; CHECK(PassThruIoctl(channel, GET_CONFIG, &list, &spare) == ERR_FAILED);
+    CHECK(PassThruIoctl(device, GET_CONFIG, &list, nullptr) == ERR_INVALID_CHANNEL_ID);
+    // A firmware refusal is an error; a reply that echoes another selector is not trusted.
+    SCONFIG rate_get[1] = {{cfg_data_rate, 0}}; SCONFIG_LIST rate_get_list{1, rate_get};
+    CHECK(PassThruIoctl(channel, GET_CONFIG, &rate_get_list, nullptr) == ERR_FAILED);
+    SCONFIG sample[1] = {{cfg_bit_sample_point, 0}}; SCONFIG_LIST sample_list{1, sample};
+    CHECK(PassThruIoctl(channel, GET_CONFIG, &sample_list, nullptr) == ERR_FAILED);
+    CHECK(PassThruClose(device) == 0); script->finished();
+}
+void config_iso15765() {
+    auto script = prepare();
+    constexpr auto node = channel_node(ISO15765);
+    script->add(6, unhex("0000000020a10700"), node);
+    script->add(0x12, unhex("01000000060000000e000000"), node);
+    get_value_step(*script, node, 0x1b, 0);        // ISO15765_BS
+    get_value_step(*script, node, 0x1c, 0);        // ISO15765_STMIN
+    get_value_step(*script, node, 0x1d, 0xffff);   // BS_TX
+    get_value_step(*script, node, 0x23, 1000);     // N_AS_MAX
+    get_value_step(*script, node, 0x22, 0);        // ISO15765_PAD_VALUE
+    get_value_step(*script, node, 0x22, 0);        // DT_ISO15765_PAD_BYTE: the same selector
+    set_value_step(*script, node, 0x1b, 2);        // BS = 2
+    set_value_step(*script, node, 0x1c, 20);       // STMIN = 20
+    set_value_step(*script, node, 0x1d, 0xffff);   // BS_TX = "no value"
+    set_value_step(*script, node, 0x28, 2000);     // N_CR_MAX
+    script->add(7, {}, node);
+    script->add(5);
+    const auto device = open(); uint32_t channel = 0;
+    CHECK(PassThruConnect(device, ISO15765, 0, 500000, &channel) == 0);
+    SCONFIG gets[6] = {{cfg_iso15765_bs, 9}, {cfg_iso15765_stmin, 9}, {cfg_bs_tx, 0}, {cfg_n_as_max, 0},
+                       {cfg_iso15765_pad_value, 9}, {cfg_dt_iso15765_pad_byte, 9}};
+    SCONFIG_LIST get_list{6, gets};
+    CHECK(PassThruIoctl(channel, GET_CONFIG, &get_list, nullptr) == 0);
+    CHECK(gets[0].Value == 0 && gets[1].Value == 0 && gets[2].Value == 0xffff && gets[3].Value == 1000);
+    CHECK(gets[4].Value == 0 && gets[5].Value == 0);
+    SCONFIG sets[4] = {{cfg_iso15765_bs, 2}, {cfg_iso15765_stmin, 20}, {cfg_bs_tx, 0xffff}, {cfg_n_cr_max, 2000}};
+    SCONFIG_LIST set_list{4, sets};
+    CHECK(PassThruIoctl(channel, SET_CONFIG, &set_list, nullptr) == 0);
+    // Vendor ranges: BS and STMIN are one byte, BS_TX also takes 0xFFFF, the N_* timeouts start at 1,
+    // and only 80 is valid as the sample point on ISO15765.
+    const std::array<std::pair<uint32_t, uint32_t>, 9> bad{{{cfg_iso15765_bs, 256}, {cfg_iso15765_stmin, 256}, {cfg_bs_tx, 256},
+        {cfg_stmin_tx, 0x1000}, {cfg_iso15765_wft_max, 256}, {cfg_n_as_max, 0}, {cfg_n_cs_min, 0x10000},
+        {cfg_bit_sample_point, 75}, {cfg_iso15765_pad_value, 256}}};
+    for (const auto &[parameter, value] : bad) {
+        SCONFIG one[1] = {{parameter, value}}; SCONFIG_LIST one_list{1, one};
+        CHECK(PassThruIoctl(channel, SET_CONFIG, &one_list, nullptr) == ERR_INVALID_IOCTL_VALUE);
+    }
+    // Periodic messages are CAN only: the ISO15765 wire form is not known, and nothing is sent.
+    auto iso_message = can_message("000007df0201005555555555"); iso_message.ProtocolID = ISO15765;
+    uint32_t iso_periodic = 9;
+    CHECK(PassThruStartPeriodicMsg(channel, &iso_message, &iso_periodic, 100) == ERR_NOT_SUPPORTED && iso_periodic == 0);
+    SCONFIG half[1] = {{cfg_dt_half_duplex, 1}}; SCONFIG_LIST half_list{1, half};
+    CHECK(PassThruIoctl(channel, SET_CONFIG, &half_list, nullptr) == ERR_NOT_SUPPORTED);
+    const auto disconnected = PassThruDisconnect(channel);
+    if (disconnected) { char text[80] = {0}; PassThruGetLastError(text); std::cerr << "disconnect: " << disconnected << ' ' << text << '\n'; }
+    CHECK(disconnected == 0);
+    CHECK(PassThruClose(device) == 0); script->finished();
+}
+// Periodic messages: cTableAddEntry on table 4 (interval, TxFlags, size, ID and data; vendor 1000d220),
+// cTableRemoveEntry with selector 4 and the handle (1000d3c0), cTableClear with selector 4 (1000d4d0).
+void add_periodic_step(Script &script, uint32_t interval, uint32_t handle, const char *frame = "000007df0201005555555555") {
+    Bytes payload{4, 0, 0, 0};
+    for (unsigned shift = 0; shift < 32; shift += 8) payload.push_back(static_cast<uint8_t>(interval >> shift));
+    for (unsigned i = 0; i < 4; ++i) payload.push_back(0);   // TxFlags
+    const auto data = unhex(frame); payload.push_back(static_cast<uint8_t>(data.size()));
+    payload.insert(payload.end(), data.begin(), data.end());
+    script.add(0x0d, payload, channel_node(CAN));
+    auto &wire = script.steps.back().exchange.in[0];
+    wire.resize(28); put16(wire, 0, 24); put16(wire, 2, 24 ^ 0x51e6);
+    put16(wire, 24, static_cast<uint16_t>(handle)); put16(wire, 26, static_cast<uint16_t>(handle >> 16));
+}
+void remove_periodic_step(Script &script, uint32_t handle) {
+    Bytes payload(8, 0); payload[0] = 4;
+    put16(payload, 4, static_cast<uint16_t>(handle)); put16(payload, 6, static_cast<uint16_t>(handle >> 16));
+    script.add(0x0e, payload, channel_node(CAN));
+}
+void periodic_messages() {
+    auto script = prepare(); script->connect();
+    add_periodic_step(*script, 1000, 0x0abc);
+    const uint16_t first_add = script->sequence;
+    add_periodic_step(*script, 500, 0x0def);
+    // A periodic frame's own confirmation must not satisfy a timed write that was never confirmed.
+    script->add(8, unhex("000000001e0000000c000000000007df0201005555555555"), channel_node(CAN), 0x100, data_chan);
+    remove_periodic_step(*script, 0x0abc);
+    script->add(0x10, unhex("04000000"), channel_node(CAN));         // CLEAR_PERIODIC_MSGS
+    add_periodic_step(*script, 65535, 0x0111);
+    script->add(0x10, unhex("04000000"), channel_node(CAN));         // teardown clears the table first ...
+    script->disconnect(); script->add(5);                             // ... then closes the channel
+    const auto device = open(), channel = connect(device);
+    auto message = can_message("000007df0201005555555555");
+    uint32_t first = 0, second = 0, third = 0;
+    CHECK(PassThruStartPeriodicMsg(channel, &message, &first, 1000) == 0 && first);
+    CHECK(PassThruStartPeriodicMsg(channel, &message, &second, 500) == 0 && second && second != first);
+    script->receive(tx_done_indication(first_add));                   // the periodic frame goes out
+    uint32_t count = 1;
+    CHECK(PassThruWriteMsgs(channel, &message, &count, 30) == ERR_TIMEOUT && count == 0);
+    CHECK(PassThruStopPeriodicMsg(channel, first) == 0);
+    CHECK(PassThruStopPeriodicMsg(channel, first) == ERR_INVALID_MSG_ID);   // already gone
+    CHECK(PassThruIoctl(channel, CLEAR_PERIODIC_MSGS, nullptr, nullptr) == 0);
+    CHECK(PassThruStopPeriodicMsg(channel, second) == ERR_INVALID_MSG_ID);  // the clear removed it
+    CHECK(PassThruIoctl(channel, CLEAR_PERIODIC_MSGS, nullptr, nullptr) == 0);  // nothing left: no wire traffic
+    CHECK(PassThruStartPeriodicMsg(channel, &message, &third, 65535) == 0);
+    // Checked before anything is sent.
+    uint32_t none = 9;
+    CHECK(PassThruStartPeriodicMsg(channel, &message, &none, 4) == ERR_INVALID_TIME_INTERVAL && none == 0);
+    CHECK(PassThruStartPeriodicMsg(channel, &message, &none, 65536) == ERR_INVALID_TIME_INTERVAL);
+    auto wrong = message; wrong.ProtocolID = ISO15765;
+    CHECK(PassThruStartPeriodicMsg(channel, &wrong, &none, 100) == ERR_MSG_PROTOCOL_ID);
+    auto small = can_message("000007"); CHECK(PassThruStartPeriodicMsg(channel, &small, &none, 100) == ERR_INVALID_MSG);
+    auto flagged = message; flagged.TxFlags = 2; CHECK(PassThruStartPeriodicMsg(channel, &flagged, &none, 100) == ERR_INVALID_FLAGS);
+    CHECK(PassThruStartPeriodicMsg(channel, nullptr, &none, 100) == ERR_NULL_PARAMETER);
+    CHECK(PassThruStartPeriodicMsg(channel, &message, nullptr, 100) == ERR_NULL_PARAMETER);
+    CHECK(PassThruStartPeriodicMsg(device, &message, &none, 100) == ERR_INVALID_CHANNEL_ID);
+    CHECK(PassThruDisconnect(channel) == 0);
+    CHECK(PassThruClose(device) == 0); script->finished();
+}
+void periodic_limit() {
+    auto script = prepare(); script->connect();
+    for (uint32_t i = 0; i < 10; ++i) add_periodic_step(*script, 100 + i, 0x200 + i);
+    script->add(0x10, unhex("04000000"), channel_node(CAN));
+    script->disconnect(); script->add(5);
+    const auto device = open(), channel = connect(device);
+    auto message = can_message("000007df0201005555555555");
+    for (uint32_t i = 0; i < 10; ++i) { uint32_t id = 0; CHECK(PassThruStartPeriodicMsg(channel, &message, &id, 100 + i) == 0 && id); }
+    uint32_t extra = 9;
+    CHECK(PassThruStartPeriodicMsg(channel, &message, &extra, 200) == ERR_EXCEEDED_LIMIT && extra == 0);
+    CHECK(PassThruDisconnect(channel) == 0);
+    CHECK(PassThruClose(device) == 0); script->finished();
+}
+// An ISO15765 exchange end to end through the public API, as on the car: a flow-control filter, a timed
+// write of a mode 09 request whose iMsgTxDone echoes the command's sequence, then the reply as three
+// frames. The read must return the transmit-done message, the start-of-message indication and the
+// reassembled reply, in that order. This is what the sequence hook exists for: the confirmation
+// arrives before the command response, so the library has to know the sequence first.
+void add_flow_control_step(Script &script, uint32_t handle, const char *response_id = "000007e8", const char *request_id = "000007e0") {
+    Bytes payload = unhex("02000000400000000000000000000000000000000000");
+    payload.resize(19);
+    const auto response = unhex(response_id), request = unhex(request_id);
+    std::copy(response.begin(), response.end(), payload.begin() + 9);
+    std::copy(request.begin(), request.end(), payload.begin() + 14);
+    script.add(0x0d, payload, channel_node(ISO15765));
+    auto &wire = script.steps.back().exchange.in[0];
+    wire.resize(28); put16(wire, 0, 24); put16(wire, 2, 24 ^ 0x51e6);
+    put16(wire, 24, static_cast<uint16_t>(handle)); put16(wire, 26, static_cast<uint16_t>(handle >> 16));
+}
+Bytes iso_frame(uint32_t timestamp, const char *frame) {
+    Bytes body(24, 0);
+    put16(body, 2, channel_node(ISO15765)); put16(body, 4, 9);
+    put16(body, 16, static_cast<uint16_t>(timestamp)); put16(body, 18, static_cast<uint16_t>(timestamp >> 16));
+    const auto data = unhex(frame);
+    put16(body, 22, static_cast<uint16_t>(data.size()));
+    body.insert(body.end(), data.begin(), data.end());
+    return encode(body);
+}
+PASSTHRU_MSG iso_message(const char *data, uint32_t flags) {
+    PASSTHRU_MSG message{}; message.ProtocolID = ISO15765; message.TxFlags = flags;
+    const auto bytes = unhex(data); message.DataSize = static_cast<uint32_t>(bytes.size());
+    std::copy(bytes.begin(), bytes.end(), message.Data); return message;
+}
+void iso15765_exchange() {
+    auto script = prepare();
+    constexpr auto node = channel_node(ISO15765);
+    script->add(6, unhex("0000000020a10700"), node);
+    script->add(0x12, unhex("01000000060000000e000000"), node);
+    add_flow_control_step(*script, 0x0f5c);
+    script->add(8, unhex("40000000e803000006000000000007df0902"), node, 0x100, 1);
+    script->steps.back().exchange.in.insert(script->steps.back().exchange.in.begin(),
+                                            tx_done_indication(script->sequence, node));
+    // A second timed write whose confirmation never comes must not borrow the first one's.
+    script->add(8, unhex("40000000e803000006000000000007df0902"), node, 0x100, 1);
+    script->add(7, {}, node);
+    script->add(5);
+    const auto device = open(); uint32_t channel = 0;
+    CHECK(PassThruConnect(device, ISO15765, 0, 500000, &channel) == 0);
+    auto mask = iso_message("000000ff", ISO15765_FRAME_PAD), pattern = iso_message("000007e8", ISO15765_FRAME_PAD);
+    auto flow = iso_message("000007e0", ISO15765_FRAME_PAD);
+    uint32_t filter = 0;
+    CHECK(PassThruStartMsgFilter(channel, FLOW_CONTROL_FILTER, &mask, &pattern, &flow, &filter) == ERR_INVALID_MSG);  // mask must cover 11 bits
+    mask = iso_message("0000ffff", ISO15765_FRAME_PAD);                                                                  // the vendor's own mask
+    CHECK(PassThruStartMsgFilter(channel, FLOW_CONTROL_FILTER, &mask, &pattern, &flow, &filter) == 0 && filter);
+    auto request = iso_message("000007df0902", ISO15765_FRAME_PAD);
+    uint32_t count = 1;
+    CHECK(PassThruWriteMsgs(channel, &request, &count, 1000) == 0 && count == 1);
+    script->receive(iso_frame(6037100, "000007e81014490201524544"));
+    script->receive(iso_frame(6038000, "000007e82141435445445649"));
+    script->receive(iso_frame(6040500, "000007e8224e303030303030"));
+    std::array<PASSTHRU_MSG, 8> out{}; count = 8;
+    const auto read = PassThruReadMsgs(channel, out.data(), &count, 0);
+    CHECK((read == ERR_TIMEOUT || read == 0) && count == 3);
+    CHECK(out[0].RxStatus == 9 && out[0].TxFlags == ISO15765_FRAME_PAD && out[0].DataSize == 4 && out[0].ExtraDataIndex == 0);
+    CHECK(std::memcmp(out[0].Data, "\0\0\x07\xdf", 4) == 0);
+    CHECK(out[1].RxStatus == START_OF_MESSAGE && out[1].DataSize == 4 && std::memcmp(out[1].Data, "\0\0\x07\xe8", 4) == 0);
+    CHECK(out[2].RxStatus == 0 && out[2].DataSize == 24 && out[2].Timestamp == 6040500);
+    // No confirmation for the second write: it times out with nothing confirmed, and no message appears.
+    count = 1; request = iso_message("000007df0902", ISO15765_FRAME_PAD);
+    CHECK(PassThruWriteMsgs(channel, &request, &count, 1000) == ERR_TIMEOUT && count == 0);
+    count = 8; CHECK(PassThruReadMsgs(channel, out.data(), &count, 0) == ERR_BUFFER_EMPTY && count == 0);
+    CHECK(PassThruDisconnect(channel) == 0);
+    CHECK(PassThruClose(device) == 0); script->finished();
+}
+void flow_control_limit() {
+    auto script = prepare();
+    constexpr auto node = channel_node(ISO15765);
+    script->add(6, unhex("0000000020a10700"), node);
+    script->add(0x12, unhex("01000000060000000e000000"), node);
+    for (uint32_t i = 0; i < 64; ++i) add_flow_control_step(*script, 0x300 + i);
+    script->add(7, {}, node);
+    script->add(5);
+    const auto device = open(); uint32_t channel = 0;
+    CHECK(PassThruConnect(device, ISO15765, 0, 500000, &channel) == 0);
+    auto mask = iso_message("ffffffff", ISO15765_FRAME_PAD), pattern = iso_message("000007e8", ISO15765_FRAME_PAD);
+    auto flow = iso_message("000007e0", ISO15765_FRAME_PAD);
+    for (uint32_t i = 0; i < 64; ++i) { uint32_t id = 0; CHECK(PassThruStartMsgFilter(channel, FLOW_CONTROL_FILTER, &mask, &pattern, &flow, &id) == 0); }
+    uint32_t extra = 9;
+    CHECK(PassThruStartMsgFilter(channel, FLOW_CONTROL_FILTER, &mask, &pattern, &flow, &extra) == ERR_EXCEEDED_LIMIT && extra == 0);
+    CHECK(PassThruDisconnect(channel) == 0);
     CHECK(PassThruClose(device) == 0); script->finished();
 }
 void many_filters() {
@@ -491,7 +849,7 @@ void partial_read_cancel() {
     CHECK(PassThruClose(device) == 0); script->finished();
 }
 
-PASSTHRU_MSG can_message(const char *data, uint32_t flags = 0) {
+PASSTHRU_MSG can_message(const char *data, uint32_t flags) {
     PASSTHRU_MSG message{};
     message.ProtocolID = CAN; message.TxFlags = flags;
     const auto bytes = unhex(data);
@@ -509,9 +867,10 @@ void transmit() {
     // A zero timeout is J2534's queue-and-return write, so these need no tx confirmation.
     script->add(8, unhex("000000000000000006000000000007df0902"), channel_node(CAN), 0x100, data_chan);
     // Status zero is equally acceptable; only 0x100 is the documented queued case.
-    script->add(8, unhex("00000000000000000a00080000012345010200000000"), channel_node(CAN), 0, data_chan);
-    script->add(8, unhex("000100000000000006000000000007df0902"), channel_node(CAN), 0x100, data_chan);
-    script->add(8, unhex("000000000000000005000000000007e001"), channel_node(CAN), 0x203, data_chan);
+    // The three-message call tags its commands with the messages still to send: 3, 2, 1.
+    script->add(8, unhex("00000000000000000a00080000012345010200000000"), channel_node(CAN), 0, 3);
+    script->add(8, unhex("000100000000000006000000000007df0902"), channel_node(CAN), 0x100, 2);
+    script->add(8, unhex("000000000000000005000000000007e001"), channel_node(CAN), 0x203, 1);
     script->disconnect(); script->add(5);
     const auto device = open(), channel = connect(device);
 
@@ -544,11 +903,12 @@ void transmit() {
     CHECK(PassThruWriteMsgs(channel, &message, nullptr, 0) == ERR_NULL_PARAMETER);
     CHECK(PassThruClose(device) == 0); script->finished();
 }
-Bytes tx_done_indication() {
+Bytes tx_done_indication(uint16_t sequence, uint16_t node) {
     // Captured shape: dst 0, src the channel node, opcode 10, the originating sequence
-    // echoed at +6, chan 1, and code 0x106 at +12.
+    // echoed at +6, chan 1, and code 0x106 at +12. Only a confirmation whose sequence matches a write
+    // the library recorded counts, so the caller passes the sequence of the write it confirms.
     Bytes body(20, 0);
-    put16(body, 2, channel_node(CAN)); put16(body, 4, 10); put16(body, 8, 1); put16(body, 12, 0x106);
+    put16(body, 2, node); put16(body, 4, 10); put16(body, 6, sequence); put16(body, 8, 1); put16(body, 12, 0x106);
     return encode(body);
 }
 void transmit_confirmed() {
@@ -556,7 +916,7 @@ void transmit_confirmed() {
     script->add(8, unhex("00000000e803000006000000000007df0902"), channel_node(CAN), 0x100, data_chan);
     // iMsgTxDone arrives on the CAN node alongside the response and must not be mistaken
     // for one. A timed write reports what the adapter confirmed it sent.
-    script->steps.back().exchange.in.insert(script->steps.back().exchange.in.begin(), tx_done_indication());
+    script->steps.back().exchange.in.insert(script->steps.back().exchange.in.begin(), tx_done_indication(script->sequence));
     script->disconnect(); script->add(5);
     const auto device = open(), channel = connect(device);
     auto message = can_message("000007df0902");
@@ -584,6 +944,7 @@ void waiting_write(unsigned action) {
     // 0x100 queued response for the outbound data; no iMsgTxDone confirmation.
     // A timed write will therefore block until timeout or until woke by Disconnect/Close/Unplug.
     script->add(8, unhex("000000008813000006000000000007df0902"), channel_node(CAN), 0x100, data_chan);
+    const uint16_t write_sequence = script->sequence;
     if (action != 3) { script->disconnect(); script->add(5); }
     const auto device = open(), channel = connect(device);
     std::promise<void> started;
@@ -596,7 +957,7 @@ void waiting_write(unsigned action) {
     const bool blocked = write.wait_for(20ms) == std::future_status::timeout;
     if (action == 0) {
         // Confirmation arrives on the CAN node: write finishes normally
-        script->receive(tx_done_indication());
+        script->receive(tx_done_indication(write_sequence));
         CHECK(write.wait_for(1s) == std::future_status::ready);
         CHECK(write.get() == 0);
         CHECK(count == 1U);
@@ -625,7 +986,7 @@ std::unique_ptr<Transport> open_transport(const Selector &, Trace) {
 int main() {
     try {
         transmit(); transmit_confirmed(); transmit_unconfirmed();
-        filter_contract(); many_filters(); filter_failure(false); filter_failure(true);
+        filter_contract(); block_filter(); clear_buffers(); config_can(); config_iso15765(); iso15765_exchange(); flow_control_limit(); periodic_messages(); periodic_limit(); many_filters(); filter_failure(false); filter_failure(true);
         captured_receive(); receive_edges(); partial_read_cancel();
         filter_transport_failure(false); filter_transport_failure(true);
         for (unsigned action = 0; action < 4; ++action) waiting_read(action);

@@ -29,6 +29,7 @@ typedef int32_t (J2534_CALL *FilterFn)(uint32_t, uint32_t, PASSTHRU_MSG *, PASST
 typedef int32_t (J2534_CALL *StopFilterFn)(uint32_t, uint32_t);
 typedef int32_t (J2534_CALL *MessagesFn)(uint32_t, PASSTHRU_MSG *, uint32_t *, uint32_t);
 typedef int32_t (J2534_CALL *IoctlFn)(uint32_t, uint32_t, void *, void *);
+typedef int32_t (J2534_CALL *PeriodicFn)(uint32_t, PASSTHRU_MSG *, uint32_t *, uint32_t);
 
 static ErrorFn get_error;
 static OpenFn api_open;
@@ -40,6 +41,8 @@ static FilterFn api_filter;
 static StopFilterFn api_stop_filter;
 static MessagesFn api_read, api_write;
 static IoctlFn api_ioctl;
+static PeriodicFn api_start_periodic;
+static StopFilterFn api_stop_periodic;   /* same signature: (channel, id) */
 
 static void timestamp(void) {
     FILETIME time; ULARGE_INTEGER ticks;
@@ -387,6 +390,22 @@ static int run_step(char **token, int count, uint32_t gap) {
         log_result("WriteMsgs", result);
         printf("written=%" PRIu32 "\n", sent);
         if (result) return 1;
+    } else if (eq(verb, "periodic")) {   /* periodic CHAN PROTOCOL FLAGS HEX INTERVAL_MS NAME */
+        PASSTHRU_MSG message = {0};
+        uint32_t id = 0;
+        NEED(7);
+        message.ProtocolID = lookup(protocols, token[2]);
+        message.TxFlags = lookup_flags(tx_flags, token[3]);
+        set_data(&message, token[4]);
+        result = api_start_periodic(slot_get(token[1]), &message, &id, number(token[5]));
+        log_result("StartPeriodicMsg", result);
+        if (result) return 1;
+        printf("periodic=%" PRIu32 "\n", id); slot_set(token[6], id);
+    } else if (eq(verb, "stopperiodic")) { /* stopperiodic CHAN NAME */
+        NEED(3);
+        result = api_stop_periodic(slot_get(token[1]), slot_get(token[2]));
+        log_result("StopPeriodicMsg", result);
+        if (result) return 1;
     } else if (eq(verb, "getconfig")) {  /* getconfig CHAN PARAM[,PARAM...] */
         SCONFIG parameters[64]; SCONFIG_LIST list;
         uint32_t total = 0, i;
@@ -543,6 +562,7 @@ int main(int argc, char **argv) {
     LOAD(api_filter, "PassThruStartMsgFilter"); LOAD(api_stop_filter, "PassThruStopMsgFilter");
     LOAD(api_read, "PassThruReadMsgs"); LOAD(api_write, "PassThruWriteMsgs");
     LOAD(api_ioctl, "PassThruIoctl");
+    LOAD(api_start_periodic, "PassThruStartPeriodicMsg"); LOAD(api_stop_periodic, "PassThruStopPeriodicMsg");
     failed = script ? run_script(script, gap) : run_legacy(cycles, baud, flags, can, tx);
     FreeLibrary(library);
     return failed ? 1 : 0;

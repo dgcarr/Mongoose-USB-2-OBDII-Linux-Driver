@@ -1,0 +1,104 @@
+.TH MONGOOSE-CLIENT 1 "September 2026" "mongoose-j2534 0.1.0" "User Commands"
+.SH NAME
+mongoose-client \- exercise the MongoosePro J2534 library from the command line
+.SH SYNOPSIS
+.B mongoose-client
+[\fBserial:\fISERIAL\fR]
+.B \-\-script
+.I FILE
+[\fB\-\-gap\fR \fIMS\fR]
+.br
+.B mongoose-client
+.B \-\-script\-check
+.IR FILE ...
+.br
+.B mongoose-client
+[\fBserial:\fISERIAL\fR]
+.I MODE
+.SH DESCRIPTION
+.B mongoose-client
+links the J2534 library directly and drives it, so what it does is what an application using
+.BR libmongoose_j2534 (7)
+would do. It is a test and validation tool, not a diagnostic application.
+.PP
+.B Use it at your own risk.
+It sends messages to a vehicle's networks. The
+.B \-\-vehicle\-*
+modes and the bundled scripts send read-only OBD-II requests (a few change a channel setting and restore it), but
+.B \-\-script
+runs whatever script it is given.
+.SH OPTIONS
+.TP
+.BI \-\-script " FILE"
+Run a step file, one J2534 call per line (see
+.IR tools/scripts/README.md ).
+The same files run on the Windows reference harness, and both print the same log lines, so a run on each can be
+compared after removing the
+.B utc_100ns=
+timestamps. Exit status 1 if a step failed. A malformed number or hex string exits with 2.
+.TP
+.BI \-\-gap " MS"
+Sleep this many milliseconds after each step.
+.TP
+.BI \-\-script\-check " FILE" ...
+Parse each script and validate every step without touching an adapter. This is what the
+.B script_syntax
+test runs.
+.SS Vehicle modes
+All of these connect at 500 kbit and send only read-only requests.
+.TP
+.B \-\-vehicle\-listen
+Listen on a raw CAN channel with a wildcard filter for a few seconds. Transmits nothing.
+.TP
+.B \-\-vehicle\-check
+Listen, then send mode 01 PID 00 and mode 09 PID 02 to 0x7DF on a raw CAN channel and report the replies.
+.TP
+.B \-\-vehicle\-iso
+The same VIN request on an ISO15765 channel, showing the reassembled multi-frame reply.
+.TP
+.B \-\-vehicle\-soak
+Five minutes of passive receive with a wildcard filter; reports rate, timestamp gaps and overflows.
+.TP
+.B \-\-vehicle\-cycles
+100 full open, connect, request, disconnect, close cycles on an ISO15765 channel. Stops at the first failure.
+.TP
+.B \-\-vehicle\-cycles\-raw
+The same on a raw CAN channel.
+.TP
+.B \-\-vehicle\-hour
+One hour on a raw CAN channel: continuous receive plus one mode 01 request a second.
+.TP
+.B \-\-vehicle\-hour\-iso
+One hour on an ISO15765 channel: a functional request each second, and mode 09 PID 04 every tenth second.
+.TP
+.B \-\-vehicle\-ignition
+A passive observer for switching the ignition off and on: one line a second of frame rate, bus state and battery
+voltage. It sends a mode 01 request every ten seconds only while frames arrive, and stops after two go unanswered.
+.SS Bench modes
+.TP
+.B \-\-can\-lifecycle, \-\-can\-receive\-check, \-\-can\-transmit\-check
+Bench checks that also connect at 250 kbit. Do not use them on a vehicle at 500 kbit.
+.SH ENVIRONMENT
+.TP
+.B MONGOOSE_SOAK_SECONDS
+Duration of
+.B \-\-vehicle\-hour
+and
+.B \-\-vehicle\-hour\-iso
+(default 3600).
+.TP
+.B MONGOOSE_OBSERVE_SECONDS
+Duration of
+.B \-\-vehicle\-ignition
+(default 600).
+.SH EXIT STATUS
+0 on success; 1 if a check or a script step failed; 2 for a usage error or an unreadable script.
+.SH FILES
+.TP
+.I tools/scripts/*.txt
+The step files. The ones named
+.B \-expectfail
+are expected to exit 1.
+.SH SEE ALSO
+.BR mongoose-diag (1),
+.BR libmongoose_j2534 (7)

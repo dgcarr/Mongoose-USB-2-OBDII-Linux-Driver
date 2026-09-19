@@ -3,6 +3,7 @@
 #include "can.hpp"
 #include <array>
 #include <condition_variable>
+#include <functional>
 #include <mutex>
 #include <optional>
 namespace mongoose {
@@ -12,9 +13,14 @@ public:
     ~Session();
     Session(const Session &) = delete;
     Session &operator=(const Session &) = delete;
+    // allocated, if given, is called with the command's sequence number after it is chosen and before
+    // anything is written. The adapter echoes that sequence in the indication that confirms a transmit,
+    // which can reach the reader thread before this call returns, so the caller has to know it first.
+    // If it throws, nothing has been sent and the sequence is released.
     Bytes command(uint16_t opcode, std::span<const uint8_t> payload = {},
                   std::chrono::milliseconds timeout = std::chrono::seconds(10),
-                  uint16_t destination = board_node, uint16_t chan = 0);
+                  uint16_t destination = board_node, uint16_t chan = 0,
+                  const std::function<void(uint16_t)> &allocated = {});
     void close();
     bool usable();
     void set_can_receiver(std::shared_ptr<CanReceiver> receiver);

@@ -36,7 +36,8 @@ void Session::receive(std::span<const uint8_t> bytes) {
     }
 }
 Bytes Session::command(uint16_t opcode, std::span<const uint8_t> payload,
-                       std::chrono::milliseconds timeout, uint16_t destination, uint16_t chan) {
+                       std::chrono::milliseconds timeout, uint16_t destination, uint16_t chan,
+                       const std::function<void(uint16_t)> &sequence_known) {
     if (timeout.count() <= 0 || timeout > std::chrono::seconds(60))
         throw std::invalid_argument("command timeout must be 1..60000 ms");
     const auto deadline = std::chrono::steady_clock::now() + timeout;
@@ -62,6 +63,10 @@ Bytes Session::command(uint16_t opcode, std::span<const uint8_t> payload,
     pending_ = sequence_; minimum_ = opcode == 0x100 ? 12 : 20; response_.reset();
     used_[sequence_] = now;
     state.unlock();
+    if (sequence_known) {
+        try { sequence_known(allocated); }
+        catch (...) { state.lock(); pending_ = 0; used_[allocated] = {}; throw; }
+    }
     // Compare at full clock resolution: a caller that still has time left must not be
     // failed just because the remainder truncates to zero whole milliseconds.
     const auto left = deadline - std::chrono::steady_clock::now();

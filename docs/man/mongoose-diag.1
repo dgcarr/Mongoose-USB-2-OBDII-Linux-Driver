@@ -1,0 +1,69 @@
+.TH MONGOOSE-DIAG 1 "September 2026" "mongoose-j2534 0.1.0" "User Commands"
+.SH NAME
+mongoose-diag \- inspect the MongoosePro JLR adapter below the J2534 layer
+.SH SYNOPSIS
+.B mongoose-diag
+.I MODE
+[\fB\-\-serial\fR \fISERIAL\fR | \fB\-\-device\fR \fISELECTOR\fR]
+[\fB\-\-trace\fR \fIFILE\fR]
+[\fB\-\-timeout\-ms\fR \fIMS\fR]
+[\fB\-\-replay\fR \fIFILE\fR]
+.SH DESCRIPTION
+.B mongoose-diag
+speaks the adapter's framed command protocol directly. It is for research and bring-up. Every mode must be chosen
+explicitly, and none reaches a destructive firmware command.
+.SH MODES
+.TP
+.B \-\-list
+List the adapters found, by backend, with their serial numbers and whether the device node is accessible.
+.TP
+.B \-\-discover
+Send Echo and GetBoardInfo.
+.TP
+.B \-\-open\-close
+Open the device and close it again.
+.TP
+.B \-\-inspect
+Read the firmware and bootloader versions and the battery and programming-voltage measurements.
+.TP
+.B \-\-filter\-probe
+Open a CAN channel and fill the filter table up to a ceiling, then clear it. Transmits nothing.
+.TP
+.B \-\-transmit\-probe
+Send one read-only mode 01 PID 00 frame on a CAN channel and report whether the adapter confirmed it.
+.TP
+.B \-\-read\-burst
+Issue read-only version reads as fast as the link allows, to exercise sequence reuse.
+.TP
+.B \-\-value\-sweep
+Read firmware values (cGetValue selectors 0 to 0x7F) on the board, a CAN channel and an ISO15765 channel. Read-only.
+.SH OPTIONS
+.TP
+.BI \-\-serial " SERIAL"
+Select the adapter by serial number (shorthand for
+.BI \-\-device " serial:SERIAL" ).
+.TP
+.BI \-\-device " SELECTOR"
+One of
+.BR serial:\fIS\fR ,
+.BR tty:[serial:\fIS\fR|/dev/ttyACM\fIn\fR] ,
+.BR usb:[serial:\fIS\fR] .
+The default is the tty backend.
+.TP
+.BI \-\-trace " FILE"
+Append every byte written and read, with timestamps, to
+.IR FILE .
+.TP
+.BI \-\-timeout\-ms " MS"
+Per-command timeout, 1 to 60000 (default 10000).
+.TP
+.BI \-\-filter\-ceiling " N"
+Cap the filter-probe fill (default 512).
+.TP
+.BI \-\-replay " FILE"
+Run a mode against a recorded exchange instead of hardware.
+.SH EXIT STATUS
+0 on success, 1 on failure, 2 for a usage error.
+.SH SEE ALSO
+.BR mongoose-client (1),
+.BR libmongoose_j2534 (7)

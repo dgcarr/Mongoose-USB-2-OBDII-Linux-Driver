@@ -1,9 +1,11 @@
 #include "mongoose/j2534.h"
+#include "config.hpp"
 #include "session.hpp"
 #include <algorithm>
 #include <array>
 #include <cstdio>
 #include <cstring>
+#include <functional>
 #include <limits>
 #include <map>
 namespace {
@@ -19,7 +21,9 @@ struct Device {
     uint32_t channel_flags = 0;
     uint16_t protocol = CAN;  // protocol of the open channel: CAN or ISO15765
     std::shared_ptr<CanReceiver> receiver;
-    std::map<uint32_t, uint32_t> filters; // public ID -> opaque firmware handle (table 0, or 2 for ISO15765)
+    struct Filter { uint32_t handle; uint8_t table; };  // opaque firmware handle, and the wire table it lives in
+    std::map<uint32_t, Filter> filters;  // public ID -> filter
+    std::map<uint32_t, uint32_t> periodics;  // public periodic message ID -> firmware handle (table 4)
 };
 std::map<uint32_t, std::shared_ptr<Device>> devices, channels;
 uint64_t next_handle = 1;
@@ -73,18 +77,21 @@ LockedDevice device(uint32_t id) { return lookup(id); }
 [[noreturn]] void unsupported(const char *operation) {
     throw Error(ERR_NOT_SUPPORTED, std::string(operation) + ": awaiting protocol/hardware validation");
 }
-[[noreturn]] void unsupported_channel(uint32_t id) {
-    auto owner = lookup(id, true);
-    unsupported("channel operation");
-}
-void retire_channel(Device &owner) {
+// Returns whether the channel had periodic messages running, which the caller must clear on the wire
+// before the channel is closed: a message left in the adapter's table would keep transmitting.
+bool retire_channel(Device &owner) {
+    const bool had_periodic = !owner.periodics.empty();
     owner.session->set_can_receiver({});
     owner.receiver.reset();
     owner.filters.clear();
+    owner.periodics.clear();
     std::lock_guard lock(devices_mutex);
     channels.erase(owner.channel);
     owner.channel = 0;
-    owner.protocol = CAN;
+    // owner.protocol stays as it was: the CloseChannel that follows must go to the node the channel was
+    // opened on (0x0601 for ISO15765, as the vendor sends it), and channel_command derives that node
+    // from it. Resetting it here sent an ISO15765 close to the CAN node. The next Connect sets it again.
+    return had_periodic;
 }
 void uncertain_channel(Device &owner) {
     owner.reopen_required = true;
@@ -93,9 +100,10 @@ void uncertain_channel(Device &owner) {
 // Preserve Session's distinction between failures before a write and ambiguous
 // wire outcomes. Definite firmware rejection is handled separately by accepted().
 Bytes channel_command(Device &owner, uint16_t opcode, std::span<const uint8_t> payload = {},
-                      std::chrono::milliseconds timeout = std::chrono::seconds(10), uint16_t chan = 0) {
+                      std::chrono::milliseconds timeout = std::chrono::seconds(10), uint16_t chan = 0,
+                      const std::function<void(uint16_t)> &sequence_known = {}) {
     try {
-        return owner.session->command(opcode, payload, timeout, channel_node(owner.protocol), chan);
+        return owner.session->command(opcode, payload, timeout, channel_node(owner.protocol), chan, sequence_known);
     } catch (...) {
         if (!owner.session->usable()) uncertain_channel(owner);
         throw;
@@ -160,8 +168,12 @@ int32_t J2534_CALL PassThruClose(uint32_t id) {
             std::lock_guard lock(devices_mutex);
             devices.erase(id);
         }
-        retire_channel(state);
+        const bool periodic = retire_channel(state);
         std::exception_ptr error;
+        if (state.wire_channel_open && periodic) {
+            try { accepted(channel_command(state, 0x10, Bytes{table_periodic, 0, 0, 0})); }
+            catch (...) { error = std::current_exception(); }
+        }
         if (state.wire_channel_open) {
             try { accepted(channel_command(state, 7)); state.wire_channel_open = false; }
             catch (...) { error = std::current_exception(); }
@@ -223,9 +235,15 @@ int32_t J2534_CALL PassThruDisconnect(uint32_t id) {
     return guarded([&] {
         auto owner = lookup(id, true);
         auto &state = *owner.state;
-        retire_channel(state);
+        const bool periodic = retire_channel(state);
+        std::exception_ptr error;
+        if (periodic) {
+            try { accepted(channel_command(state, 0x10, Bytes{table_periodic, 0, 0, 0})); }
+            catch (...) { error = std::current_exception(); }
+        }
         try { accepted(channel_command(state, 7)); state.wire_channel_open = false; }
         catch (...) { state.reopen_required = true; throw; }
+        if (error) { state.reopen_required = true; std::rethrow_exception(error); }
     });
 }
 int32_t J2534_CALL PassThruReadMsgs(uint32_t channel, PASSTHRU_MSG *messages, uint32_t *count, uint32_t timeout) {
@@ -258,7 +276,18 @@ int32_t J2534_CALL PassThruWriteMsgs(uint32_t channel, PASSTHRU_MSG *messages, u
         for (uint32_t index = 0; index < requested; ++index) {
             const auto payload = state.protocol == ISO15765 ? isotp_transmit(messages[index], timeout)
                                                             : can_transmit(messages[index], state.channel_flags, timeout);
-            accepted(channel_command(state, 8, payload, budget, data_chan), Allow::Queued);
+            // Record the request under its sequence number before it goes out: the adapter's
+            // iMsgTxDone echoes that sequence and can reach the reader thread before this thread sees
+            // the command response.
+            bool noted = false;
+            const auto record = [&](uint16_t sequence) {
+                if (receiver) { receiver->note_transmit(messages[index], sequence); noted = true; }
+            };
+            // The data command's chan field counts the messages of this call still to send, as the vendor's
+            // write wrapper 1000c270 tags them: 1 for a single message, which is all the captures have.
+            const auto remaining = static_cast<uint16_t>(std::min<uint32_t>(requested - index, 0xffff));
+            try { accepted(channel_command(state, 8, payload, budget, remaining, record), Allow::Queued); }
+            catch (...) { if (noted) receiver->forget_transmit(); throw; }
             if (!timeout) *count = index + 1;  // queue-and-return: accepted is all we claim
         }
         if (!timeout) return;
@@ -275,10 +304,44 @@ int32_t J2534_CALL PassThruWriteMsgs(uint32_t channel, PASSTHRU_MSG *messages, u
             throw Error(ERR_TIMEOUT, "adapter did not confirm transmission of every message");
     });
 }
-int32_t J2534_CALL PassThruStartPeriodicMsg(uint32_t channel, PASSTHRU_MSG *message, uint32_t *id, uint32_t) {
-    return guarded([&] { required(id); *id = 0; required(message); unsupported_channel(channel); });
+// Periodic messages are cTableAddEntry (0x0d) on table 4, removed with cTableRemoveEntry (0x0e) and
+// cleared with cTableClear (0x10), all with selector 4 (vendor senders 1000d220, 1000d3c0, 1000d4d0). The
+// add is answered with the firmware handle at response+20, as for filters. CAN only: the ISO15765 form
+// is not known. Ten at a time, which is what J2534 asks for; the adapter's own limit is unmeasured.
+int32_t J2534_CALL PassThruStartPeriodicMsg(uint32_t channel, PASSTHRU_MSG *message, uint32_t *id, uint32_t interval) {
+    return guarded([&] {
+        required(id); *id = 0; required(message);
+        auto owner = lookup(channel, true);
+        owner.session();
+        auto &state = *owner.state;
+        if (state.protocol != CAN) unsupported("periodic messages are implemented for CAN channels only");
+        const auto payload = can_periodic(*message, state.channel_flags, interval);
+        if (state.periodics.size() >= 10) throw Error(ERR_EXCEEDED_LIMIT, "at most 10 periodic messages per channel");
+        uint32_t allocated;
+        { std::lock_guard lock(devices_mutex); allocated = allocate_handle(); }
+        auto response = channel_command(state, 0x0d, payload);
+        accepted(response);
+        if (response.size() < 24) {
+            uncertain_channel(state);
+            throw Error(ERR_FAILED, "periodic response missing firmware handle; reopen device");
+        }
+        state.periodics.emplace(allocated, le32(response, 20));
+        *id = allocated;
+    });
 }
-int32_t J2534_CALL PassThruStopPeriodicMsg(uint32_t channel, uint32_t) { return guarded([&] { unsupported_channel(channel); }); }
+int32_t J2534_CALL PassThruStopPeriodicMsg(uint32_t channel, uint32_t id) {
+    return guarded([&] {
+        auto owner = lookup(channel, true);
+        owner.session();
+        auto &state = *owner.state;
+        const auto found = state.periodics.find(id);
+        if (found == state.periodics.end()) throw Error(ERR_INVALID_MSG_ID, "invalid periodic message ID for channel");
+        Bytes payload(8, 0); payload[0] = table_periodic;
+        put16(payload, 4, static_cast<uint16_t>(found->second)); put16(payload, 6, static_cast<uint16_t>(found->second >> 16));
+        accepted(channel_command(state, 0x0e, payload));
+        state.periodics.erase(found);
+    });
+}
 int32_t J2534_CALL PassThruStartMsgFilter(uint32_t channel, uint32_t type, PASSTHRU_MSG *mask, PASSTHRU_MSG *pattern, PASSTHRU_MSG *flow, uint32_t *id) {
     return guarded([&] {
         required(id); *id = 0; required(mask); required(pattern);
@@ -289,12 +352,20 @@ int32_t J2534_CALL PassThruStartMsgFilter(uint32_t channel, uint32_t type, PASST
         if (state.protocol == ISO15765) {
             if (type != FLOW_CONTROL_FILTER) unsupported("only ISO15765 FLOW_CONTROL_FILTER is implemented");
             if (!flow) throw Error(ERR_INVALID_MSG, "FLOW_CONTROL_FILTER requires a flow-control message");
+            // The vendor refuses a 65th flow-control filter ("Only 64 filters are permitted total").
+            if (std::count_if(state.filters.begin(), state.filters.end(),
+                              [](const auto &entry) { return entry.second.table == table_flow_control; }) >= 64)
+                throw Error(ERR_EXCEEDED_LIMIT, "at most 64 flow-control filters per channel");
             payload = isotp_flow_control_filter(*mask, *pattern, *flow);
         } else {
-            if (type != PASS_FILTER) unsupported("only CAN PASS_FILTER is implemented");
-            if (flow) throw Error(ERR_INVALID_MSG, "PASS_FILTER requires no flow-control message");
-            payload = can_pass_filter(*mask, *pattern, state.channel_flags);
+            if (type != PASS_FILTER && type != BLOCK_FILTER)
+                unsupported("only CAN PASS_FILTER and BLOCK_FILTER are implemented");
+            if (flow) throw Error(ERR_INVALID_MSG, "PASS_FILTER and BLOCK_FILTER require no flow-control message");
+            payload = type == PASS_FILTER ? can_pass_filter(*mask, *pattern, state.channel_flags)
+                                          : can_block_filter(*mask, *pattern, state.channel_flags);
         }
+        const uint8_t table = state.protocol == ISO15765 ? table_flow_control
+                            : type == BLOCK_FILTER ? table_block : table_pass;
         uint32_t allocated;
         { std::lock_guard lock(devices_mutex); allocated = allocate_handle(); }
         auto response = channel_command(state, 0x0d, payload);
@@ -304,10 +375,10 @@ int32_t J2534_CALL PassThruStartMsgFilter(uint32_t channel, uint32_t type, PASST
             throw Error(ERR_FAILED, "filter response missing firmware handle; reopen device");
         }
         const auto handle = le32(response, 20);
-        try { state.filters.emplace(allocated, handle); }
+        try { state.filters.emplace(allocated, Device::Filter{handle, table}); }
         catch (...) {
             const auto original = std::current_exception();
-            Bytes remove(8, 0); remove[0] = state.protocol == ISO15765 ? 2 : 0; put16(remove, 4, static_cast<uint16_t>(handle)); put16(remove, 6, static_cast<uint16_t>(handle >> 16));
+            Bytes remove(8, 0); remove[0] = table; put16(remove, 4, static_cast<uint16_t>(handle)); put16(remove, 6, static_cast<uint16_t>(handle >> 16));
             try { accepted(channel_command(state, 0x0e, remove)); }
             catch (...) { uncertain_channel(state); }
             std::rethrow_exception(original);
@@ -322,9 +393,9 @@ int32_t J2534_CALL PassThruStopMsgFilter(uint32_t channel, uint32_t id) {
         const auto found = state.filters.find(id);
         if (found == state.filters.end()) throw Error(ERR_INVALID_FILTER_ID, "invalid filter ID for channel");
         Bytes payload(8, 0);
-        payload[0] = state.protocol == ISO15765 ? 2 : 0;  // table selector, as the vendor uses
-        put16(payload, 4, static_cast<uint16_t>(found->second));
-        put16(payload, 6, static_cast<uint16_t>(found->second >> 16));
+        payload[0] = found->second.table;  // the table the filter was added to
+        put16(payload, 4, static_cast<uint16_t>(found->second.handle));
+        put16(payload, 6, static_cast<uint16_t>(found->second.handle >> 16));
         accepted(channel_command(state, 0x0e, payload));
         state.filters.erase(found);
     });
@@ -348,10 +419,106 @@ int32_t J2534_CALL PassThruGetLastError(char *description) {
     if (!description) return ERR_NULL_PARAMETER;
     std::snprintf(description, 80, "%s", last_error.data()); return STATUS_NOERROR;
 }
-int32_t J2534_CALL PassThruIoctl(uint32_t id, uint32_t ioctl_id, void *, void *output) {
+// The four buffer and table IOCTLs act on a channel. Wire forms: cIoctl (0x11) with a four-byte
+// selector, 2 = clear TX and 3 = clear RX (vendor senders 1000daf0 and 1000dbf0, both waiting for the
+// response); cTableClear (0x10) with the four-byte table selector (verified on the bench for table 0).
+void channel_ioctl(uint32_t channel, uint32_t ioctl_id) {
+    auto owner = lookup(channel, true);
+    owner.session();
+    auto &state = *owner.state;
+    const auto receiver = state.receiver;
+    switch (ioctl_id) {
+    case CLEAR_TX_BUFFER:
+        accepted(channel_command(state, 0x11, Bytes{2, 0, 0, 0}));
+        if (receiver) receiver->forget_transmits();
+        return;
+    case CLEAR_RX_BUFFER:
+        accepted(channel_command(state, 0x11, Bytes{3, 0, 0, 0}));
+        // Frames that arrived before the response are stale; anything after it is new.
+        if (receiver) receiver->flush_receive();
+        return;
+    case CLEAR_MSG_FILTERS: {
+        // Clear each wire table this channel actually filled, then forget the handles. With no
+        // filters there is nothing to say to the adapter.
+        for (const uint8_t table : {table_pass, table_block, table_flow_control}) {
+            const bool used = std::any_of(state.filters.begin(), state.filters.end(),
+                                          [table](const auto &entry) { return entry.second.table == table; });
+            if (!used) continue;
+            accepted(channel_command(state, 0x10, Bytes{table, 0, 0, 0}));
+            for (auto entry = state.filters.begin(); entry != state.filters.end();)
+                entry = entry->second.table == table ? state.filters.erase(entry) : std::next(entry);
+        }
+        return;
+    }
+    case CLEAR_PERIODIC_MSGS:
+        if (state.periodics.empty()) return;  // nothing to say to the adapter
+        accepted(channel_command(state, 0x10, Bytes{table_periodic, 0, 0, 0}));
+        state.periodics.clear();
+        return;
+    default:
+        throw Error(ERR_INVALID_IOCTL_ID, "not a channel IOCTL");
+    }
+}
+// GET_CONFIG and SET_CONFIG. The channel is checked first, then the argument shape, in the vendor's
+// order (PassThruIoctl case 1 and 2): input and its list pointer must be non-null, 1..50 parameters, and
+// the output pointer must be NULL. A get reads each value from the firmware with cGetValue (0x0c) on the
+// channel node, the selector at +12 of the body and the value at response+24; a set writes it with
+// cSetValue (0x0b), selector then value. LOOPBACK never leaves the host. Unlike the vendor, which
+// applies a list one parameter at a time and stops at the first failure, a set validates every entry
+// before writing any, so a bad value cannot leave the channel half configured.
+void config_ioctl(uint32_t channel, uint32_t ioctl_id, void *input, void *output) {
+    auto owner = lookup(channel, true);
+    owner.session();
+    required(input);
+    auto *list = static_cast<SCONFIG_LIST *>(input);
+    required(list->ConfigPtr);
+    if (list->NumOfParams == 0 || list->NumOfParams > 50)
+        throw Error(ERR_FAILED, "NumOfParams is unreasonable; is the input a bogus pointer?");
+    if (output) throw Error(ERR_FAILED, "the output parameter must be NULL");
+    auto &state = *owner.state;
+    const auto receiver = state.receiver;
+    const std::span<SCONFIG> items(list->ConfigPtr, list->NumOfParams);
+    if (ioctl_id == SET_CONFIG)
+        for (const auto &item : items) config_validate_set(state.protocol, item.Parameter, item.Value);
+    for (auto &item : items) {
+        const auto route = config_route(state.protocol, item.Parameter);
+        if (route.where == ConfigRoute::Where::HostLoopback) {
+            if (!receiver) throw Error(ERR_DEVICE_NOT_CONNECTED, "channel has no receiver");
+            if (ioctl_id == GET_CONFIG) item.Value = receiver->loopback() ? 1 : 0;
+            else receiver->set_loopback(item.Value != 0);
+            continue;
+        }
+        if (ioctl_id == GET_CONFIG) {
+            const auto response = channel_command(state, 0xc, Bytes{static_cast<uint8_t>(route.selector), 0, 0, 0});
+            accepted(response);
+            if (response.size() < 28 || le32(response, 20) != route.selector)
+                throw Error(ERR_FAILED, "invalid get-value response");
+            item.Value = le32(response, 24);
+        } else {
+            Bytes payload(8, 0);
+            put16(payload, 0, static_cast<uint16_t>(route.selector));
+            put16(payload, 4, static_cast<uint16_t>(item.Value)); put16(payload, 6, static_cast<uint16_t>(item.Value >> 16));
+            accepted(channel_command(state, 0xb, payload));
+        }
+    }
+}
+int32_t J2534_CALL PassThruIoctl(uint32_t id, uint32_t ioctl_id, void *input, void *output) {
     return guarded([&] {
+        if (ioctl_id == GET_CONFIG || ioctl_id == SET_CONFIG) {
+            config_ioctl(id, ioctl_id, input, output);
+            return;
+        }
+        if (ioctl_id == CLEAR_TX_BUFFER || ioctl_id == CLEAR_RX_BUFFER || ioctl_id == CLEAR_MSG_FILTERS ||
+            ioctl_id == CLEAR_PERIODIC_MSGS) {
+            channel_ioctl(id, ioctl_id);
+            return;
+        }
+        // The vendor answers an IoctlID it does not recognise, and one that does not apply to the
+        // protocol (FIVE_BAUD_INIT or FAST_INIT on CAN, the functional-address table off ISO9141/14230),
+        // with ERR_INVALID_IOCTL_ID (code 0xf), before it looks at the handle.
+        if (ioctl_id != READ_VBATT && ioctl_id != READ_PROG_VOLTAGE)
+            throw Error(ERR_INVALID_IOCTL_ID, "IoctlID unrecognized, or not valid for this protocol");
         auto session = device(id);
-        if (ioctl_id != READ_VBATT && ioctl_id != READ_PROG_VOLTAGE) unsupported("IOCTL");
         required(output);
         const uint32_t raw = get_value(session.session(), ioctl_id == READ_VBATT ? 3 : 2);
         // Vendor 10059d60 rounds millivolts to the nearest 100, ties upward.

@@ -1,0 +1,81 @@
+.TH LIBMONGOOSE_J2534 7 "September 2026" "mongoose-j2534 0.1.0" "Miscellaneous"
+.SH NAME
+libmongoose_j2534 \- J2534 pass-thru library for the MongoosePro JLR adapter
+.SH SYNOPSIS
+.nf
+.B #include <mongoose/j2534.h>
+.B cc app.c $(pkg-config --cflags --libs mongoose-j2534)
+.fi
+.SH DESCRIPTION
+An unofficial SAE J2534-1 04.04 pass-thru library for the MongoosePro JLR USB adapter (18e1:0104). It exports
+.BR PassThruOpen ,
+.BR PassThruClose ,
+.BR PassThruConnect ,
+.BR PassThruDisconnect ,
+.BR PassThruReadMsgs ,
+.BR PassThruWriteMsgs ,
+.BR PassThruStartPeriodicMsg ,
+.BR PassThruStopPeriodicMsg ,
+.BR PassThruStartMsgFilter ,
+.BR PassThruStopMsgFilter ,
+.BR PassThruSetProgrammingVoltage ,
+.BR PassThruReadVersion ,
+.B PassThruGetLastError
+and
+.BR PassThruIoctl .
+It reaches the adapter through the kernel's cdc_acm serial port, so it needs no vendor software, libusb or root.
+.PP
+Raw CAN and 11-bit ISO15765 are implemented, with multi-frame receive and transmit, pass, block and flow-control
+filters, periodic messages, configuration, loopback and the buffer IOCTLs. K-line, J1850, the pin-switched
+protocols, 29-bit ISO15765 and programming-voltage output return
+.BR ERR_NOT_SUPPORTED .
+.PP
+.B Use it at your own risk.
+It is unofficial, has been tested on one vehicle and one adapter, and comes with no warranty. It can send anything
+to a vehicle's networks and does not guard against harmful requests.
+.SH DEVICE NAMES
+The name given to
+.B PassThruOpen
+is
+.B NULL
+(the single connected adapter),
+.BI serial: S\fR,
+.BI tty: "[serial:S|/dev/ttyACMn]"
+or
+.BI usb: "[serial:S]"
+(libusb, if built in). One process at a time may hold the adapter; another gets
+.BR ERR_DEVICE_IN_USE .
+Only one CAN-family channel can be open on the adapter.
+.SH FILES
+.TP
+.I /dev/ttyACM*
+The adapter's serial port.
+.TP
+.I /usr/lib/udev/rules.d/60-mongoose-j2534.rules
+Grants the active seat user access and keeps ModemManager from probing the port.
+.TP
+.I /usr/share/doc/mongoose_j2534/USING.md
+The full usage guide: channels, ISO15765 requirements, IOCTLs and configuration parameters, errors.
+.SH ABI
+Symbols are versioned
+.BR MONGOOSE_0 ;
+the soname is
+.BR libmongoose_j2534.so.0 .
+The 14 exported functions and the structures in the header are stable within a soname; nothing else is exported.
+.SH THREADS
+Calls may be made from several threads. Commands to one adapter are serialised. A blocked
+.B PassThruReadMsgs
+or timed
+.B PassThruWriteMsgs
+is woken by
+.B PassThruDisconnect
+or
+.BR PassThruClose
+on its channel. The text returned by
+.B PassThruGetLastError
+is per thread. Behaviour across
+.BR fork (2)
+is not defined and was not tested: open the adapter in the process that uses it.
+.SH SEE ALSO
+.BR mongoose-client (1),
+.BR mongoose-diag (1)
