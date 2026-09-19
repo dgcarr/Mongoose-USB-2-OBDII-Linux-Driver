@@ -5,3 +5,8 @@
 /analysis/ghidra_*.log
 __pycache__/
 *.pyc
+# Vendor material stays on this machine only: the vendor's Windows driver files and what was derived from
+# them by decompiling and disassembling. Not ours to redistribute; see the Licence section of the README.
+/vendor/
+/analysis/decompiled/
+/analysis/disassembly/
