@@ -240,7 +240,7 @@ Rehearsed 2026-09-19 on a throwaway clone; nothing was changed in the real repos
 1. **Vendor material out of history.** Done for `master` (2026-09-20): rewritten with `git filter-repo --invert-paths`,
    force-pushed, and a fresh mirror clone shows 0 vendor paths in its history; CI is green on the rewritten head.
    The two merged `cursor/*` branches were force-pushed in rewritten form too, so all three branches on the remote
-   are clean. Backups of the old history and of the vendor files are in `~/mongoose_driver-backup-pre-scrub/`.
+   are clean. The pre-scrub backups were deleted at your request once the on-disk vendor files were confirmed identical to them; the old history now exists only in the two PR refs.
    **Still open:** `refs/pull/1/head` and `refs/pull/2/head` are GitHub-managed and cannot be rewritten from here;
    they still contain the vendor files. So when the repository goes public, publish it as a **new repository** from
    this history (or have GitHub support purge those PR refs); do not just flip this one to public. A scan of a fresh
