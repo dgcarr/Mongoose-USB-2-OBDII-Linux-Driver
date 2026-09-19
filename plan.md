@@ -232,6 +232,23 @@ kernel headers here, and a kernel module could crash the machine while it is on 
   analysis/decompiled --path analysis/disassembly --invert-paths`) and force-pushed, and any fork or clone made
   before that is still exposed. Do that first, on a fresh clone, then flip the visibility.
 
+## Before the repository goes public (you said it will, once deployment ready)
+
+Rehearsed 2026-09-19 on a throwaway clone; nothing was changed in the real repository or on the remote.
+
+1. **Vendor material out of history.** `git filter-repo --invert-paths --path vendor --path analysis/decompiled
+   --path analysis/disassembly` on a fresh clone: leaves 0 vendor paths in all 53 commits and shrinks `.git` from
+   25 MB to 12 MB. Then force-push, and treat every existing clone or fork as still exposed.
+2. **Adapter serial number.** It appears in 59 files at HEAD (53 under `analysis/captures`, plus a test string and
+   four docs) and in older commits. It identifies your adapter, not your vehicle. Decide whether to keep it; to remove
+   it, `git filter-repo --replace-text` with a replacement of the **same length** (the captures are binary USB
+   traces, where the string sits inside length-prefixed descriptors), applied to the whole history so the test and
+   docs stay consistent.
+3. **Already checked and clean:** no VINs (the captures were redacted with `analysis/redact_vin.py`), no
+   credentials or tokens. `/home/dgcarr` paths appear in notes and scripts; cosmetic.
+4. **Then:** flip visibility, re-run CI on the rewritten history, tag `v0.1.0`, and let the CHANGELOG's
+   Unreleased section become that release.
+
 ## Decision on the remaining protocols (2026-09-19)
 
 Asked whether to implement 29-bit ISO15765, K-line and J1850 from the vendor decompile without any way to test
