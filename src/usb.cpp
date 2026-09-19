@@ -225,7 +225,11 @@ private:
             const int result = libusb_handle_events_timeout(context_.value, &timeout);
             if (result < 0 && result != LIBUSB_ERROR_INTERRUPTED) {
                 fault("USB event failure while draining");
-                bulk_.pending = interrupt_.pending = false;
+                // Give up waiting, but leave pending as-is: libusb has not confirmed either
+                // transfer is done, only that we stopped being able to ask. cleanup() leaks
+                // rather than frees any transfer still in this state, since libusb may
+                // complete it later and write into memory we would otherwise have freed.
+                drain_failed_ = true;
                 break;
             }
         }
@@ -239,9 +243,13 @@ private:
         drain();
     }
     std::string cleanup() noexcept {
-        // Never free submitted transfers; stop() drains completion callbacks first.
+        // Never free submitted transfers; stop() drains completion callbacks first. If the
+        // drain failed to confirm that (drain_failed_), a transfer still marked pending is
+        // intentionally leaked rather than freed.
         for (auto *input : {&bulk_, &interrupt_}) {
-            if (input->transfer) { libusb_free_transfer(input->transfer); input->transfer = nullptr; }
+            if (input->transfer && !(drain_failed_ && input->pending)) {
+                libusb_free_transfer(input->transfer); input->transfer = nullptr;
+            }
         }
         std::string failure;
         if (handle_) {
@@ -270,7 +278,7 @@ private:
     std::thread worker_;
     std::mutex stop_mutex_, io_mutex_;
     std::atomic<bool> stopping_{false};
-    bool started_ = false, closed_ = false, create_attempted_ = false;
+    bool started_ = false, closed_ = false, create_attempted_ = false, drain_failed_ = false;
 };
 }
 std::vector<DeviceInfo> usb_devices() {

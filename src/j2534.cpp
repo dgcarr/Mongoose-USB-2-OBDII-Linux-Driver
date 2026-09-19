@@ -275,7 +275,7 @@ int32_t J2534_CALL PassThruWriteMsgs(uint32_t channel, PASSTHRU_MSG *messages, u
         const auto already = receiver ? receiver->transmitted() : 0;
         for (uint32_t index = 0; index < requested; ++index) {
             const auto payload = state.protocol == ISO15765 ? isotp_transmit(messages[index], timeout)
-                                                            : can_transmit(messages[index], state.channel_flags, timeout);
+                                                            : can_transmit(messages[index], timeout);
             // Record the request under its sequence number before it goes out: the adapter's
             // iMsgTxDone echoes that sequence and can reach the reader thread before this thread sees
             // the command response.
@@ -315,7 +315,7 @@ int32_t J2534_CALL PassThruStartPeriodicMsg(uint32_t channel, PASSTHRU_MSG *mess
         owner.session();
         auto &state = *owner.state;
         if (state.protocol != CAN) unsupported("periodic messages are implemented for CAN channels only");
-        const auto payload = can_periodic(*message, state.channel_flags, interval);
+        const auto payload = can_periodic(*message, interval);
         if (state.periodics.size() >= 10) throw Error(ERR_EXCEEDED_LIMIT, "at most 10 periodic messages per channel");
         uint32_t allocated;
         { std::lock_guard lock(devices_mutex); allocated = allocate_handle(); }
@@ -417,7 +417,7 @@ int32_t J2534_CALL PassThruReadVersion(uint32_t id, char *firmware, char *dll, c
 }
 int32_t J2534_CALL PassThruGetLastError(char *description) {
     if (!description) return ERR_NULL_PARAMETER;
-    std::snprintf(description, 80, "%s", last_error.data()); return STATUS_NOERROR;
+    std::snprintf(description, last_error.size(), "%s", last_error.data()); return STATUS_NOERROR;
 }
 // The four buffer and table IOCTLs act on a channel. Wire forms: cIoctl (0x11) with a four-byte
 // selector, 2 = clear TX and 3 = clear RX (vendor senders 1000daf0 and 1000dbf0, both waiting for the

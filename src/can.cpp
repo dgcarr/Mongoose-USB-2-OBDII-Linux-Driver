@@ -29,11 +29,13 @@ Bytes can_pass_filter(const PASSTHRU_MSG &mask, const PASSTHRU_MSG &pattern, uin
 Bytes can_block_filter(const PASSTHRU_MSG &mask, const PASSTHRU_MSG &pattern, uint32_t channel_flags) {
     return can_table_filter(mask, pattern, channel_flags, table_block, 2);
 }
-Bytes can_transmit(const PASSTHRU_MSG &message, uint32_t channel_flags, uint32_t timeout_ms) {
+Bytes can_transmit(const PASSTHRU_MSG &message, uint32_t timeout_ms) {
     if (message.ProtocolID != CAN)
         throw Error(ERR_MSG_PROTOCOL_ID, "message protocol must match CAN channel");
-    // ConnectFlags sets default identifier width; individual messages may override CAN_29BIT_ID.
-    const uint32_t flags = message.TxFlags ? message.TxFlags : channel_flags;
+    // Each message states its own identifier width; unlike filters, transmits need not match
+    // the channel's ConnectFlags. TxFlags is used verbatim, since 0 is itself the valid,
+    // meaningful "11-bit ID" value and cannot be treated as "unspecified".
+    const uint32_t flags = message.TxFlags;
     if (flags & ~static_cast<uint32_t>(CAN_29BIT_ID))
         throw Error(ERR_INVALID_FLAGS, "unsupported CAN transmit flags");
     // Four ID bytes plus up to eight data bytes; the ID is big-endian, as on receive.
@@ -52,12 +54,12 @@ Bytes can_transmit(const PASSTHRU_MSG &message, uint32_t channel_flags, uint32_t
     payload.insert(payload.end(), message.Data, message.Data + message.DataSize);
     return payload;
 }
-Bytes can_periodic(const PASSTHRU_MSG &message, uint32_t channel_flags, uint32_t interval_ms) {
+Bytes can_periodic(const PASSTHRU_MSG &message, uint32_t interval_ms) {
     if (interval_ms < 5 || interval_ms > 65535)
         throw Error(ERR_INVALID_TIME_INTERVAL, "periodic interval must be 5..65535 ms");
     if (message.ProtocolID != CAN)
         throw Error(ERR_MSG_PROTOCOL_ID, "message protocol must match CAN channel");
-    const uint32_t flags = message.TxFlags ? message.TxFlags : channel_flags;
+    const uint32_t flags = message.TxFlags;  // verbatim, as in can_transmit
     if (flags & ~static_cast<uint32_t>(CAN_29BIT_ID))
         throw Error(ERR_INVALID_FLAGS, "unsupported CAN transmit flags");
     if (message.DataSize < 4 || message.DataSize > 12)

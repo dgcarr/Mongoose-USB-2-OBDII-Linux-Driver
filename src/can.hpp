@@ -80,11 +80,11 @@ constexpr uint8_t table_pass = 0, table_block = 1, table_flow_control = 2, table
 // cOutboundData payload for one raw CAN frame; see PROTOCOL.md section 3 and
 // docs/WINDOWS-FINDINGS.md section D. timeout_ms is what the adapter is told, which is
 // not the same as how long the host waits for the command response.
-Bytes can_transmit(const PASSTHRU_MSG &message, uint32_t channel_flags, uint32_t timeout_ms);
+Bytes can_transmit(const PASSTHRU_MSG &message, uint32_t timeout_ms);
 // cTableAddEntry payload for one periodic CAN message (table selector 4). Vendor sender 1000d220: u32
 // table selector, u32 interval in ms, u32 TxFlags, u8 size (ID plus data), then the ID and data as for a
 // transmit. J2534 allows 5..65535 ms; the message is checked as a transmit is.
-Bytes can_periodic(const PASSTHRU_MSG &message, uint32_t channel_flags, uint32_t interval_ms);
+Bytes can_periodic(const PASSTHRU_MSG &message, uint32_t interval_ms);
 // ISO15765 flow-control filter, cTableAddEntry with table selector 2. Body layout from
 // the Windows D3 capture: the adapter matches the response ID and answers with flow
 // control to the request ID; it takes no mask, so a mask that does not cover the whole

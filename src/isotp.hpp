@@ -20,8 +20,11 @@ namespace mongoose {
 // mode 09 PIDs 04 and 0A). The vendor rules below apply within one ID, unchanged.
 //
 // Standard addressing only. The vendor shifts every offset by one byte for extended
-// addressing; that path is deliberately absent because no capture exercises it and
-// untested reassembly is worse than none.
+// addressing (analysis/decompiled/isotp/10021070.c branches on an addressing flag in its
+// state block); that path is deliberately absent because no live capture, Linux or Windows,
+// exercises it, and untested reassembly is worse than none. ISO15765_ADDR_TYPE exists as a
+// ConnectFlags bit for this but is rejected as an unsupported flag until a real capture
+// exists to build a fixture from, as tests/fixtures/isotp-vin.* came from one.
 class IsoTpReassembler {
 public:
     // The vendor's own bound on a reassembled message (10021070 rejects >= 0x1000).

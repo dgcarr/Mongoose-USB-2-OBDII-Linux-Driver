@@ -28,7 +28,7 @@ extern "C" int LLVMFuzzerTestOneInput(const uint8_t *data, size_t size) {
         outbound.DataSize = data[1];
         outbound.ExtraDataIndex = data[2];
         try {
-            const auto payload = mongoose::can_transmit(outbound, outbound.TxFlags, data[2]);
+            const auto payload = mongoose::can_transmit(outbound, data[2]);
             if (payload.size() != size_t{12} + outbound.DataSize) std::abort();
         } catch (const mongoose::Error &) {}
     }

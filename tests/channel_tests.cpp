@@ -1,3 +1,4 @@
+#include "can.hpp"
 #include "config.hpp"
 #include "replay.hpp"
 #include <algorithm>
@@ -857,6 +858,16 @@ PASSTHRU_MSG can_message(const char *data, uint32_t flags) {
     std::copy(bytes.begin(), bytes.end(), message.Data);
     return message;
 }
+// TxFlags is the message's own identifier width: 0 means 11-bit and must not be replaced by
+// the channel's ConnectFlags, which the builders no longer even see.
+void transmit_flags_verbatim() {
+    const auto standard = can_message("000007df0902", 0);
+    const auto extended = can_message("000007df0902", CAN_29BIT_ID);
+    CHECK(hex(can_transmit(standard, 0)).substr(0, 8) == "00000000");
+    CHECK(hex(can_transmit(extended, 0)).substr(0, 8) == "00010000");
+    CHECK(hex(can_periodic(standard, 100)).substr(16, 8) == "00000000");
+    CHECK(hex(can_periodic(extended, 100)).substr(16, 8) == "00010000");
+}
 void transmit() {
     auto script = prepare(); script->connect();
     // The vendor's captured cOutboundData body is
@@ -985,7 +996,7 @@ std::unique_ptr<Transport> open_transport(const Selector &, Trace) {
 }
 int main() {
     try {
-        transmit(); transmit_confirmed(); transmit_unconfirmed();
+        transmit_flags_verbatim(); transmit(); transmit_confirmed(); transmit_unconfirmed();
         filter_contract(); block_filter(); clear_buffers(); config_can(); config_iso15765(); iso15765_exchange(); flow_control_limit(); periodic_messages(); periodic_limit(); many_filters(); filter_failure(false); filter_failure(true);
         captured_receive(); receive_edges(); partial_read_cancel();
         filter_transport_failure(false); filter_transport_failure(true);

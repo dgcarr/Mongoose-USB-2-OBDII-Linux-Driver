@@ -311,7 +311,7 @@ int main(int argc, char **argv) {
                     frame.ProtocolID = CAN; frame.DataSize = 12;
                     const auto bytes = mongoose::unhex("000007df0201005555555555");
                     std::copy(bytes.begin(), bytes.end(), frame.Data);
-                    auto sent = session.command(8, mongoose::can_transmit(frame, 0, 1000), deadline,
+                    auto sent = session.command(8, mongoose::can_transmit(frame, 1000), deadline,
                                                 channel, mongoose::data_chan);
                     show("outbound", sent);
                     const auto status = mongoose::Session::status(sent);
