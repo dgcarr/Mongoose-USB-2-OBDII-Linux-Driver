@@ -1,0 +1,31 @@
+# mongoose-socketcan and multi-message WriteMsgs, adapter on USB, no vehicle (bus silent), 2026-09-19T21:28:30Z
+# Adapter serial AOLHE0000003666A; interface vcan0 (modprobe vcan can-isotp, created with root once).
+
+## Before the fix (commit ba7dc46, recorded earlier this session): analysis/probes/write_batch_probe.c
+single 0: status 0 count 1 0 ms
+single 1: status 0 count 1 0 ms
+single 2: status 0 count 1 1 ms
+batched: status 9 count 0 1000 ms response timed out; reopen to avoid accepting a late response
+## Before the fix, the bridge with 3 frames written at once: PassThruWriteMsgs status 9, then ReadMsgs status 8 (channel state uncertain), exit 1
+
+## After the fix: write_batch_probe
+single 0: status 0 count 1 0 ms 
+single 1: status 0 count 1 1 ms 
+single 2: status 0 count 1 1 ms 
+batched: status 0 count 3 1 ms 
+single 0: status 0 count 1 0 ms 
+single 1: status 0 count 1 0 ms 
+single 2: status 0 count 1 1 ms 
+
+## After the fix: bridge, listen only, 5 s
+mongoose-socketcan: bridging vcan0 at 500000 bit/s, 11-bit channel, listen only
+mongoose-socketcan: 2s: from vehicle 0, to vehicle 0, refused 0, adapter overflows 0, interface drops 0
+mongoose-socketcan: 4s: from vehicle 0, to vehicle 0, refused 0, adapter overflows 0, interface drops 0
+mongoose-socketcan: stopped: from vehicle 0, to vehicle 0, refused 0, adapter overflows 0, interface drops 0
+exit=0
+
+## After the fix: bridge --transmit, 200 read-only mode 01 PID 00 frames written to vcan0 at once
+mongoose-socketcan: bridging vcan0 at 500000 bit/s, 11-bit channel, TRANSMIT ENABLED: frames written to the interface go to the vehicle
+mongoose-socketcan: PassThruWriteMsgs failed: status 17: adapter transmit buffer full
+mongoose-socketcan: stopped: from vehicle 0, to vehicle 199, refused 1, adapter overflows 0, interface drops 0
+exit=0

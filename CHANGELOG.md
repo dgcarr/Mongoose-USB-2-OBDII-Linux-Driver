@@ -5,6 +5,12 @@ The format follows Keep a Changelog. There have been no releases; everything is 
 ## Unreleased (0.1.0)
 
 ### Added
+- `mongoose-socketcan`, a bridge that makes the adapter a SocketCAN interface (normally a `vcan`), so can-utils,
+  Wireshark, python-can, udsoncan and the kernel's ISO-TP sockets work with it. Listen-only unless `--transmit` is
+  given; remote and error frames are refused. Tested end to end over `vcan` against a simulated ECU (including a
+  multi-frame UDS read through a kernel ISO-TP socket) and on the adapter with no vehicle; not yet run on a car.
+- `docs/VOLVO.md`: from clone to reading live data, trouble codes and the VIN, with notes for Volvo owners. A test
+  runs its Python examples verbatim through the bridge.
 - Licensed under LGPL-2.1-or-later (`LICENSE`); the Arch, DEB and RPM metadata name the licence and maintainer.
 - A J2534-1 04.04 library for the MongoosePro JLR adapter over the kernel's cdc_acm serial port: raw CAN
   (11-bit and 29-bit) and 11-bit ISO15765, pass, block and flow-control filters, timed and queued writes with
@@ -24,10 +30,13 @@ The format follows Keep a Changelog. There have been no releases; everything is 
   the adapter segments it.
 - Transmit confirmations are paired with their request by sequence number, as the vendor does, instead of by
   arrival order, and only a confirmation that pairs counts toward a timed write.
-- The data command's chan field carries the number of messages still to send in the call.
 - An unknown or inapplicable IOCTL ID returns `ERR_INVALID_IOCTL_ID`, as the vendor does.
 
 ### Fixed
+- A `PassThruWriteMsgs` of more than one message timed out on the adapter and left the device needing a reopen. The
+  data commands counted down the messages still to send (3, 2, 1), as the vendor does, but the vendor sends a
+  whole call before waiting for the firmware's single answer, and the driver waited after each command; a count
+  above 1 is never answered alone. Each message is now a one-message transaction. Found by the SocketCAN bridge.
 - Connect and `DATA_RATE` refuse a bit rate outside the vendor's list of 18 CAN rates, with `ERR_INVALID_BAUDRATE` / `ERR_INVALID_IOCTL_VALUE`, instead of passing any nonzero rate to the adapter.
 - Script runner: a line longer than its buffer is refused instead of being read as several, so the tail of a long
   comment can no longer run as a command; a line with an embedded NUL is refused too. `--gap` rejects a value that is
@@ -47,8 +56,8 @@ The format follows Keep a Changelog. There have been no releases; everything is 
 - Live on one 2017 Volvo XC60: an hour of receive and requests on raw CAN and on ISO15765, 100 lifecycle cycles
   on each, configuration and ISO-TP timing, loopback, periodic messages, multi-frame transmit, and an
   ignition-off, bus-sleep and wake cycle. See `docs/VALIDATION.md`.
-- 12 tests, run under ASan/UBSan and ThreadSanitizer, with warnings as errors on GCC and Clang.
+- 17 tests, run under ASan/UBSan and ThreadSanitizer, with warnings as errors on GCC and Clang.
 
 ### Not done
 - K-line, J1850, the pin-switched `*_PS` protocols, 29-bit ISO15765, programming-voltage output: no hardware.
-- No `LICENSE` has been chosen. Use at your own risk; see the README.
+- Use at your own risk; see the README.

@@ -29,7 +29,9 @@ cmake -S . -B build && cmake --build build && sudo cmake --install build
 cc app.c $(pkg-config --cflags --libs mongoose-j2534) -o app
 ```
 
-or `dlopen("libmongoose_j2534.so.0", RTLD_NOW)` and resolve the `PassThru*` symbols. The runnable example
+or `dlopen("libmongoose_j2534.so.0", RTLD_NOW)` and resolve the `PassThru*` symbols. If you want SocketCAN rather
+than J2534, run `mongoose-socketcan` instead (see `docs/VOLVO.md`): it makes the adapter a CAN interface for
+can-utils, python-can and the kernel's ISO-TP sockets. The runnable example
 is `examples/obd_request.c` (built as `mongoose-example-obd`). There is no registry on Linux: a J2534 client
 finds the library by path.
 
@@ -217,4 +219,5 @@ You use this library on a vehicle at your own risk; see the notice at the top of
 
 `mongoose-client --script-check FILE...` parses the capture scripts in `tools/scripts/` without an adapter.
 `mongoose-client [serial:S] --script FILE` runs one against a real adapter, printing the same log as the
-Windows harness so the two can be diffed. CTest runs 12 tests against recorded and scripted adapters.
+Windows harness so the two can be diffed. CTest runs 17 tests against recorded and scripted adapters; the two SocketCAN bridge tests need a `vcan0`
+interface and skip without one.

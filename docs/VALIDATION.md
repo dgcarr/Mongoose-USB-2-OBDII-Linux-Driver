@@ -858,7 +858,8 @@ with the command's sequence and a count of messages still to send, and matches `
 reports the sequence first, since the confirmation can beat the command response) and pairs by sequence,
 discarding older unpaired records, instead of by arrival order. The data command's chan field is the
 number of messages remaining in the call, 1 for a single write; `WriteMsgs` of several messages now sends 3, 2,
-1. `channel_tests` covers a full ISO15765 exchange through the public API: filter, timed write, confirmation
+1. *(Superseded 2026-09-20: that count-down never worked on the adapter; each message is now a transaction of its
+own. See "SocketCAN bridge, and a multi-message write bug it exposed".)* `channel_tests` covers a full ISO15765 exchange through the public API: filter, timed write, confirmation
 ahead of the response, three reply frames, and the read returning the transmit-done, start-of-message and
 reassembled messages in order.
 
@@ -965,7 +966,8 @@ Still open, and needing something this project does not have or has decided not 
 - The filter-table maximum on the adapter (stopping short of allocator exhaustion) and extended-address
   ISO15765 reassembly, which no capture exercises.
 
-Firmware updating, Wine and SocketCAN are out of scope.
+Firmware updating and Wine are out of scope. SocketCAN is reached through the userspace bridge
+`mongoose-socketcan` (2026-09-20), not a kernel driver.
 
 ## Deployment readiness pass (2026-09-19)
 
@@ -995,3 +997,35 @@ What was checked, and what it does and does not prove.
 - **On the adapter.** With the car's bus silent (ignition off), open, version, connect, filter and disconnect worked at
   500 kbit, 250 kbit and 29-bit, and a timed write reported that nothing was confirmed rather than claiming success.
   The write and periodic rewrites have **not** been run against live vehicle traffic this session.
+
+## SocketCAN bridge, and a multi-message write bug it exposed (2026-09-20)
+
+Adapter on USB, **no vehicle** (the bus is silent, so no frame is acknowledged). Interface `vcan0`, created once
+with root. Evidence: `analysis/captures/linux-socketcan-bench-20260919T212830Z.txt`; probe `analysis/probes/write_batch_probe.c`.
+
+- **The bridge, end to end, offline.** `socketcan_bridge` runs `mongoose-socketcan` built against a fake J2534 library
+  (`tests/fake_j2534.c`) over a real `vcan`: 11-bit, 29-bit and empty frames arrive intact, a request written to the
+  interface reaches the fake and its reply comes back, remote frames are refused, the listen-only default sends
+  nothing, and a UDS VIN read through a kernel `CAN_ISOTP` socket completes. That last one is a multi-frame reply,
+  so the kernel's flow-control frame has to go out through the bridge and the consecutive frames come back.
+  `volvo_guide` runs the two Python examples of `docs/VOLVO.md` verbatim the same way (standard library, and
+  udsoncan when installed). Both pass under ASan/UBSan and ThreadSanitizer, and five runs in a row were clean.
+- **The bridge on the adapter.** Listen-only and `--transmit` start, run and stop on SIGTERM with exit 0; a
+  second instance is refused with the device busy; an unlisted bit rate, a missing interface and a non-CAN
+  interface are refused with a clear message. With no bus to acknowledge them, 200 frames written at once filled the
+  adapter's transmit queue at 199; the 200th came back `ERR_BUFFER_FULL`, was counted as refused, and the bridge
+  carried on.
+- **The bug.** Before the fix, three frames written to the bridge at once killed it. Any `PassThruWriteMsgs` of more
+  than one message timed out on its first data command, and the device then needed a reopen. The probe shows it
+  directly: three one-message writes back to back were accepted in 1 ms, and one three-message call timed out after
+  1000 ms. The command's chan field counted down the messages still to send (3, 2, 1), copied from the vendor's
+  `1000c270`. But the vendor sends a whole call as **one transaction** before waiting, and the firmware answers
+  once, after the message tagged 1. The driver waited for an answer after every command, so the first one was never
+  answered. Each message is now a one-message transaction (chan 1, the only form any capture or car test had used).
+  After the fix the probe's three-message call is accepted in 1 ms. `channel_tests` pins chan 1 for every message
+  of a batched write.
+- **Not covered.** The bridge has **not** been run on the car: not receive at the car's ~2450 frames/s, not a
+  flow-control round trip against a real ECU, not bus-off or unplug while running. Whether an 11-bit channel with an
+  all-pass filter also delivers 29-bit frames is unknown. The vendor's pipelined multi-message transaction was not
+  implemented; it would save USB round trips but cannot be checked without a bus that acknowledges frames.
+

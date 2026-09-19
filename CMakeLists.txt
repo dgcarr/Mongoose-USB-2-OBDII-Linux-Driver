@@ -86,6 +86,9 @@ add_executable(mongoose-diag tools/diagnostic.cpp)
 target_link_libraries(mongoose-diag PRIVATE mongoose_backends)
 add_executable(mongoose-client tools/client.c tools/script_runner.c)
 target_link_libraries(mongoose-client PRIVATE mongoose_j2534)
+# The SocketCAN bridge is an ordinary J2534 client: it uses the public API and nothing else.
+add_executable(mongoose-socketcan tools/socketcan_bridge.c)
+target_link_libraries(mongoose-socketcan PRIVATE mongoose_j2534 Threads::Threads)
 if(BUILD_TESTING)
   add_executable(mongoose-tests tests/core_tests.cpp)
   target_link_libraries(mongoose-tests PRIVATE mongoose_core)
@@ -124,6 +127,22 @@ if(BUILD_TESTING)
   set_tests_properties(script_long_comment PROPERTIES PASS_REGULAR_EXPRESSION "line too long")
   add_test(NAME client_gap_invalid COMMAND mongoose-client --script ${CMAKE_CURRENT_SOURCE_DIR}/tests/fixtures/script-long-comment.txt --gap 4294967296)
   set_tests_properties(client_gap_invalid PROPERTIES PASS_REGULAR_EXPRESSION "--gap needs a whole number")
+  # The bridge against a fake J2534 library, over a real CAN interface. Creating a vcan needs root, so the test
+  # skips (77) when there is none; CI creates one.
+  add_executable(mongoose-socketcan-fake tools/socketcan_bridge.c tests/fake_j2534.c)
+  target_include_directories(mongoose-socketcan-fake PRIVATE include)
+  target_link_libraries(mongoose-socketcan-fake PRIVATE Threads::Threads)
+  add_executable(mongoose-socketcan-test tests/socketcan_bridge_test.c)
+  add_test(NAME socketcan_bridge COMMAND mongoose-socketcan-test $<TARGET_FILE:mongoose-socketcan-fake>)
+  set_tests_properties(socketcan_bridge PROPERTIES SKIP_RETURN_CODE 77 TIMEOUT 30)
+  # The Python examples in docs/VOLVO.md, run verbatim through the same bridge.
+  find_package(Python3 COMPONENTS Interpreter)
+  if(Python3_FOUND)
+    add_test(NAME volvo_guide COMMAND Python3::Interpreter ${CMAKE_CURRENT_SOURCE_DIR}/tests/volvo_doc_test.py
+             $<TARGET_FILE:mongoose-socketcan-fake> ${CMAKE_CURRENT_SOURCE_DIR}/docs/VOLVO.md)
+    set_tests_properties(volvo_guide PROPERTIES SKIP_RETURN_CODE 77 TIMEOUT 30 RESOURCE_LOCK can_interface)
+    set_tests_properties(socketcan_bridge PROPERTIES RESOURCE_LOCK can_interface)
+  endif()
   add_test(NAME captured_discovery COMMAND mongoose-diag --discover --replay ${CMAKE_CURRENT_SOURCE_DIR}/tests/fixtures/discovery.replay)
   add_test(NAME captured_open_close COMMAND mongoose-diag --open-close --replay ${CMAKE_CURRENT_SOURCE_DIR}/tests/fixtures/open-close.replay)
   add_test(NAME captured_inspect COMMAND mongoose-diag --inspect --replay ${CMAKE_CURRENT_SOURCE_DIR}/tests/fixtures/inspect.replay)
@@ -140,7 +159,7 @@ target_link_libraries(mongoose-example-obd PRIVATE mongoose_j2534)
 add_library(mongoose::j2534 ALIAS mongoose_j2534)
 set_target_properties(mongoose_j2534 PROPERTIES EXPORT_NAME j2534)  # the imported target is mongoose::j2534
 install(TARGETS mongoose_j2534 EXPORT mongoose-j2534Targets LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR})
-install(TARGETS mongoose-diag mongoose-client mongoose-example-obd RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR})
+install(TARGETS mongoose-diag mongoose-client mongoose-socketcan mongoose-example-obd RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR})
 # CMake package: find_package(mongoose-j2534) provides mongoose::j2534. Before 1.0 the ABI can change with the
 # minor version, so a request is compatible with the same major.minor.
 include(CMakePackageConfigHelpers)
@@ -160,9 +179,9 @@ install(FILES include/mongoose/j2534.h DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/m
 # A packager with another layout passes -DMONGOOSE_UDEV_RULES_DIR=... (absolute or relative).
 set(MONGOOSE_UDEV_RULES_DIR "lib/udev/rules.d" CACHE STRING "Where to install the udev rule")
 install(FILES packaging/60-mongoose-j2534.rules DESTINATION ${MONGOOSE_UDEV_RULES_DIR})
-install(FILES docs/man/mongoose-client.1 docs/man/mongoose-diag.1 DESTINATION ${CMAKE_INSTALL_MANDIR}/man1)
+install(FILES docs/man/mongoose-client.1 docs/man/mongoose-diag.1 docs/man/mongoose-socketcan.1 DESTINATION ${CMAKE_INSTALL_MANDIR}/man1)
 install(FILES docs/man/libmongoose_j2534.7 DESTINATION ${CMAKE_INSTALL_MANDIR}/man7)
-install(FILES LICENSE README.md docs/USING.md docs/VALIDATION.md docs/CAPTURING.md PROTOCOL.md DESTINATION ${CMAKE_INSTALL_DOCDIR})
+install(FILES LICENSE README.md docs/VOLVO.md docs/USING.md docs/VALIDATION.md docs/CAPTURING.md PROTOCOL.md DESTINATION ${CMAKE_INSTALL_DOCDIR})
 set(CPACK_GENERATOR "TGZ;DEB")
 find_program(MONGOOSE_RPMBUILD rpmbuild)
 if(MONGOOSE_RPMBUILD)

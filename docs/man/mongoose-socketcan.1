@@ -1,0 +1,81 @@
+.TH MONGOOSE-SOCKETCAN 1 "September 2026" "mongoose-j2534 0.1.0" "User Commands"
+.SH NAME
+mongoose-socketcan \- bridge the MongoosePro adapter to a Linux CAN interface
+.SH SYNOPSIS
+.B mongoose-socketcan
+[\fB\-\-device\fR \fINAME\fR]
+[\fB\-\-bitrate\fR \fIN\fR]
+[\fB\-\-29bit\fR]
+[\fB\-\-transmit\fR]
+[\fB\-\-stats\fR \fISECONDS\fR]
+.I IFNAME
+.SH DESCRIPTION
+.B mongoose-socketcan
+opens a raw CAN channel on the adapter with a filter that passes every frame, and writes each frame it receives to
+the SocketCAN interface
+.IR IFNAME ,
+normally a
+.B vcan
+interface made for it. Programs that speak SocketCAN, such as
+.BR candump (1),
+Wireshark, python-can, udsoncan and the kernel's
+.B CAN_ISOTP
+sockets, can then use the vehicle's bus without knowing about the adapter.
+.PP
+Frames that other programs write to
+.I IFNAME
+are sent to the vehicle only with
+.BR \-\-transmit .
+Without it the bridge is listen-only: nothing reaches the vehicle, and such frames are counted as refused. Remote
+(RTR) and error frames are always refused, because J2534 cannot carry them.
+.PP
+It is an ordinary client of
+.BR libmongoose_j2534 (7),
+so only one program can use the adapter while it runs.
+.PP
+.B Use it at your own risk.
+With
+.BR \-\-transmit ,
+anything any program writes to the interface goes onto the vehicle's bus.
+.SH OPTIONS
+.TP
+.BI \-\-device " NAME"
+The J2534 open name:
+.BI serial: S\fR,
+.BI tty: /dev/ttyACMn\fR,
+and so on. The default is the one connected adapter.
+.TP
+.BI \-\-bitrate " N"
+The vehicle bus rate, 500000 by default. Only the standard CAN rates are accepted. A wrong rate on a live bus is not
+harmless.
+.TP
+.B \-\-29bit
+Open the channel for 29-bit identifiers. A transmit may use either width regardless.
+.TP
+.B \-\-transmit
+Send frames written to the interface onto the vehicle bus.
+.TP
+.BI \-\-stats " SECONDS"
+Every
+.I SECONDS
+print frame counts to standard error: frames from the vehicle, frames to it, refused frames, adapter overflows (the
+host fell behind and frames were lost), and frames the interface would not take.
+.SH EXAMPLES
+.nf
+sudo modprobe \-a vcan can\-isotp
+sudo ip link add dev mongoose0 type vcan
+sudo ip link set mongoose0 up
+mongoose\-socketcan \-\-stats 10 mongoose0
+candump \-ta mongoose0
+.fi
+.SH EXIT STATUS
+0 after SIGINT or SIGTERM; 1 if the interface or the adapter could not be opened, or the adapter was lost while
+running; 2 for a bad command line.
+.SH SEE ALSO
+.BR libmongoose_j2534 (7),
+.BR mongoose-client (1),
+.BR mongoose-diag (1),
+.BR candump (1).
+The guide
+.I docs/VOLVO.md
+walks through the setup and reading data with Python.

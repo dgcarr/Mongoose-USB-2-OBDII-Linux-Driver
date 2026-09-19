@@ -13,7 +13,11 @@
 
 This is an experimental native C++20 J2534 library for the MongoosePro JLR USB adapter (`18e1:0104`). It talks to the hardware as an ordinary `cdc_acm` serial device — no vendor SDK, no Windows DLL — reconstructed from the closed driver with Ghidra, then checked against the wire.
 
-Start with [docs/USING.md](docs/USING.md) to use it, [docs/VALIDATION.md](docs/VALIDATION.md) for what has been tested and how, and [plan.md](plan.md) for what is left. The spirit is research first and claims last. Linux can already discover the adapter, open it, stand up a CAN channel and speak the framed command set, but nothing here pretends to be a finished diagnostic stack. It has been run on a live car for an hour of traffic and a hundred lifecycle cycles, but only over CAN, and large parts of J2534 are still ahead.
+**To talk to your car, start with [docs/VOLVO.md](docs/VOLVO.md)**: clone, build, and read live data, trouble codes and
+the VIN from Linux in a few minutes. `mongoose-socketcan` makes the adapter an ordinary Linux CAN interface, so
+can-utils, Wireshark, python-can and udsoncan work with it unchanged.
+
+To write your own J2534 program, read [docs/USING.md](docs/USING.md). [docs/VALIDATION.md](docs/VALIDATION.md) records what has been tested and how, and [plan.md](plan.md) what is left. The spirit is research first and claims last. Raw CAN and 11-bit ISO15765 work and have been run on a live car for hours of traffic and hundreds of lifecycle cycles. K-line, J1850, 29-bit ISO15765 and the pin-switched protocols are not supported, because nothing here could test them.
 
 ## Licence
 

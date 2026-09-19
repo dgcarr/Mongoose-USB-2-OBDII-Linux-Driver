@@ -233,6 +233,27 @@ kernel headers here, and a kernel module could crash the machine while it is on 
   analysis/decompiled --path analysis/disassembly --invert-paths`) and force-pushed, and any fork or clone made
   before that is still exposed. Do that first, on a fresh clone, then flip the visibility.
 
+## Phase 5 -- ready and useful for Volvo enthusiasts (goal set 2026-09-20)
+
+The goal: someone downloads the repository and uses the adapter from Linux to talk to their Volvo, or another car
+with CAN diagnostics. You asked for no new diagnostic tool, and chose a SocketCAN bridge (this reverses the earlier
+"SocketCAN out of scope"; it is a userspace bridge, not a kernel driver), a Volvo guide and the release.
+
+- [x] `mongoose-socketcan`: the adapter as a SocketCAN interface, listen-only unless `--transmit`. Offline tests over
+  `vcan` (`socketcan_bridge`, `volvo_guide`), sanitizers, and the adapter with no car; see `VALIDATION.md`.
+- [x] `docs/VOLVO.md`: clone to first reply, the bridge, Python examples (tested verbatim), read-only rules, Volvo notes.
+- [x] Fixed on the way: multi-message `PassThruWriteMsgs` never worked on the adapter (one-message transactions now).
+- [x] CI creates `vcan0` and installs udsoncan so the two bridge tests run there, and fails if they skip. Not yet run
+  on GitHub.
+- [ ] **On the car (needs you: adapter in the car, ignition on).** Ten minutes of `mongoose-socketcan --stats 10`
+  listen-only against `candump` (rate near 2450 frames/s, no overflows), then `--transmit` with the guide's two Python
+  examples (rpm, coolant, VIN, codes; udsoncan VIN). Pass: all answered, no overflows, clean stop. Then pull the USB
+  cable while it runs: the bridge must exit 1 with `ERR_DEVICE_NOT_CONNECTED`.
+- [ ] Whether an 11-bit channel with an all-pass filter also delivers 29-bit frames. Matters for older Volvos; this
+  car has no 29-bit traffic, so it may stay unknown.
+- [ ] Optional: a persistent `vcan` (systemd-networkd `.netdev` or a unit) so step 4 of the guide is not per boot.
+- Not reachable without new work and hardware: the Volvo medium-speed CAN on pins 3/11 (the `*_PS` protocols).
+
 ## Before the repository goes public (you said it will, once deployment ready)
 
 Rehearsed 2026-09-19 on a throwaway clone; nothing was changed in the real repository or on the remote.
