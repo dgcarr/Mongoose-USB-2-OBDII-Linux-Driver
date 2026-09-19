@@ -28,6 +28,13 @@ The format follows Keep a Changelog. There have been no releases; everything is 
 - An unknown or inapplicable IOCTL ID returns `ERR_INVALID_IOCTL_ID`, as the vendor does.
 
 ### Fixed
+- Script runner: a line longer than its buffer is refused instead of being read as several, so the tail of a long
+  comment can no longer run as a command; a line with an embedded NUL is refused too. `--gap` rejects a value that is
+  not a whole number or overflows, instead of becoming zero.
+- `--vehicle-ignition` starts out treating the bus as quiet and sends nothing until it has seen a frame.
+- The raw-CAN lifecycle check bounds its whole reply search by one deadline; the ISO soak stops when the adapter is gone.
+- TTY writes stop at the caller's deadline between short writes, and exclusive mode is cleared on close. The libusb
+  backend reserves its bookkeeping before detaching a kernel driver. The transmit probe counts its own confirmation.
 - Writes validate the entire batch before sending, count confirmations per call on every exit, and use one uncapped deadline; outbound status `0x101` returns `ERR_BUFFER_FULL`.
 - Periodic teardown clears entries left by ambiguous adds, and a failed host insertion removes the firmware entry.
 - ISO15765 flow-control filters with a NULL flow-control message return `ERR_NULL_PARAMETER`.

@@ -311,8 +311,10 @@ int main(int argc, char **argv) {
                     frame.ProtocolID = CAN; frame.DataSize = 12;
                     const auto bytes = mongoose::unhex("000007df0201005555555555");
                     std::copy(bytes.begin(), bytes.end(), frame.Data);
+                    // Recorded before it goes out, as the library does, so the adapter's confirmation pairs with it.
                     auto sent = session.command(8, mongoose::can_transmit(frame, 1000), deadline,
-                                                channel, mongoose::data_chan);
+                                                channel, mongoose::data_chan,
+                                                [&](uint16_t sequence) { listener->note_transmit(frame, sequence); });
                     show("outbound", sent);
                     const auto status = mongoose::Session::status(sent);
                     std::cout << "transmit " << outcome(sent)

@@ -118,6 +118,12 @@ if(BUILD_TESTING)
   # Every Windows-harness script must still parse in the Linux runner, so the two stay diffable.
   file(GLOB MONGOOSE_SCRIPTS ${CMAKE_CURRENT_SOURCE_DIR}/tools/scripts/*.txt)
   add_test(NAME script_syntax COMMAND mongoose-client --script-check ${MONGOOSE_SCRIPTS})
+  # Refused before anything runs: the tail of an over-long comment must not become a command, and a bad --gap must
+  # not fall back to zero. The expected message proves the refusal came from the check, not from a missing adapter.
+  add_test(NAME script_long_comment COMMAND mongoose-client --script-check ${CMAKE_CURRENT_SOURCE_DIR}/tests/fixtures/script-long-comment.txt)
+  set_tests_properties(script_long_comment PROPERTIES PASS_REGULAR_EXPRESSION "line too long")
+  add_test(NAME client_gap_invalid COMMAND mongoose-client --script ${CMAKE_CURRENT_SOURCE_DIR}/tests/fixtures/script-long-comment.txt --gap 4294967296)
+  set_tests_properties(client_gap_invalid PROPERTIES PASS_REGULAR_EXPRESSION "--gap needs a whole number")
   add_test(NAME captured_discovery COMMAND mongoose-diag --discover --replay ${CMAKE_CURRENT_SOURCE_DIR}/tests/fixtures/discovery.replay)
   add_test(NAME captured_open_close COMMAND mongoose-diag --open-close --replay ${CMAKE_CURRENT_SOURCE_DIR}/tests/fixtures/open-close.replay)
   add_test(NAME captured_inspect COMMAND mongoose-diag --inspect --replay ${CMAKE_CURRENT_SOURCE_DIR}/tests/fixtures/inspect.replay)

@@ -177,6 +177,10 @@ private:
             }
         }
         if (!in || !out || !intr) throw Error(ERR_NOT_SUPPORTED, "USB endpoints differ from researched adapter");
+        // Room for the bookkeeping is made before anything is detached, so an allocation failure cannot leave a
+        // detached interface that cleanup does not know to hand back to the kernel.
+        detached_.reserve(interfaces.size());
+        claimed_.reserve(interfaces.size());
         // Explicit detachment lets cleanup report reattachment failures.
         for (int iface : interfaces) {
             const int active = libusb_kernel_driver_active(handle_, iface);

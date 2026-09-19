@@ -503,6 +503,14 @@ int script_run(const char *path, const char *device_name, uint32_t gap_ms, int d
         char *tokens[MAX_TOKENS];
         int count = 0;
         ++script_line;
+        // A line longer than the buffer would be read as several, and the tail of a long comment would then run
+        // as a command. Refuse it, and a NUL that would hide the rest of a line, before anything is executed.
+        const size_t length = strlen(line);
+        if (length == sizeof(line) - 1 && line[length - 1] != '\n' && !feof(file)) {
+            complain("line too long (over %d characters)", (int)sizeof(line) - 2);
+            failed = 1; break;
+        }
+        if (length && line[length - 1] != '\n' && !feof(file)) { complain("line has an embedded NUL"); failed = 1; break; }
         char *hash = strchr(line, '#');
         if (hash) *hash = 0;
         for (char *cursor = strtok(line, " \t\r\n"); cursor && count < MAX_TOKENS; cursor = strtok(NULL, " \t\r\n"))

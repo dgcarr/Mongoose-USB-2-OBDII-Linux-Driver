@@ -119,6 +119,8 @@ public:
         const auto deadline = std::chrono::steady_clock::now() + std::chrono::milliseconds(timeout);
         size_t sent = 0;
         while (sent < data.size()) {
+            // A short write that keeps succeeding, or an EINTR storm, must not run past the caller's budget.
+            if (sent > 0 && std::chrono::steady_clock::now() >= deadline) break;
             const ssize_t wrote = ::write(fd_, data.data() + sent, data.size() - sent);
             if (wrote > 0) { sent += static_cast<size_t>(wrote); continue; }
             if (wrote < 0 && errno == EINTR) continue;
@@ -189,6 +191,7 @@ private:
         if (::flock(fd_, LOCK_EX | LOCK_NB) < 0)
             throw Error(ERR_DEVICE_IN_USE, "adapter is locked by another driver instance");
         if (::ioctl(fd_, TIOCEXCL) < 0) emit("TIOCEXCL_FAILED", {});
+        else exclusive_ = true;
         configure(path);
     }
     void configure(const std::string &path) {
@@ -254,12 +257,14 @@ private:
             catch (...) { fault("unknown tty receive failure"); return; }
         }
     }
-    // flock and TIOCEXCL are released implicitly when the descriptor closes.
+    // flock is released when the descriptor closes. TIOCEXCL is cleared explicitly: it belongs to the tty, so it
+    // would outlive this descriptor while any other process still held the port open.
     void cleanup() noexcept {
-        if (fd_ >= 0) { ::close(fd_); fd_ = -1; }
+        if (fd_ >= 0) { if (exclusive_) ::ioctl(fd_, TIOCNXCL); ::close(fd_); fd_ = -1; exclusive_ = false; }
         if (wake_ >= 0) { ::close(wake_); wake_ = -1; }
     }
     int fd_ = -1;
+    bool exclusive_ = false;  // this instance set TIOCEXCL
     int wake_ = -1;
     Trace trace_;
     Receiver receiver_;

@@ -1,5 +1,7 @@
 #include "mongoose/j2534.h"
 #include "script_runner.h"
+#include <errno.h>
+#include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -8,6 +10,10 @@ static void report(const char *operation, int32_t status) {
     char error[80] = {0};
     if (status) PassThruGetLastError(error);
     printf("%s status=%d %s\n", operation, status, error);
+}
+static double now_ms(void) {
+    struct timespec t; clock_gettime(CLOCK_MONOTONIC, &t);
+    return (double)t.tv_sec * 1000.0 + (double)t.tv_nsec / 1e6;
 }
 static int32_t check_receive(uint32_t channel, uint32_t flags) {
     PASSTHRU_MSG mask = {0}, pattern = {0}, received = {0};
@@ -259,11 +265,15 @@ static int cycle_once(const char *name, int raw, double *reply_ms) {
         uint32_t sent = 1;
         if ((status = PassThruWriteMsgs(channel, &request, &sent, 250)) || sent != 1) { report("PassThruWriteMsgs", status); result = 5; }
         int replied = 0;
+        const double reply_deadline = now_ms() + 1000.0;
         while (!result && !replied) {
             PASSTHRU_MSG in;
             memset(&in, 0, sizeof(in));
             uint32_t count = 1;
-            status = PassThruReadMsgs(channel, &in, &count, 1000);
+            // One deadline for the whole search, so unrelated traffic cannot keep it alive.
+            const double remaining = reply_deadline - now_ms();
+            if (remaining <= 0.0) { printf("no reply within 1000 ms\n"); result = 7; break; }
+            status = PassThruReadMsgs(channel, &in, &count, (uint32_t)remaining + 1);
             if (status && status != ERR_BUFFER_EMPTY && status != ERR_TIMEOUT) { report("PassThruReadMsgs", status); result = 6; break; }
             if (!count) { printf("no reply within 1000 ms\n"); result = 7; break; }
             // ISO15765 delivers service+PID straight after the ID (and a transmit-done message first,
@@ -307,10 +317,6 @@ static long rss_kb(void) {
     while (fgets(line, sizeof(line), file)) if (sscanf(line, "VmRSS: %ld kB", &kb) == 1) break;
     fclose(file);
     return kb;
-}
-static double now_ms(void) {
-    struct timespec t; clock_gettime(CLOCK_MONOTONIC, &t);
-    return (double)t.tv_sec * 1000.0 + (double)t.tv_nsec / 1e6;
 }
 static int check_vehicle_hour(uint32_t channel, unsigned seconds) {
     PASSTHRU_MSG mask = {0}, pattern = {0};
@@ -397,7 +403,14 @@ static int script_main(int argc, char **argv) {
     uint32_t gap = 0;
     if (i < argc && strcmp(argv[i], "--gap") == 0) {
         if (++i >= argc) { fprintf(stderr, "--gap needs milliseconds\n"); return 2; }
-        gap = (uint32_t)strtoul(argv[i++], NULL, 10);
+        char *end = NULL;
+        errno = 0;
+        const unsigned long long value = strtoull(argv[i], &end, 10);
+        if (argv[i][0] < '0' || argv[i][0] > '9' || *end || errno || value > UINT32_MAX) {
+            fprintf(stderr, "--gap needs a whole number of milliseconds, got '%s'\n", argv[i]);
+            return 2;
+        }
+        gap = (uint32_t)value; ++i;
     }
     if (i != argc) { fprintf(stderr, "unexpected argument: %s\n", argv[i]); return 2; }
     return script_run(path, name, gap, 0);
@@ -451,7 +464,10 @@ static int check_vehicle_hour_iso(uint32_t channel, unsigned seconds) {
         uint32_t count = 16;
         const int32_t rd = PassThruReadMsgs(channel, batch, &count, 5);
         if (rd == ERR_BUFFER_OVERFLOW) ++overflows;
-        else if (rd && rd != ERR_BUFFER_EMPTY && rd != ERR_TIMEOUT) { ++read_errors; report("PassThruReadMsgs", rd); }
+        else if (rd && rd != ERR_BUFFER_EMPTY && rd != ERR_TIMEOUT) {
+            ++read_errors; report("PassThruReadMsgs", rd);
+            if (rd == ERR_DEVICE_NOT_CONNECTED || rd == ERR_INVALID_CHANNEL_ID) break;  // gone for good: do not spin
+        }
         for (uint32_t i = 0; i < count; ++i) {
             const PASSTHRU_MSG *m = &batch[i];
             if (m->RxStatus & TX_DONE) { ++tx_done; continue; }
@@ -509,7 +525,8 @@ static int check_vehicle_ignition(uint32_t device, uint32_t channel, unsigned se
     if (status) return 1;
     static PASSTHRU_MSG batch[256];
     const double start = now_ms(), end = start + seconds * 1000.0;
-    double next_tick = start + 1000.0, last_frame = start, last_request = start - 10000.0, sent_at = 0;
+    // Start as quiet: nothing is transmitted until a frame has actually been received.
+    double next_tick = start + 1000.0, last_frame = start - 1001.0, last_request = start - 10000.0, sent_at = 0;
     unsigned long total = 0, tick_frames = 0, requests = 0, replies = 0, unanswered = 0, write_failures = 0, overflows = 0, other_errors = 0;
     unsigned long errors_by_code[32] = {0};
     uint32_t last_ts = 0, max_gap_us = 0; int have_ts = 0, quiet = 0, outstanding = 0;
