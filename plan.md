@@ -158,7 +158,7 @@ New wire evidence the Linux side cannot safely guess. Scripts in `tools/scripts/
 ## Phase 3 -- bench, no car
 
 - [x] Fuzz the new parsers as they land (BLOCK filter builder, periodic encoder, config table,
-  sequence-paired receiver) in `tests/fuzz_codec.cpp`. Smoke-tested only; give it a long run.
+  sequence-paired receiver) in `tests/fuzz_codec.cpp`. Long run done 2026-09-19: 1508 s, about 4.3 million executions, no findings.
 - [x] Unit and wire tests for every new form (`channel_tests`, `config_tests`, `isotp_tests`). Note the
   wire forms come from the vendor decompile and the car, not from captured Windows frames.
 - [x] J2534 04.04 conformance pass over the 14 exports (2026-09-19): a four-lane review (lifecycle, messages,
@@ -271,7 +271,7 @@ Say which you can supply and they move into a phase.
 
 ## Suggested order
 
-Phases 0 and 1 are done except step 13 (needs you: switch the ignition off and on, and pull the USB cable,
+Phases 0 and 1 are done except step 6 and the physical part of step 13 (needs you: switch the ignition off and on, and pull the USB cable,
 while a channel is open and streaming). Phase 2 (Windows) is now an optional cross-check, not a blocker.
 What is left that needs no new hardware: the J2534 04.04 conformance pass, packaging, a long fuzz run,
 and a decision on the libusb backend. What needs hardware this project does not have is the "Needed to

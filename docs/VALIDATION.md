@@ -965,3 +965,32 @@ Still open, and needing something this project does not have or has decided not 
   ISO15765 reassembly, which no capture exercises.
 
 Firmware updating, Wine and SocketCAN are out of scope.
+
+## Deployment readiness pass (2026-09-19)
+
+What was checked, and what it does and does not prove.
+
+- **J2534 conformance review.** Four read-only reviewers (lifecycle, messages, filters and periodic, ioctl and config)
+  compared the 14 exports with the specification, as the reviewers recalled it, and with the vendor decompile; each
+  finding was then checked against the code before anything was changed. Fixed and pinned by the `conformance` CTest
+  (which fails on the old code): WriteMsgs partial counts and per-call confirmation counting, one uncapped deadline,
+  outbound status `0x101` as `ERR_BUFFER_FULL`, periodic teardown after an ambiguous add, a NULL flow-control
+  message. Deviations reviewed and kept are in `docs/USING.md`. The specification text itself was not available, so
+  "conformant" here means agreement with the vendor DLL and the reviewers' recollection, not certification.
+- **Bit-rate list, from Ghidra.** The vendor's baud predicate (`10037890`) accepts 18 standard CAN rates, or only three
+  when a device field is 1. Its only writer is the device constructor and `PassThruOpen` passes 0, so the long list
+  applies; Connect and `DATA_RATE` now enforce it (`PROTOCOL.md` 7e). Not exercised with an unlisted rate on the car.
+- **Bug-check review** of the session, codec, tty, usb and tool layers found no defect in session and codec and fixed
+  the real ones elsewhere: a long script comment could run as a command, the ignition observer could transmit before
+  seeing traffic, the `--gap` value could silently become zero, and smaller tty, usb and tool error paths. Two
+  script-runner defects have CTests that fail on the old code. Not fixed, on purpose: a tty device-swap race between
+  discovery and open, and the libusb leak after a failed drain (deliberate, to avoid a use-after-free).
+- **Fuzzing.** The codec, receiver (both protocols, with per-call transmit counting), reassembler and config fuzz target
+  ran 1508 s on 10 workers, about 4.3 million executions, coverage 1075, no crash, timeout or out-of-memory. This
+  finds crashes, not wrong answers. The target had also stopped compiling under clang after an earlier signature change
+  (CI caught it); it builds and runs again.
+- **Sanitizers.** All 15 tests pass under ASan/UBSan and ThreadSanitizer (with the GCC 13 suppression file) locally,
+  and CI was green on the pushes that carried these changes.
+- **On the adapter.** With the car's bus silent (ignition off), open, version, connect, filter and disconnect worked at
+  500 kbit, 250 kbit and 29-bit, and a timed write reported that nothing was confirmed rather than claiming success.
+  The write and periodic rewrites have **not** been run against live vehicle traffic this session.
