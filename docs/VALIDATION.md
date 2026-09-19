@@ -478,6 +478,37 @@ un-framed runs, ignition on and engine running, that drew nothing. `...T061026Z.
 200-frame cap; they carry the stray-frame and zero-frame results
 above. A first draft run, which showed the cap problem, was deleted as superseded.
 
+## One-hour diagnostic soak on a live vehicle (2026-09-19)
+
+`MONGOOSE_SOAK_SECONDS` unset, `build/mongoose-client serial:SERIAL --vehicle-hour`, same
+Volvo, engine running for the whole hour, started 06:37:44 UTC. One raw CAN channel at 500
+kbit with a wildcard pass filter draining the bus continuously, plus one read-only mode 01
+request a second to `0x7DF`, rotating through PIDs 00, 05, 0C and 0D. Each reply had to
+arrive within one second. The single-frame PCI byte is built by the tool.
+
+| | Result |
+|---|---|
+| duration | 3600 s |
+| frames received | 8842439 (2456/s, unchanged from the first minute to the last) |
+| requests / replies | 3600 / 3600, none unanswered |
+| write failures (`iMsgTxDone` not confirmed) | 0 |
+| `ERR_BUFFER_OVERFLOW` | 0 |
+| worst device-timestamp gap | 8400 us, 0 gaps over 10 ms |
+| request-to-reply | 7.40 ms mean, 20.46 ms worst |
+| resident memory | 4892 kB at start, 5344 kB from minute 10 to the end |
+
+Memory rose by 452 kB in the first ten minutes and then did not move by a single kilobyte
+over the next fifty, which is a buffer filling and not a leak. The frame rate matches the
+Windows D4 figure (2455 msg/s) and the earlier five-minute Linux soak (2448/s), so the
+result holds at the same load for twelve times as long.
+
+What it does not show: the reply latency is bounded below by the tool's 5 ms read timeout,
+so the mean is a ceiling on the true figure; nothing counts bus frames independently of the
+adapter, so zero loss is inferred from gaps and the absence of overflow and not proven;
+and it is one vehicle at one baud with a single channel open. It ran on the raw CAN path
+and did not repeat the ISO15765 path for an hour. Evidence:
+`analysis/captures/linux-vehicle-hour-20260919T063744Z.txt`.
+
 ## 100 hardware lifecycle cycles on a live vehicle (2026-09-19)
 
 `build/mongoose-client serial:SERIAL --vehicle-cycles`, same Volvo, engine running. Each of
@@ -568,8 +599,8 @@ Vehicle-blocked:
 5. Complete remaining protocol engines, periodic messages and IOCTLs with suitable
    vehicles/fixtures. C3/C4 are settled for this adapter: only one CAN-family channel can
    be open; further chan-field semantics cannot be inferred here.
-6. ~~Run 100 hardware cycles~~ Done 2026-09-19, see below. The one-hour diagnostic soak is
-   still outstanding.
+6. ~~Run 100 hardware cycles and a one-hour diagnostic soak~~ Both done 2026-09-19, see below.
+   Remaining under this heading is only durability beyond an hour and other vehicles.
 
 Bench work that remains possible but was deliberately not done: the filter-table maximum
 (stopping short of allocator exhaustion), the channel IOCTLs for clearing buffers, and

@@ -1,5 +1,6 @@
 #include "mongoose/j2534.h"
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 #include <time.h>
 static void report(const char *operation, int32_t status) {
@@ -274,6 +275,85 @@ static int check_vehicle_cycles(const char *name, unsigned cycles) {
            (double)(s1.tv_sec - s0.tv_sec) + (double)(s1.tv_nsec - s0.tv_nsec) / 1e9, total / cycles, best, worst);
     return 0;
 }
+// Diagnostic soak on a live bus: continuous wildcard receive plus one read-only mode 01
+// request per second, rotating through PIDs 00, 05, 0C and 0D that the ECM reports. Each
+// reply must arrive within a second. Raw CAN, so the single-frame PCI byte is built here.
+// Duration comes from MONGOOSE_SOAK_SECONDS (default 3600); progress is logged each minute.
+static long rss_kb(void) {
+    FILE *file = fopen("/proc/self/status", "r");
+    char line[128]; long kb = -1;
+    if (!file) return -1;
+    while (fgets(line, sizeof(line), file)) if (sscanf(line, "VmRSS: %ld kB", &kb) == 1) break;
+    fclose(file);
+    return kb;
+}
+static double now_ms(void) {
+    struct timespec t; clock_gettime(CLOCK_MONOTONIC, &t);
+    return (double)t.tv_sec * 1000.0 + (double)t.tv_nsec / 1e6;
+}
+static int check_vehicle_hour(uint32_t channel, unsigned seconds) {
+    PASSTHRU_MSG mask = {0}, pattern = {0};
+    mask.ProtocolID = pattern.ProtocolID = CAN;
+    mask.DataSize = pattern.DataSize = 4;
+    uint32_t filter = 0;
+    int32_t status = PassThruStartMsgFilter(channel, PASS_FILTER, &mask, &pattern, NULL, &filter);
+    report("PassThruStartMsgFilter wildcard", status);
+    if (status) return 1;
+    static const uint8_t pids[4] = {0x00, 0x05, 0x0c, 0x0d};
+    static PASSTHRU_MSG batch[256];
+    const double start = now_ms(), end = start + seconds * 1000.0;
+    double next_request = start, sent_at = 0, worst_reply = 0, reply_total = 0, next_log = start + 60000.0;
+    unsigned long frames = 0, overflows = 0, requests = 0, replies = 0, unanswered = 0, write_failures = 0;
+    unsigned long gaps_over_10ms = 0; uint32_t last_ts = 0, max_gap = 0; int have_ts = 0, outstanding = 0;
+    uint8_t wanted = 0; long rss_first = rss_kb(); int failed = 0;
+    printf("hour soak starts: %u s, rss_start=%ld kB\n", seconds, rss_first); fflush(stdout);
+    while (now_ms() < end && !failed) {
+        const double now = now_ms();
+        if (now >= next_request) {
+            if (outstanding) { ++unanswered; printf("UNANSWERED request %lu (pid %02x)\n", requests, wanted); fflush(stdout); }
+            PASSTHRU_MSG query = {0};
+            wanted = pids[requests % 4];
+            query.ProtocolID = CAN; query.DataSize = 12;
+            query.Data[2] = 0x07; query.Data[3] = 0xdf; query.Data[4] = 0x02; query.Data[5] = 0x01; query.Data[6] = wanted;
+            memset(&query.Data[7], 0x55, 5);
+            uint32_t sent = 1;
+            const int32_t wr = PassThruWriteMsgs(channel, &query, &sent, 250);
+            if (wr || sent != 1) { ++write_failures; report("PassThruWriteMsgs", wr); }
+            ++requests; outstanding = 1; sent_at = now_ms(); next_request += 1000.0;
+        }
+        uint32_t count = 256;
+        const int32_t rd = PassThruReadMsgs(channel, batch, &count, 5);
+        if (rd == ERR_BUFFER_OVERFLOW) ++overflows;
+        else if (rd && rd != ERR_BUFFER_EMPTY && rd != ERR_TIMEOUT) { report("PassThruReadMsgs", rd); failed = 1; break; }
+        for (uint32_t i = 0; i < count; ++i) {
+            const PASSTHRU_MSG *m = &batch[i];
+            if (have_ts) { const uint32_t gap = m->Timestamp - last_ts; if (gap > max_gap) max_gap = gap; if (gap > 10000) ++gaps_over_10ms; }
+            last_ts = m->Timestamp; have_ts = 1;
+            if (outstanding && m->DataSize >= 7 && m->Data[2] == 0x07 && (m->Data[3] & 0xf8) == 0xe8 &&
+                m->Data[5] == 0x41 && m->Data[6] == wanted) {
+                const double ms = now_ms() - sent_at;
+                ++replies; reply_total += ms; if (ms > worst_reply) worst_reply = ms; outstanding = 0;
+            }
+        }
+        frames += count;
+        if (now_ms() >= next_log) {
+            const double elapsed = (now_ms() - start) / 1000.0;
+            printf("t=%.0fs frames=%lu rate=%.0f/s requests=%lu replies=%lu unanswered=%lu write_failures=%lu overflows=%lu max_gap_us=%u gaps_over_10ms=%lu rss=%ld kB\n",
+                   elapsed, frames, frames / elapsed, requests, replies, unanswered, write_failures, overflows, max_gap, gaps_over_10ms, rss_kb());
+            fflush(stdout); next_log += 60000.0;
+        }
+    }
+    if (outstanding) ++unanswered;  /* a request still pending at the deadline had under a second */
+    if (outstanding && now_ms() - sent_at < 1000.0) --unanswered;
+    const double elapsed = (now_ms() - start) / 1000.0;
+    printf("hour soak done: %.0f s frames=%lu rate=%.0f/s requests=%lu replies=%lu unanswered=%lu write_failures=%lu overflows=%lu\n",
+           elapsed, frames, frames / elapsed, requests, replies, unanswered, write_failures, overflows);
+    printf("device max_gap_us=%u gaps_over_10ms=%lu reply mean %.2f ms worst %.2f ms rss_start=%ld end=%ld kB\n",
+           max_gap, gaps_over_10ms, replies ? reply_total / replies : 0.0, worst_reply, rss_first, rss_kb());
+    const int32_t stopped = PassThruStopMsgFilter(channel, filter);
+    report("PassThruStopMsgFilter", stopped);
+    return failed || stopped || unanswered || write_failures || overflows;
+}
 int main(int argc, char **argv) {
     uint32_t device = 0;
     const int can_lifecycle = argc == 3 && strcmp(argv[2], "--can-lifecycle") == 0;
@@ -281,6 +361,19 @@ int main(int argc, char **argv) {
     const int can_transmit = argc == 3 && strcmp(argv[2], "--can-transmit-check") == 0;
     const int vehicle_listen = argc == 3 && strcmp(argv[2], "--vehicle-listen") == 0;
     const int vehicle_check = argc == 3 && strcmp(argv[2], "--vehicle-check") == 0;
+    if (argc == 3 && strcmp(argv[2], "--vehicle-hour") == 0) {
+        const char *text = getenv("MONGOOSE_SOAK_SECONDS");
+        const unsigned seconds = text ? (unsigned)strtoul(text, NULL, 10) : 3600u;
+        uint32_t device = 0, channel = 0;
+        if (PassThruOpen(argv[1], &device)) { report("PassThruOpen", 1); return 1; }
+        int result = 1;
+        if (!PassThruConnect(device, CAN, 0, 500000, &channel)) {
+            result = check_vehicle_hour(channel, seconds ? seconds : 3600u);
+            PassThruDisconnect(channel);
+        } else report("PassThruConnect", 1);
+        PassThruClose(device);
+        return result;
+    }
     if (argc == 3 && strcmp(argv[2], "--vehicle-cycles") == 0)
         return check_vehicle_cycles(argv[1], 100);
     const int vehicle_soak = argc == 3 && strcmp(argv[2], "--vehicle-soak") == 0;
@@ -289,7 +382,7 @@ int main(int argc, char **argv) {
         (argc == 3 && !can_lifecycle && !can_receive && !can_transmit &&
          !vehicle_listen && !vehicle_check && !vehicle_iso && !vehicle_soak)) {
         fprintf(stderr, "Usage: mongoose-client [serial:SERIAL [--can-lifecycle|--can-receive-check|"
-                        "--can-transmit-check|--vehicle-listen|--vehicle-check|--vehicle-iso|--vehicle-soak|--vehicle-cycles]]\n"); return 2;
+                        "--can-transmit-check|--vehicle-listen|--vehicle-check|--vehicle-iso|--vehicle-soak|--vehicle-cycles|--vehicle-hour]]\n"); return 2;
     }
     int32_t status = PassThruOpen(argc >= 2 ? argv[1] : NULL, &device);
     report("PassThruOpen", status);
