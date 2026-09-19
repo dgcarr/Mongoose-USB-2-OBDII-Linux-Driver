@@ -132,6 +132,29 @@ void clear_periodic_table(Device &owner) {
     owner.periodics.clear();
     owner.periodic_untracked = false;
 }
+// now + timeout, saturating rather than overflowing for a very long timeout.
+std::chrono::steady_clock::time_point deadline_after(uint32_t timeout_ms) {
+    using Clock = std::chrono::steady_clock;
+    const auto now = Clock::now();
+    const auto available = std::chrono::duration_cast<std::chrono::milliseconds>(Clock::time_point::max() - now);
+    const std::chrono::milliseconds duration(timeout_ms);
+    return duration >= available ? Clock::time_point::max() : now + duration;
+}
+// How long to wait for the adapter to acknowledge one queued message: what is left of a timed write's deadline,
+// kept within 1..10 s, or one second for a write that only queues.
+std::chrono::milliseconds acknowledgement_budget(uint32_t timeout_ms, std::chrono::steady_clock::duration remaining) {
+    using std::chrono::milliseconds;
+    if (!timeout_ms) return milliseconds(1000);
+    return std::clamp(std::chrono::duration_cast<milliseconds>(remaining), milliseconds(1000), milliseconds(10000));
+}
+// Every message of a write, encoded up front so a bad one is found before anything has been sent.
+std::vector<Bytes> encode_write_batch(uint16_t protocol, std::span<const PASSTHRU_MSG> messages, uint32_t timeout_ms) {
+    std::vector<Bytes> payloads;
+    payloads.reserve(messages.size());
+    for (const auto &message : messages)
+        payloads.push_back(protocol == ISO15765 ? isotp_transmit(message, timeout_ms) : can_transmit(message, timeout_ms));
+    return payloads;
+}
 uint32_t get_value(Session &session, uint8_t selector) {
     const Bytes payload{selector, 0, 0, 0};
     const auto response = session.command(0xc, payload);
@@ -275,16 +298,8 @@ int32_t J2534_CALL PassThruWriteMsgs(uint32_t channel, PASSTHRU_MSG *messages, u
         // Without a flow-control filter the adapter cannot answer a multi-frame reply.
         if (state.protocol == ISO15765 && state.filters.empty())
             throw Error(ERR_NO_FLOW_CONTROL, "ISO15765 channel has no flow-control filter");
-        const auto now = std::chrono::steady_clock::now();
-        const auto available = std::chrono::duration_cast<std::chrono::milliseconds>(
-            std::chrono::steady_clock::time_point::max() - now);
-        const auto duration = std::chrono::milliseconds(static_cast<int64_t>(timeout));
-        const auto deadline = duration >= available ? std::chrono::steady_clock::time_point::max() : now + duration;
-        std::vector<Bytes> payloads;
-        payloads.reserve(requested);
-        for (uint32_t index = 0; index < requested; ++index)
-            payloads.push_back(state.protocol == ISO15765 ? isotp_transmit(messages[index], timeout)
-                                                         : can_transmit(messages[index], timeout));
+        const auto deadline = deadline_after(timeout);
+        const auto payloads = encode_write_batch(state.protocol, std::span(messages, requested), timeout);
         auto receiver = state.receiver;
         if (!receiver) throw Error(ERR_DEVICE_NOT_CONNECTED, "channel has no receiver");
         const auto call = std::make_shared<CanReceiver::TransmitCount>();
@@ -292,9 +307,7 @@ int32_t J2534_CALL PassThruWriteMsgs(uint32_t channel, PASSTHRU_MSG *messages, u
             for (uint32_t index = 0; index < requested; ++index) {
                 const auto before_send = std::chrono::steady_clock::now();
                 if (timeout && before_send >= deadline) throw Error(ERR_TIMEOUT, "write deadline expired");
-                const auto budget = timeout ? std::clamp(
-                    std::chrono::duration_cast<std::chrono::milliseconds>(deadline - before_send),
-                    std::chrono::milliseconds(1000), std::chrono::milliseconds(10000)) : std::chrono::milliseconds(1000);
+                const auto budget = acknowledgement_budget(timeout, deadline - before_send);
                 // Record the request under its sequence number before it goes out: the adapter's
                 // iMsgTxDone echoes that sequence and can reach the reader thread before this thread sees
                 // the command response.
