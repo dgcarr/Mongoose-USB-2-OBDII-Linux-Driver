@@ -478,6 +478,25 @@ un-framed runs, ignition on and engine running, that drew nothing. `...T061026Z.
 200-frame cap; they carry the stray-frame and zero-frame results
 above. A first draft run, which showed the cap problem, was deleted as superseded.
 
+## 100 hardware lifecycle cycles on a live vehicle (2026-09-19)
+
+`build/mongoose-client serial:SERIAL --vehicle-cycles`, same Volvo, engine running. Each of
+the 100 cycles is a full lifecycle in one process: `PassThruOpen`, `ReadVersion`, ISO15765
+`Connect` at 500 kbit, a `0x7E8`/`0x7E0` flow-control filter, one read-only mode 01 PID 00
+request to `0x7DF` that must draw a positive `0x41 00` reply from `0x7E8`, then
+`StopMsgFilter`, `Disconnect` and `Close`. The run stops at the first failure.
+
+**All 100 passed** with no failure at any step, in 6.0 s (about 60 ms per cycle). The
+request-to-reply time, including the timed write's `iMsgTxDone`, was 5.72 ms mean, 4.27 ms
+best and 14.49 ms worst. Every cycle got a reply, so the filter, transmit, flow-control and
+receive paths worked on each fresh channel, not just the first.
+
+Read this precisely. All 100 used the ISO15765 channel; the raw CAN path was exercised by
+the earlier live runs but not cycled. It is one process reopening the device, so it does
+not repeat the earlier 40-cycle bench figure of separate process starts. It says nothing
+about durability over time: that is the one-hour soak, which is still to do. Evidence:
+`analysis/captures/linux-vehicle-cycles-20260919T063522Z.txt`.
+
 ## Sustained receive on a live vehicle (2026-09-19)
 
 `build/mongoose-client serial:SERIAL --vehicle-soak`: five minutes, passive, one wildcard
@@ -549,8 +568,8 @@ Vehicle-blocked:
 5. Complete remaining protocol engines, periodic messages and IOCTLs with suitable
    vehicles/fixtures. C3/C4 are settled for this adapter: only one CAN-family channel can
    be open; further chan-field semantics cannot be inferred here.
-6. Run 100 hardware cycles and a one-hour diagnostic soak once bus support exists.
-   Three USB-only channel cycles and synthetic lifecycle tests do not satisfy these gates.
+6. ~~Run 100 hardware cycles~~ Done 2026-09-19, see below. The one-hour diagnostic soak is
+   still outstanding.
 
 Bench work that remains possible but was deliberately not done: the filter-table maximum
 (stopping short of allocator exhaustion), the channel IOCTLs for clearing buffers, and

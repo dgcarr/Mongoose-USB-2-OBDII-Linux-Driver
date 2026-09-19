@@ -215,6 +215,65 @@ static int32_t check_vehicle_soak(uint32_t channel, unsigned seconds) {
     report("PassThruStopMsgFilter", stopped);
     return status ? status : stopped;
 }
+// One hardware lifecycle cycle: open, version, ISO15765 connect, flow-control filter, one
+// read-only mode 01 PID 00 request that must draw a positive 0x41 reply from 0x7E8, then
+// the full teardown. Returns 0 on success; a nonzero result names the step that failed.
+static int cycle_once(const char *name, double *reply_ms) {
+    uint32_t device = 0, channel = 0, filter = 0;
+    int32_t status = PassThruOpen((void *)name, &device);
+    if (status) { report("PassThruOpen", status); return 1; }
+    int result = 0;
+    char firmware[80], driver[80], api[80];
+    if (PassThruReadVersion(device, firmware, driver, api)) { report("PassThruReadVersion", 1); result = 2; }
+    if (!result && (status = PassThruConnect(device, ISO15765, 0, 500000, &channel))) { report("PassThruConnect", status); result = 3; }
+    if (!result) {
+        PASSTHRU_MSG mask, pattern, flow;
+        iso_message(&mask, 0xffffffffu, NULL, 0); iso_message(&pattern, 0x7e8, NULL, 0); iso_message(&flow, 0x7e0, NULL, 0);
+        if ((status = PassThruStartMsgFilter(channel, FLOW_CONTROL_FILTER, &mask, &pattern, &flow, &filter))) { report("PassThruStartMsgFilter", status); result = 4; }
+    }
+    if (!result) {
+        static const uint8_t pid[2] = {0x01, 0x00};
+        PASSTHRU_MSG request;
+        iso_message(&request, 0x7df, pid, 2);
+        struct timespec t0, t1;
+        clock_gettime(CLOCK_MONOTONIC, &t0);
+        uint32_t sent = 1;
+        if ((status = PassThruWriteMsgs(channel, &request, &sent, 250)) || sent != 1) { report("PassThruWriteMsgs", status); result = 5; }
+        int replied = 0;
+        while (!result && !replied) {
+            PASSTHRU_MSG in;
+            memset(&in, 0, sizeof(in));
+            uint32_t count = 1;
+            status = PassThruReadMsgs(channel, &in, &count, 1000);
+            if (status && status != ERR_BUFFER_EMPTY && status != ERR_TIMEOUT) { report("PassThruReadMsgs", status); result = 6; break; }
+            if (!count) { printf("no reply within 1000 ms\n"); result = 7; break; }
+            if (in.RxStatus == 0 && in.DataSize >= 6 && in.Data[2] == 0x07 && in.Data[3] == 0xe8 &&
+                in.Data[4] == 0x41 && in.Data[5] == 0x00) replied = 1;
+        }
+        clock_gettime(CLOCK_MONOTONIC, &t1);
+        *reply_ms = (double)(t1.tv_sec - t0.tv_sec) * 1000.0 + (double)(t1.tv_nsec - t0.tv_nsec) / 1e6;
+    }
+    if (filter && (status = PassThruStopMsgFilter(channel, filter))) { report("PassThruStopMsgFilter", status); if (!result) result = 8; }
+    if (channel && (status = PassThruDisconnect(channel))) { report("PassThruDisconnect", status); if (!result) result = 9; }
+    if ((status = PassThruClose(device))) { report("PassThruClose", status); if (!result) result = 10; }
+    return result;
+}
+static int check_vehicle_cycles(const char *name, unsigned cycles) {
+    double total = 0, worst = 0, best = 1e9;
+    struct timespec s0, s1;
+    clock_gettime(CLOCK_MONOTONIC, &s0);
+    for (unsigned i = 1; i <= cycles; ++i) {
+        double ms = 0;
+        const int failed = cycle_once(name, &ms);
+        if (failed) { printf("cycle %u FAILED at step %d\n", i, failed); return 1; }
+        total += ms; if (ms > worst) worst = ms; if (ms < best) best = ms;
+        if (i % 10 == 0) printf("cycle %u ok\n", i);
+    }
+    clock_gettime(CLOCK_MONOTONIC, &s1);
+    printf("cycles=%u all passed in %.1f s; request->reply mean %.2f ms best %.2f ms worst %.2f ms\n", cycles,
+           (double)(s1.tv_sec - s0.tv_sec) + (double)(s1.tv_nsec - s0.tv_nsec) / 1e9, total / cycles, best, worst);
+    return 0;
+}
 int main(int argc, char **argv) {
     uint32_t device = 0;
     const int can_lifecycle = argc == 3 && strcmp(argv[2], "--can-lifecycle") == 0;
@@ -222,13 +281,15 @@ int main(int argc, char **argv) {
     const int can_transmit = argc == 3 && strcmp(argv[2], "--can-transmit-check") == 0;
     const int vehicle_listen = argc == 3 && strcmp(argv[2], "--vehicle-listen") == 0;
     const int vehicle_check = argc == 3 && strcmp(argv[2], "--vehicle-check") == 0;
+    if (argc == 3 && strcmp(argv[2], "--vehicle-cycles") == 0)
+        return check_vehicle_cycles(argv[1], 100);
     const int vehicle_soak = argc == 3 && strcmp(argv[2], "--vehicle-soak") == 0;
     const int vehicle_iso = argc == 3 && strcmp(argv[2], "--vehicle-iso") == 0;
     if (argc > 3 || (argc >= 2 && strncmp(argv[1], "serial:", 7)) ||
         (argc == 3 && !can_lifecycle && !can_receive && !can_transmit &&
          !vehicle_listen && !vehicle_check && !vehicle_iso && !vehicle_soak)) {
         fprintf(stderr, "Usage: mongoose-client [serial:SERIAL [--can-lifecycle|--can-receive-check|"
-                        "--can-transmit-check|--vehicle-listen|--vehicle-check|--vehicle-iso|--vehicle-soak]]\n"); return 2;
+                        "--can-transmit-check|--vehicle-listen|--vehicle-check|--vehicle-iso|--vehicle-soak|--vehicle-cycles]]\n"); return 2;
     }
     int32_t status = PassThruOpen(argc >= 2 ? argv[1] : NULL, &device);
     report("PassThruOpen", status);
