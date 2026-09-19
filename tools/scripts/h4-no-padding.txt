@@ -1,0 +1,14 @@
+# H4: the same read-only requests with ISO15765_FRAME_PAD off (flags NONE on the filter and the
+# writes). With padding on, the adapter pads the request frame to eight bytes; with it off the
+# request goes out at its natural length. Do the ECUs still answer, does the multi-frame VIN
+# reply still reassemble, and what do TxFlags and RxStatus look like in the returned messages?
+open dev
+connect dev ISO15765 NONE 500000 chan
+filter chan FLOW ISO15765 NONE 0000ffff 000007e8 000007e0 fc
+write chan ISO15765 NONE 000007df0100 1000
+read chan 16 1500
+write chan ISO15765 NONE 000007e00902 1000
+read chan 16 2000
+stopfilter chan fc
+disconnect chan
+close dev

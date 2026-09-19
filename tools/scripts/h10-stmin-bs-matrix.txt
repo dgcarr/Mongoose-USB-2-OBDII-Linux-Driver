@@ -1,0 +1,86 @@
+# H10: does ISO15765_STMIN / ISO15765_BS change how the ECU sends a multi-frame reply? Physical mode 09 PID 04
+# (calibration IDs, a 35-byte reply: first frame plus five consecutive frames) to the engine ECU, five repetitions
+# for each of four settings. The start-of-message indication and the completed message carry the adapter's
+# timestamps of the first and last frame, so the difference is the time the ECU took to send the consecutive frames.
+# Read-only requests; defaults (BS 0, STMIN 0) are restored before the channel closes.
+open dev
+connect dev ISO15765 NONE 500000 chan
+filter chan FLOW ISO15765 ISO15765_FRAME_PAD 0000ffff 000007e8 000007e0 fc
+mark SETTING bs=0 stmin=0
+setconfig chan 0x1e=0,0x1f=0
+getconfig chan 0x1e,0x1f
+mark RUN bs=0 stmin=0 n=0
+write chan ISO15765 ISO15765_FRAME_PAD 000007e00904 1000
+read chan 16 1500
+mark RUN bs=0 stmin=0 n=1
+write chan ISO15765 ISO15765_FRAME_PAD 000007e00904 1000
+read chan 16 1500
+mark RUN bs=0 stmin=0 n=2
+write chan ISO15765 ISO15765_FRAME_PAD 000007e00904 1000
+read chan 16 1500
+mark RUN bs=0 stmin=0 n=3
+write chan ISO15765 ISO15765_FRAME_PAD 000007e00904 1000
+read chan 16 1500
+mark RUN bs=0 stmin=0 n=4
+write chan ISO15765 ISO15765_FRAME_PAD 000007e00904 1000
+read chan 16 1500
+mark SETTING bs=0 stmin=20
+setconfig chan 0x1e=0,0x1f=20
+getconfig chan 0x1e,0x1f
+mark RUN bs=0 stmin=20 n=0
+write chan ISO15765 ISO15765_FRAME_PAD 000007e00904 1000
+read chan 16 1500
+mark RUN bs=0 stmin=20 n=1
+write chan ISO15765 ISO15765_FRAME_PAD 000007e00904 1000
+read chan 16 1500
+mark RUN bs=0 stmin=20 n=2
+write chan ISO15765 ISO15765_FRAME_PAD 000007e00904 1000
+read chan 16 1500
+mark RUN bs=0 stmin=20 n=3
+write chan ISO15765 ISO15765_FRAME_PAD 000007e00904 1000
+read chan 16 1500
+mark RUN bs=0 stmin=20 n=4
+write chan ISO15765 ISO15765_FRAME_PAD 000007e00904 1000
+read chan 16 1500
+mark SETTING bs=2 stmin=0
+setconfig chan 0x1e=2,0x1f=0
+getconfig chan 0x1e,0x1f
+mark RUN bs=2 stmin=0 n=0
+write chan ISO15765 ISO15765_FRAME_PAD 000007e00904 1000
+read chan 16 1500
+mark RUN bs=2 stmin=0 n=1
+write chan ISO15765 ISO15765_FRAME_PAD 000007e00904 1000
+read chan 16 1500
+mark RUN bs=2 stmin=0 n=2
+write chan ISO15765 ISO15765_FRAME_PAD 000007e00904 1000
+read chan 16 1500
+mark RUN bs=2 stmin=0 n=3
+write chan ISO15765 ISO15765_FRAME_PAD 000007e00904 1000
+read chan 16 1500
+mark RUN bs=2 stmin=0 n=4
+write chan ISO15765 ISO15765_FRAME_PAD 000007e00904 1000
+read chan 16 1500
+mark SETTING bs=2 stmin=20
+setconfig chan 0x1e=2,0x1f=20
+getconfig chan 0x1e,0x1f
+mark RUN bs=2 stmin=20 n=0
+write chan ISO15765 ISO15765_FRAME_PAD 000007e00904 1000
+read chan 16 1500
+mark RUN bs=2 stmin=20 n=1
+write chan ISO15765 ISO15765_FRAME_PAD 000007e00904 1000
+read chan 16 1500
+mark RUN bs=2 stmin=20 n=2
+write chan ISO15765 ISO15765_FRAME_PAD 000007e00904 1000
+read chan 16 1500
+mark RUN bs=2 stmin=20 n=3
+write chan ISO15765 ISO15765_FRAME_PAD 000007e00904 1000
+read chan 16 1500
+mark RUN bs=2 stmin=20 n=4
+write chan ISO15765 ISO15765_FRAME_PAD 000007e00904 1000
+read chan 16 1500
+mark RESTORE
+setconfig chan 0x1e=0,0x1f=0
+getconfig chan 0x1e,0x1f
+stopfilter chan fc
+disconnect chan
+close dev

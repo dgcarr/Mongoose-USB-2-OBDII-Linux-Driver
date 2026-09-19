@@ -1,0 +1,11 @@
+# G3: what does the vendor DLL do with a PASS filter on an ISO15765 channel? (J2534 defines flow
+# control filters there; a pass filter is at best a vendor extension.) The result code and the wire
+# capture both matter: refused host-side, refused by the firmware, or accepted into some table.
+open dev
+connect dev ISO15765 NONE 500000 chan
+filter chan FLOW ISO15765 ISO15765_FRAME_PAD 0000ffff 000007e8 000007e0 fc
+filter chan PASS ISO15765 ISO15765_FRAME_PAD 0000ffff 000007e9 pass
+stopfilter chan pass
+stopfilter chan fc
+disconnect chan
+close dev

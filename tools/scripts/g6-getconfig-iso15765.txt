@@ -1,0 +1,12 @@
+# G6: GET_CONFIG on an ISO15765 channel, where the ISO-TP parameters live (block size, STmin,
+# BS_TX, STMIN_TX, WFT_MAX, pad value and the N_* timeouts). The wire capture of this run names the
+# firmware selector the vendor sends for each ID; the Linux value sweep (PROTOCOL.md 7d) shows the
+# values sitting behind them. Read only.
+open dev
+connect dev ISO15765 NONE 500000 chan
+getconfig chan 0x01,0x03,0x04,0x05,0x17,0x18
+getconfig chan 0x1e,0x1f,0x22,0x23,0x25
+getconfig chan 0x2a,0x2b,0x2c,0x2d,0x2e,0x2f,0x30
+getconfig chan 0x8001,0x10000001
+disconnect chan
+close dev

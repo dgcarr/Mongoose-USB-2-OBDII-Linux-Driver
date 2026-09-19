@@ -1,0 +1,17 @@
+# H6: BLOCK filter on a live bus (the Windows D3 script was never run). Raw CAN, a pass-all filter
+# plus a BLOCK filter for 0x7E8, then the padded read-only mode 01 PID 00 request to 0x7DF (PCI 02,
+# service 01, PID 00). Expect the reply from 0x7E9 and none from 0x7E8, with ordinary bus frames
+# still arriving; remove the BLOCK filter and the same request should be answered by both again.
+open dev
+connect dev CAN NONE 500000 chan
+filter chan PASS CAN NONE 00000000 00000000 pass
+readfor chan 256 100 1
+filter chan BLOCK CAN NONE 000007ff 000007e8 blk
+write chan CAN NONE 000007df0201005555555555 1000
+readfor chan 256 200 1
+stopfilter chan blk
+write chan CAN NONE 000007df0201005555555555 1000
+readfor chan 256 200 1
+stopfilter chan pass
+disconnect chan
+close dev

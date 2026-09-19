@@ -1,0 +1,21 @@
+# H7: the buffer IOCTLs on a live bus (the Windows F3 script was never run). Raw CAN, a pass-all filter
+# on a bus carrying ~2450 frames/s. Let the receive queue fill for a second, read the OLDEST queued
+# frame (device time A), wait another second, then CLEAR_RX_BUFFER: the next frame should be about two
+# seconds newer than A. Without the clear it would be a stale frame close to A. Then CLEAR_TX_BUFFER,
+# and CLEAR_MSG_FILTERS, after which no more frames should arrive.
+open dev
+connect dev CAN NONE 500000 chan
+filter chan PASS CAN NONE 00000000 00000000 pass
+sleep 1000
+read chan 1 0
+sleep 1000
+ioctl chan CLEAR_RX_BUFFER
+read chan 1 200
+ioctl chan CLEAR_TX_BUFFER
+ioctl chan CLEAR_PERIODIC_MSGS
+ioctl chan CLEAR_MSG_FILTERS
+sleep 300
+ioctl chan CLEAR_RX_BUFFER
+read chan 1 500
+disconnect chan
+close dev

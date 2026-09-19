@@ -1,0 +1,27 @@
+# H3: multi-frame and multi-ECU replies, read-only. Functional requests to 0x7DF with a
+# flow-control filter for each of the two ECUs, so both can answer: mode 09 info types
+# 04 (calibration IDs), 06 (calibration verification numbers) and 0A (ECU name), then the DTC
+# reads: mode 03 (stored), 07 (pending) and 0A (permanent). Mode 04, which CLEARS codes, is
+# never sent. Mode 09 PID 00 first, to record which info types each ECU says it supports.
+open dev
+connect dev ISO15765 NONE 500000 chan
+filter chan FLOW ISO15765 ISO15765_FRAME_PAD 0000ffff 000007e8 000007e0 fc0
+filter chan FLOW ISO15765 ISO15765_FRAME_PAD 0000ffff 000007e9 000007e1 fc1
+write chan ISO15765 ISO15765_FRAME_PAD 000007df0900 1000
+read chan 16 1500
+write chan ISO15765 ISO15765_FRAME_PAD 000007df0904 1000
+read chan 16 2000
+write chan ISO15765 ISO15765_FRAME_PAD 000007df0906 1000
+read chan 16 2000
+write chan ISO15765 ISO15765_FRAME_PAD 000007df090a 1000
+read chan 16 2000
+write chan ISO15765 ISO15765_FRAME_PAD 000007df03 1000
+read chan 16 2000
+write chan ISO15765 ISO15765_FRAME_PAD 000007df07 1000
+read chan 16 2000
+write chan ISO15765 ISO15765_FRAME_PAD 000007df0a 1000
+read chan 16 2000
+stopfilter chan fc1
+stopfilter chan fc0
+disconnect chan
+close dev

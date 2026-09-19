@@ -1,0 +1,18 @@
+# H5: does an ECU answer a SHORT request frame? Raw CAN, so the ISO-TP layer is not involved and
+# the frame goes out exactly as written. The same mode 01 PID 00 request (PCI 02, service 01,
+# PID 00) to 0x7DF three ways: three bytes (DLC 3), eight bytes padded with 0x00, eight bytes
+# padded with 0x55. A wildcard pass filter shows every reply. H4 found no reply with
+# ISO15765_FRAME_PAD off; this asks whether that is the ECUs or the library.
+open dev
+connect dev CAN NONE 500000 chan
+filter chan PASS CAN NONE 00000000 00000000 pass
+read chan 256 300
+write chan CAN NONE 000007df020100 1000
+readfor chan 256 200 1
+write chan CAN NONE 000007df0201000000000000 1000
+readfor chan 256 200 1
+write chan CAN NONE 000007df0201005555555555 1000
+readfor chan 256 200 1
+stopfilter chan pass
+disconnect chan
+close dev

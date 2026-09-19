@@ -1,0 +1,49 @@
+# H9: GET_CONFIG on an ISO15765 channel, read only.
+# One parameter per call, so each ID's result is visible: the vendor (and this driver) fail a whole list at
+# the first ID the channel does not have. A refused ID prints a nonzero result and the script goes on.
+open dev
+connect dev ISO15765 NONE 500000 chan
+mark DATA_RATE
+getconfig chan 0x1
+mark LOOPBACK
+getconfig chan 0x3
+mark BIT_SAMPLE_POINT
+getconfig chan 0x17
+mark SYNC_JUMP_WIDTH
+getconfig chan 0x18
+mark ISO15765_BS
+getconfig chan 0x1e
+mark ISO15765_STMIN
+getconfig chan 0x1f
+mark BS_TX
+getconfig chan 0x22
+mark STMIN_TX
+getconfig chan 0x23
+mark ISO15765_WFT_MAX
+getconfig chan 0x25
+mark N_BR_MIN
+getconfig chan 0x2a
+mark ISO15765_PAD_VALUE
+getconfig chan 0x2b
+mark N_AS_MAX
+getconfig chan 0x2c
+mark N_AR_MAX
+getconfig chan 0x2d
+mark N_BS_MAX
+getconfig chan 0x2e
+mark N_CR_MAX
+getconfig chan 0x2f
+mark N_CS_MIN
+getconfig chan 0x30
+mark DT_PULLUP_VALUE
+getconfig chan 0x10008
+mark DT_ISO15765_PAD_BYTE
+getconfig chan 0x10000001
+mark DT_HALF_DUPLEX
+getconfig chan 0x10000007
+mark (unassigned)
+getconfig chan 0x2
+mark J1962_PINS: only on *_PS protocols
+getconfig chan 0x8001
+disconnect chan
+close dev

@@ -1,0 +1,13 @@
+# E5: a request too long for one CAN frame, to see who segments a multi-frame TRANSMIT (the adapter,
+# as it does for flow control, or the DLL) and what the wire looks like. The request is UDS
+# ReadDataByIdentifier (0x22) for four standard identifiers, 9 bytes, to the engine ECU: a read-only
+# service that changes nothing. If it draws a negative response (7F 22 xx) that is a result too.
+# NOTE: the reply may contain the vehicle VIN (DID F190) - redact before committing.
+open dev
+connect dev ISO15765 NONE 500000 chan
+filter chan FLOW ISO15765 ISO15765_FRAME_PAD 0000ffff 000007e8 000007e0 fc
+write chan ISO15765 ISO15765_FRAME_PAD 000007e022f190f187f18cf194 1000
+read chan 16 3000
+stopfilter chan fc
+disconnect chan
+close dev

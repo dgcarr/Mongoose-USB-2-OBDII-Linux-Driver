@@ -1,0 +1,22 @@
+# H1: physical (non-functional) addressing to two ECUs, read-only. Two flow-control
+# filters (0x7E8/0x7E0 and 0x7E9/0x7E1) on one channel, then per ECU: a supported PID,
+# an unsupported PID (a physical request may draw a negative response where a functional
+# one draws silence), and the VIN request as a multi-frame reply from a physical address.
+open dev
+connect dev ISO15765 NONE 500000 chan
+filter chan FLOW ISO15765 ISO15765_FRAME_PAD 0000ffff 000007e8 000007e0 fc0
+filter chan FLOW ISO15765 ISO15765_FRAME_PAD 0000ffff 000007e9 000007e1 fc1
+write chan ISO15765 ISO15765_FRAME_PAD 000007e00100 1000
+read chan 16 1000
+write chan ISO15765 ISO15765_FRAME_PAD 000007e10100 1000
+read chan 16 1000
+write chan ISO15765 ISO15765_FRAME_PAD 000007e0017f 1000
+read chan 16 1000
+write chan ISO15765 ISO15765_FRAME_PAD 000007e1017f 1000
+read chan 16 1000
+write chan ISO15765 ISO15765_FRAME_PAD 000007e00902 1000
+read chan 16 2000
+stopfilter chan fc1
+stopfilter chan fc0
+disconnect chan
+close dev

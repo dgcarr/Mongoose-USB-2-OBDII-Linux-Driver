@@ -1,0 +1,23 @@
+# G2: does SET_CONFIG of ISO15765_BS / ISO15765_STMIN change the flow-control frame the adapter
+# sends? The adapter reports each flow-control frame it transmits as an indication (0x010e) carrying
+# the frame's bytes and a timestamp, so it shows in the wire capture: expect 30 00 00 by default and
+# 30 02 14 after the change. Read-only OBD requests only. Values are restored before the channel
+# closes. Never edit this to touch 0xC002-0xC00A (NON_VOLATILE_STORE_*).
+# NOTE: the response contains the vehicle VIN - redact before committing.
+open dev
+connect dev ISO15765 NONE 500000 chan
+filter chan FLOW ISO15765 ISO15765_FRAME_PAD 0000ffff 000007e8 000007e0 fc
+getconfig chan 0x1e,0x1f
+write chan ISO15765 ISO15765_FRAME_PAD 000007e00902 1000
+read chan 16 2000
+setconfig chan 0x1e=2,0x1f=20
+getconfig chan 0x1e,0x1f
+write chan ISO15765 ISO15765_FRAME_PAD 000007e00902 1000
+read chan 16 3000
+setconfig chan 0x1e=0,0x1f=0
+getconfig chan 0x1e,0x1f
+write chan ISO15765 ISO15765_FRAME_PAD 000007e00902 1000
+read chan 16 2000
+stopfilter chan fc
+disconnect chan
+close dev

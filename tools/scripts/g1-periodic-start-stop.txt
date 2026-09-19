@@ -1,0 +1,16 @@
+# G1: periodic messages. Raw CAN, pass filters for the two ECUs' reply IDs only, then a periodic
+# read-only OBD-II request (mode 01 PID 00, padded) to 0x7DF every 1000 ms. Expect a reply pair about
+# once a second while it runs and none after it is stopped. The wire capture names the table-4 add
+# layout and, the part we do not have, the stop/remove command.
+open dev
+connect dev CAN NONE 500000 chan
+filter chan PASS CAN NONE 000007ff 000007e8 pass8
+filter chan PASS CAN NONE 000007ff 000007e9 pass9
+periodic chan CAN NONE 000007df0201005555555555 1000 per
+readfor chan 16 300 4
+stopperiodic chan per
+readfor chan 16 300 2
+stopfilter chan pass9
+stopfilter chan pass8
+disconnect chan
+close dev

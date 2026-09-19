@@ -1,0 +1,14 @@
+# H2: does an ECU answer a read-only request it cannot serve with a negative response
+# (7F <service> <code>)? Physical to 0x7E0 only. Mode 09 with an unsupported info type, then
+# UDS ReadDataByIdentifier (0x22) of a DID no ECU should define. Both are read-only services;
+# nothing here writes, changes a session or asks for security access.
+open dev
+connect dev ISO15765 NONE 500000 chan
+filter chan FLOW ISO15765 ISO15765_FRAME_PAD 0000ffff 000007e8 000007e0 fc
+write chan ISO15765 ISO15765_FRAME_PAD 000007e009ff 1000
+read chan 16 1500
+write chan ISO15765 ISO15765_FRAME_PAD 000007e022ffff 1000
+read chan 16 1500
+stopfilter chan fc
+disconnect chan
+close dev

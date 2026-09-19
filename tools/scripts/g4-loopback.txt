@@ -1,0 +1,19 @@
+# G4: LOOPBACK (SConfig 3). Raw CAN, a pass filter for exactly 0x7DF, so the only frame that can
+# appear is our own request looped back. Without loopback the read is empty; with LOOPBACK=1 the
+# request should come back with its transmit flag set. The wire capture shows which firmware
+# selector the setting lives in. LOOPBACK is restored to 0 before the channel closes.
+open dev
+connect dev CAN NONE 500000 chan
+filter chan PASS CAN NONE 000007ff 000007df pass
+getconfig chan 0x03
+write chan CAN NONE 000007df0201005555555555 1000
+read chan 16 500
+setconfig chan 0x03=1
+getconfig chan 0x03
+write chan CAN NONE 000007df0201005555555555 1000
+read chan 16 500
+setconfig chan 0x03=0
+getconfig chan 0x03
+stopfilter chan pass
+disconnect chan
+close dev
