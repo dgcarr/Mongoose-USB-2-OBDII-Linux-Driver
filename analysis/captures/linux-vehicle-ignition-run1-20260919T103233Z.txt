@@ -1,0 +1,399 @@
+# mongoose-client serial:AOLHE0000003666A --vehicle-ignition   (RUN 1: ignition switched OFF and the car locked about 17 s in; MONGOOSE_OBSERVE_SECONDS=720, stopped at 359 s)
+# The observer sent a read-only mode 01 request every 10 s while frames arrived. The bus stayed active for the whole 6 minutes.
+PassThruStartMsgFilter wildcard status=0 
+observer starts: 720 s. Switch the ignition off and on when you like.
+reply from 7E8 after 20.1 ms
+t=   1s bus=active frames/s=2524  total=2524     vbatt=12700 mV req=1 rep=1 unans=0 wfail=0 ovf=0 err=0
+t=   2s bus=active frames/s=2474  total=4998     vbatt=12600 mV req=1 rep=1 unans=0 wfail=0 ovf=0 err=0
+t=   3s bus=active frames/s=2425  total=7423     vbatt=12600 mV req=1 rep=1 unans=0 wfail=0 ovf=0 err=0
+t=   4s bus=active frames/s=2464  total=9887     vbatt=12600 mV req=1 rep=1 unans=0 wfail=0 ovf=0 err=0
+t=   5s bus=active frames/s=2470  total=12357    vbatt=12600 mV req=1 rep=1 unans=0 wfail=0 ovf=0 err=0
+t=   6s bus=active frames/s=2473  total=14830    vbatt=12600 mV req=1 rep=1 unans=0 wfail=0 ovf=0 err=0
+t=   7s bus=active frames/s=2419  total=17249    vbatt=12600 mV req=1 rep=1 unans=0 wfail=0 ovf=0 err=0
+t=   8s bus=active frames/s=2466  total=19715    vbatt=12600 mV req=1 rep=1 unans=0 wfail=0 ovf=0 err=0
+t=   9s bus=active frames/s=2479  total=22194    vbatt=12600 mV req=1 rep=1 unans=0 wfail=0 ovf=0 err=0
+t=  10s bus=active frames/s=2411  total=24605    vbatt=12600 mV req=1 rep=1 unans=0 wfail=0 ovf=0 err=0
+reply from 7E8 after 20.2 ms
+t=  11s bus=active frames/s=2493  total=27098    vbatt=12600 mV req=2 rep=2 unans=0 wfail=0 ovf=0 err=0
+t=  12s bus=active frames/s=2415  total=29513    vbatt=12600 mV req=2 rep=2 unans=0 wfail=0 ovf=0 err=0
+t=  13s bus=active frames/s=2471  total=31984    vbatt=12600 mV req=2 rep=2 unans=0 wfail=0 ovf=0 err=0
+t=  14s bus=active frames/s=2482  total=34466    vbatt=12700 mV req=2 rep=2 unans=0 wfail=0 ovf=0 err=0
+t=  15s bus=active frames/s=2413  total=36879    vbatt=12600 mV req=2 rep=2 unans=0 wfail=0 ovf=0 err=0
+t=  16s bus=active frames/s=2472  total=39351    vbatt=12600 mV req=2 rep=2 unans=0 wfail=0 ovf=0 err=0
+t=  17s bus=active frames/s=2405  total=41756    vbatt=12700 mV req=2 rep=2 unans=0 wfail=0 ovf=0 err=0
+t=  18s bus=active frames/s=2108  total=43864    vbatt=12700 mV req=2 rep=2 unans=0 wfail=0 ovf=0 err=0
+t=  19s bus=active frames/s=2161  total=46025    vbatt=12700 mV req=2 rep=2 unans=0 wfail=0 ovf=0 err=0
+t=  20s bus=active frames/s=2168  total=48193    vbatt=12700 mV req=2 rep=2 unans=0 wfail=0 ovf=0 err=0
+reply from 7E8 after 20.2 ms
+t=  21s bus=active frames/s=2115  total=50308    vbatt=12700 mV req=3 rep=3 unans=0 wfail=0 ovf=0 err=0
+t=  22s bus=active frames/s=2146  total=52454    vbatt=12700 mV req=3 rep=3 unans=0 wfail=0 ovf=0 err=0
+t=  23s bus=active frames/s=2091  total=54545    vbatt=12700 mV req=3 rep=3 unans=0 wfail=0 ovf=0 err=0
+t=  24s bus=active frames/s=2116  total=56661    vbatt=12800 mV req=3 rep=3 unans=0 wfail=0 ovf=0 err=0
+t=  25s bus=active frames/s=2133  total=58794    vbatt=12700 mV req=3 rep=3 unans=0 wfail=0 ovf=0 err=0
+t=  26s bus=active frames/s=2083  total=60877    vbatt=12800 mV req=3 rep=3 unans=0 wfail=0 ovf=0 err=0
+t=  27s bus=active frames/s=1452  total=62329    vbatt=12800 mV req=3 rep=3 unans=0 wfail=0 ovf=0 err=0
+t=  28s bus=active frames/s=1325  total=63654    vbatt=12800 mV req=3 rep=3 unans=0 wfail=0 ovf=0 err=0
+t=  29s bus=active frames/s=1293  total=64947    vbatt=12800 mV req=3 rep=3 unans=0 wfail=0 ovf=0 err=0
+t=  30s bus=active frames/s=1322  total=66269    vbatt=12800 mV req=3 rep=3 unans=0 wfail=0 ovf=0 err=0
+reply from 7E8 after 20.1 ms
+t=  31s bus=active frames/s=1329  total=67598    vbatt=12800 mV req=4 rep=4 unans=0 wfail=0 ovf=0 err=0
+t=  32s bus=active frames/s=1297  total=68895    vbatt=12800 mV req=4 rep=4 unans=0 wfail=0 ovf=0 err=0
+t=  33s bus=active frames/s=947   total=69842    vbatt=12900 mV req=4 rep=4 unans=0 wfail=0 ovf=0 err=0
+t=  34s bus=active frames/s=680   total=70522    vbatt=12900 mV req=4 rep=4 unans=0 wfail=0 ovf=0 err=0
+t=  35s bus=active frames/s=703   total=71225    vbatt=12900 mV req=4 rep=4 unans=0 wfail=0 ovf=0 err=0
+t=  36s bus=active frames/s=680   total=71905    vbatt=12900 mV req=4 rep=4 unans=0 wfail=0 ovf=0 err=0
+t=  37s bus=active frames/s=705   total=72610    vbatt=12900 mV req=4 rep=4 unans=0 wfail=0 ovf=0 err=0
+t=  38s bus=active frames/s=681   total=73291    vbatt=13000 mV req=4 rep=4 unans=0 wfail=0 ovf=0 err=0
+t=  39s bus=active frames/s=705   total=73996    vbatt=12900 mV req=4 rep=4 unans=0 wfail=0 ovf=0 err=0
+t=  40s bus=active frames/s=682   total=74678    vbatt=13000 mV req=4 rep=4 unans=0 wfail=0 ovf=0 err=0
+t=  41s bus=active frames/s=704   total=75382    vbatt=13000 mV req=5 rep=4 unans=0 wfail=0 ovf=0 err=0
+UNANSWERED request at t=40.1s
+t=  42s bus=active frames/s=679   total=76061    vbatt=13000 mV req=5 rep=4 unans=1 wfail=0 ovf=0 err=0
+t=  43s bus=active frames/s=708   total=76769    vbatt=13000 mV req=5 rep=4 unans=1 wfail=0 ovf=0 err=0
+t=  44s bus=active frames/s=680   total=77449    vbatt=13000 mV req=5 rep=4 unans=1 wfail=0 ovf=0 err=0
+t=  45s bus=active frames/s=704   total=78153    vbatt=13000 mV req=5 rep=4 unans=1 wfail=0 ovf=0 err=0
+t=  46s bus=active frames/s=682   total=78835    vbatt=13000 mV req=5 rep=4 unans=1 wfail=0 ovf=0 err=0
+t=  47s bus=active frames/s=702   total=79537    vbatt=13000 mV req=5 rep=4 unans=1 wfail=0 ovf=0 err=0
+t=  48s bus=active frames/s=684   total=80221    vbatt=13000 mV req=5 rep=4 unans=1 wfail=0 ovf=0 err=0
+t=  49s bus=active frames/s=695   total=80916    vbatt=13000 mV req=5 rep=4 unans=1 wfail=0 ovf=0 err=0
+t=  50s bus=active frames/s=706   total=81622    vbatt=13000 mV req=5 rep=4 unans=1 wfail=0 ovf=0 err=0
+t=  51s bus=active frames/s=678   total=82300    vbatt=13000 mV req=6 rep=4 unans=1 wfail=0 ovf=0 err=0
+UNANSWERED request at t=50.2s
+t=  52s bus=active frames/s=708   total=83008    vbatt=13000 mV req=6 rep=4 unans=2 wfail=0 ovf=0 err=0
+t=  53s bus=active frames/s=681   total=83689    vbatt=13000 mV req=6 rep=4 unans=2 wfail=0 ovf=0 err=0
+t=  54s bus=active frames/s=704   total=84393    vbatt=13000 mV req=6 rep=4 unans=2 wfail=0 ovf=0 err=0
+t=  55s bus=active frames/s=681   total=85074    vbatt=13000 mV req=6 rep=4 unans=2 wfail=0 ovf=0 err=0
+t=  56s bus=active frames/s=704   total=85778    vbatt=13000 mV req=6 rep=4 unans=2 wfail=0 ovf=0 err=0
+t=  57s bus=active frames/s=681   total=86459    vbatt=13000 mV req=6 rep=4 unans=2 wfail=0 ovf=0 err=0
+t=  58s bus=active frames/s=705   total=87164    vbatt=13000 mV req=6 rep=4 unans=2 wfail=0 ovf=0 err=0
+t=  59s bus=active frames/s=681   total=87845    vbatt=13000 mV req=6 rep=4 unans=2 wfail=0 ovf=0 err=0
+t=  60s bus=active frames/s=708   total=88553    vbatt=13000 mV req=6 rep=4 unans=2 wfail=0 ovf=0 err=0
+t=  61s bus=active frames/s=678   total=89231    vbatt=13000 mV req=7 rep=4 unans=2 wfail=0 ovf=0 err=0
+UNANSWERED request at t=60.2s
+t=  62s bus=active frames/s=705   total=89936    vbatt=13000 mV req=7 rep=4 unans=3 wfail=0 ovf=0 err=0
+t=  63s bus=active frames/s=678   total=90614    vbatt=13000 mV req=7 rep=4 unans=3 wfail=0 ovf=0 err=0
+t=  64s bus=active frames/s=707   total=91321    vbatt=13000 mV req=7 rep=4 unans=3 wfail=0 ovf=0 err=0
+t=  65s bus=active frames/s=678   total=91999    vbatt=13000 mV req=7 rep=4 unans=3 wfail=0 ovf=0 err=0
+t=  66s bus=active frames/s=707   total=92706    vbatt=13000 mV req=7 rep=4 unans=3 wfail=0 ovf=0 err=0
+t=  67s bus=active frames/s=681   total=93387    vbatt=13000 mV req=7 rep=4 unans=3 wfail=0 ovf=0 err=0
+t=  68s bus=active frames/s=704   total=94091    vbatt=13000 mV req=7 rep=4 unans=3 wfail=0 ovf=0 err=0
+t=  69s bus=active frames/s=680   total=94771    vbatt=13000 mV req=7 rep=4 unans=3 wfail=0 ovf=0 err=0
+t=  70s bus=active frames/s=707   total=95478    vbatt=13000 mV req=7 rep=4 unans=3 wfail=0 ovf=0 err=0
+t=  71s bus=active frames/s=681   total=96159    vbatt=13000 mV req=8 rep=4 unans=3 wfail=0 ovf=0 err=0
+UNANSWERED request at t=70.3s
+t=  72s bus=active frames/s=705   total=96864    vbatt=13000 mV req=8 rep=4 unans=4 wfail=0 ovf=0 err=0
+t=  73s bus=active frames/s=681   total=97545    vbatt=13000 mV req=8 rep=4 unans=4 wfail=0 ovf=0 err=0
+t=  74s bus=active frames/s=704   total=98249    vbatt=13000 mV req=8 rep=4 unans=4 wfail=0 ovf=0 err=0
+t=  75s bus=active frames/s=681   total=98930    vbatt=13000 mV req=8 rep=4 unans=4 wfail=0 ovf=0 err=0
+t=  76s bus=active frames/s=703   total=99633    vbatt=13000 mV req=8 rep=4 unans=4 wfail=0 ovf=0 err=0
+t=  77s bus=active frames/s=683   total=100316   vbatt=13000 mV req=8 rep=4 unans=4 wfail=0 ovf=0 err=0
+t=  78s bus=active frames/s=701   total=101017   vbatt=13000 mV req=8 rep=4 unans=4 wfail=0 ovf=0 err=0
+t=  79s bus=active frames/s=685   total=101702   vbatt=13000 mV req=8 rep=4 unans=4 wfail=0 ovf=0 err=0
+t=  80s bus=active frames/s=701   total=102403   vbatt=13000 mV req=8 rep=4 unans=4 wfail=0 ovf=0 err=0
+t=  81s bus=active frames/s=683   total=103086   vbatt=13000 mV req=9 rep=4 unans=4 wfail=0 ovf=0 err=0
+UNANSWERED request at t=80.3s
+t=  82s bus=active frames/s=701   total=103787   vbatt=13000 mV req=9 rep=4 unans=5 wfail=0 ovf=0 err=0
+t=  83s bus=active frames/s=684   total=104471   vbatt=13000 mV req=9 rep=4 unans=5 wfail=0 ovf=0 err=0
+t=  84s bus=active frames/s=700   total=105171   vbatt=13000 mV req=9 rep=4 unans=5 wfail=0 ovf=0 err=0
+t=  85s bus=active frames/s=684   total=105855   vbatt=13000 mV req=9 rep=4 unans=5 wfail=0 ovf=0 err=0
+t=  86s bus=active frames/s=700   total=106555   vbatt=13000 mV req=9 rep=4 unans=5 wfail=0 ovf=0 err=0
+t=  87s bus=active frames/s=686   total=107241   vbatt=13000 mV req=9 rep=4 unans=5 wfail=0 ovf=0 err=0
+t=  88s bus=active frames/s=700   total=107941   vbatt=13000 mV req=9 rep=4 unans=5 wfail=0 ovf=0 err=0
+t=  89s bus=active frames/s=702   total=108643   vbatt=13000 mV req=9 rep=4 unans=5 wfail=0 ovf=0 err=0
+t=  90s bus=active frames/s=681   total=109324   vbatt=13000 mV req=9 rep=4 unans=5 wfail=0 ovf=0 err=0
+t=  91s bus=active frames/s=707   total=110031   vbatt=13000 mV req=10 rep=4 unans=5 wfail=0 ovf=0 err=0
+UNANSWERED request at t=90.3s
+t=  92s bus=active frames/s=682   total=110713   vbatt=13000 mV req=10 rep=4 unans=6 wfail=0 ovf=0 err=0
+t=  93s bus=active frames/s=702   total=111415   vbatt=13000 mV req=10 rep=4 unans=6 wfail=0 ovf=0 err=0
+t=  94s bus=active frames/s=683   total=112098   vbatt=13100 mV req=10 rep=4 unans=6 wfail=0 ovf=0 err=0
+t=  95s bus=active frames/s=701   total=112799   vbatt=13000 mV req=10 rep=4 unans=6 wfail=0 ovf=0 err=0
+t=  96s bus=active frames/s=682   total=113481   vbatt=13000 mV req=10 rep=4 unans=6 wfail=0 ovf=0 err=0
+t=  97s bus=active frames/s=706   total=114187   vbatt=13000 mV req=10 rep=4 unans=6 wfail=0 ovf=0 err=0
+t=  98s bus=active frames/s=683   total=114870   vbatt=13100 mV req=10 rep=4 unans=6 wfail=0 ovf=0 err=0
+t=  99s bus=active frames/s=702   total=115572   vbatt=13100 mV req=10 rep=4 unans=6 wfail=0 ovf=0 err=0
+t= 100s bus=active frames/s=683   total=116255   vbatt=13100 mV req=10 rep=4 unans=6 wfail=0 ovf=0 err=0
+t= 101s bus=active frames/s=702   total=116957   vbatt=13100 mV req=11 rep=4 unans=6 wfail=0 ovf=0 err=0
+UNANSWERED request at t=100.4s
+t= 102s bus=active frames/s=684   total=117641   vbatt=13000 mV req=11 rep=4 unans=7 wfail=0 ovf=0 err=0
+t= 103s bus=active frames/s=702   total=118343   vbatt=13100 mV req=11 rep=4 unans=7 wfail=0 ovf=0 err=0
+t= 104s bus=active frames/s=683   total=119026   vbatt=13100 mV req=11 rep=4 unans=7 wfail=0 ovf=0 err=0
+t= 105s bus=active frames/s=706   total=119732   vbatt=13100 mV req=11 rep=4 unans=7 wfail=0 ovf=0 err=0
+t= 106s bus=active frames/s=680   total=120412   vbatt=13100 mV req=11 rep=4 unans=7 wfail=0 ovf=0 err=0
+t= 107s bus=active frames/s=703   total=121115   vbatt=13000 mV req=11 rep=4 unans=7 wfail=0 ovf=0 err=0
+t= 108s bus=active frames/s=679   total=121794   vbatt=13000 mV req=11 rep=4 unans=7 wfail=0 ovf=0 err=0
+t= 109s bus=active frames/s=704   total=122498   vbatt=13100 mV req=11 rep=4 unans=7 wfail=0 ovf=0 err=0
+t= 110s bus=active frames/s=682   total=123180   vbatt=13100 mV req=11 rep=4 unans=7 wfail=0 ovf=0 err=0
+t= 111s bus=active frames/s=706   total=123886   vbatt=13100 mV req=12 rep=4 unans=7 wfail=0 ovf=0 err=0
+UNANSWERED request at t=110.4s
+t= 112s bus=active frames/s=682   total=124568   vbatt=13100 mV req=12 rep=4 unans=8 wfail=0 ovf=0 err=0
+t= 113s bus=active frames/s=702   total=125270   vbatt=13100 mV req=12 rep=4 unans=8 wfail=0 ovf=0 err=0
+t= 114s bus=active frames/s=681   total=125951   vbatt=13100 mV req=12 rep=4 unans=8 wfail=0 ovf=0 err=0
+t= 115s bus=active frames/s=706   total=126657   vbatt=13000 mV req=12 rep=4 unans=8 wfail=0 ovf=0 err=0
+t= 116s bus=active frames/s=682   total=127339   vbatt=13000 mV req=12 rep=4 unans=8 wfail=0 ovf=0 err=0
+t= 117s bus=active frames/s=699   total=128038   vbatt=13100 mV req=12 rep=4 unans=8 wfail=0 ovf=0 err=0
+t= 118s bus=active frames/s=686   total=128724   vbatt=13100 mV req=12 rep=4 unans=8 wfail=0 ovf=0 err=0
+t= 119s bus=active frames/s=701   total=129425   vbatt=13000 mV req=12 rep=4 unans=8 wfail=0 ovf=0 err=0
+t= 120s bus=active frames/s=685   total=130110   vbatt=13100 mV req=12 rep=4 unans=8 wfail=0 ovf=0 err=0
+t= 121s bus=active frames/s=701   total=130811   vbatt=13000 mV req=13 rep=4 unans=8 wfail=0 ovf=0 err=0
+UNANSWERED request at t=120.4s
+t= 122s bus=active frames/s=685   total=131496   vbatt=13000 mV req=13 rep=4 unans=9 wfail=0 ovf=0 err=0
+t= 123s bus=active frames/s=697   total=132193   vbatt=13100 mV req=13 rep=4 unans=9 wfail=0 ovf=0 err=0
+t= 124s bus=active frames/s=686   total=132879   vbatt=13000 mV req=13 rep=4 unans=9 wfail=0 ovf=0 err=0
+t= 125s bus=active frames/s=700   total=133579   vbatt=13100 mV req=13 rep=4 unans=9 wfail=0 ovf=0 err=0
+t= 126s bus=active frames/s=687   total=134266   vbatt=13100 mV req=13 rep=4 unans=9 wfail=0 ovf=0 err=0
+t= 127s bus=active frames/s=699   total=134965   vbatt=13000 mV req=13 rep=4 unans=9 wfail=0 ovf=0 err=0
+t= 128s bus=active frames/s=688   total=135653   vbatt=13000 mV req=13 rep=4 unans=9 wfail=0 ovf=0 err=0
+t= 129s bus=active frames/s=703   total=136356   vbatt=13000 mV req=13 rep=4 unans=9 wfail=0 ovf=0 err=0
+t= 130s bus=active frames/s=685   total=137041   vbatt=13000 mV req=13 rep=4 unans=9 wfail=0 ovf=0 err=0
+t= 131s bus=active frames/s=702   total=137743   vbatt=13000 mV req=14 rep=4 unans=9 wfail=0 ovf=0 err=0
+UNANSWERED request at t=130.5s
+t= 132s bus=active frames/s=681   total=138424   vbatt=13000 mV req=14 rep=4 unans=10 wfail=0 ovf=0 err=0
+t= 133s bus=active frames/s=706   total=139130   vbatt=13000 mV req=14 rep=4 unans=10 wfail=0 ovf=0 err=0
+t= 134s bus=active frames/s=682   total=139812   vbatt=13100 mV req=14 rep=4 unans=10 wfail=0 ovf=0 err=0
+t= 135s bus=active frames/s=698   total=140510   vbatt=13000 mV req=14 rep=4 unans=10 wfail=0 ovf=0 err=0
+t= 136s bus=active frames/s=687   total=141197   vbatt=13100 mV req=14 rep=4 unans=10 wfail=0 ovf=0 err=0
+t= 137s bus=active frames/s=699   total=141896   vbatt=13000 mV req=14 rep=4 unans=10 wfail=0 ovf=0 err=0
+t= 138s bus=active frames/s=688   total=142584   vbatt=13000 mV req=14 rep=4 unans=10 wfail=0 ovf=0 err=0
+t= 139s bus=active frames/s=697   total=143281   vbatt=13000 mV req=14 rep=4 unans=10 wfail=0 ovf=0 err=0
+t= 140s bus=active frames/s=704   total=143985   vbatt=13000 mV req=14 rep=4 unans=10 wfail=0 ovf=0 err=0
+t= 141s bus=active frames/s=679   total=144664   vbatt=13000 mV req=15 rep=4 unans=10 wfail=0 ovf=0 err=0
+UNANSWERED request at t=140.5s
+t= 142s bus=active frames/s=706   total=145370   vbatt=13000 mV req=15 rep=4 unans=11 wfail=0 ovf=0 err=0
+t= 143s bus=active frames/s=681   total=146051   vbatt=13000 mV req=15 rep=4 unans=11 wfail=0 ovf=0 err=0
+t= 144s bus=active frames/s=704   total=146755   vbatt=13000 mV req=15 rep=4 unans=11 wfail=0 ovf=0 err=0
+t= 145s bus=active frames/s=679   total=147434   vbatt=13000 mV req=15 rep=4 unans=11 wfail=0 ovf=0 err=0
+t= 146s bus=active frames/s=707   total=148141   vbatt=13000 mV req=15 rep=4 unans=11 wfail=0 ovf=0 err=0
+t= 147s bus=active frames/s=678   total=148819   vbatt=13000 mV req=15 rep=4 unans=11 wfail=0 ovf=0 err=0
+t= 148s bus=active frames/s=708   total=149527   vbatt=13000 mV req=15 rep=4 unans=11 wfail=0 ovf=0 err=0
+t= 149s bus=active frames/s=679   total=150206   vbatt=13100 mV req=15 rep=4 unans=11 wfail=0 ovf=0 err=0
+t= 150s bus=active frames/s=708   total=150914   vbatt=13100 mV req=15 rep=4 unans=11 wfail=0 ovf=0 err=0
+t= 151s bus=active frames/s=679   total=151593   vbatt=13000 mV req=16 rep=4 unans=11 wfail=0 ovf=0 err=0
+UNANSWERED request at t=150.5s
+t= 152s bus=active frames/s=703   total=152296   vbatt=13000 mV req=16 rep=4 unans=12 wfail=0 ovf=0 err=0
+t= 153s bus=active frames/s=680   total=152976   vbatt=13000 mV req=16 rep=4 unans=12 wfail=0 ovf=0 err=0
+t= 154s bus=active frames/s=705   total=153681   vbatt=13000 mV req=16 rep=4 unans=12 wfail=0 ovf=0 err=0
+t= 155s bus=active frames/s=680   total=154361   vbatt=13000 mV req=16 rep=4 unans=12 wfail=0 ovf=0 err=0
+t= 156s bus=active frames/s=709   total=155070   vbatt=13000 mV req=16 rep=4 unans=12 wfail=0 ovf=0 err=0
+t= 157s bus=active frames/s=679   total=155749   vbatt=13000 mV req=16 rep=4 unans=12 wfail=0 ovf=0 err=0
+t= 158s bus=active frames/s=705   total=156454   vbatt=13000 mV req=16 rep=4 unans=12 wfail=0 ovf=0 err=0
+t= 159s bus=active frames/s=679   total=157133   vbatt=13000 mV req=16 rep=4 unans=12 wfail=0 ovf=0 err=0
+t= 160s bus=active frames/s=707   total=157840   vbatt=13000 mV req=16 rep=4 unans=12 wfail=0 ovf=0 err=0
+t= 161s bus=active frames/s=680   total=158520   vbatt=13000 mV req=17 rep=4 unans=12 wfail=0 ovf=0 err=0
+UNANSWERED request at t=160.6s
+t= 162s bus=active frames/s=705   total=159225   vbatt=13000 mV req=17 rep=4 unans=13 wfail=0 ovf=0 err=0
+t= 163s bus=active frames/s=681   total=159906   vbatt=13000 mV req=17 rep=4 unans=13 wfail=0 ovf=0 err=0
+t= 164s bus=active frames/s=704   total=160610   vbatt=13100 mV req=17 rep=4 unans=13 wfail=0 ovf=0 err=0
+t= 165s bus=active frames/s=697   total=161307   vbatt=13000 mV req=17 rep=4 unans=13 wfail=0 ovf=0 err=0
+t= 166s bus=active frames/s=684   total=161991   vbatt=13000 mV req=17 rep=4 unans=13 wfail=0 ovf=0 err=0
+t= 167s bus=active frames/s=700   total=162691   vbatt=13000 mV req=17 rep=4 unans=13 wfail=0 ovf=0 err=0
+t= 168s bus=active frames/s=679   total=163370   vbatt=13000 mV req=17 rep=4 unans=13 wfail=0 ovf=0 err=0
+t= 169s bus=active frames/s=707   total=164077   vbatt=13000 mV req=17 rep=4 unans=13 wfail=0 ovf=0 err=0
+t= 170s bus=active frames/s=682   total=164759   vbatt=13000 mV req=17 rep=4 unans=13 wfail=0 ovf=0 err=0
+t= 171s bus=active frames/s=704   total=165463   vbatt=13000 mV req=18 rep=4 unans=13 wfail=0 ovf=0 err=0
+UNANSWERED request at t=170.6s
+t= 172s bus=active frames/s=687   total=166150   vbatt=13000 mV req=18 rep=4 unans=14 wfail=0 ovf=0 err=0
+t= 173s bus=active frames/s=701   total=166851   vbatt=13000 mV req=18 rep=4 unans=14 wfail=0 ovf=0 err=0
+t= 174s bus=active frames/s=686   total=167537   vbatt=13000 mV req=18 rep=4 unans=14 wfail=0 ovf=0 err=0
+t= 175s bus=active frames/s=697   total=168234   vbatt=13000 mV req=18 rep=4 unans=14 wfail=0 ovf=0 err=0
+t= 176s bus=active frames/s=688   total=168922   vbatt=13000 mV req=18 rep=4 unans=14 wfail=0 ovf=0 err=0
+t= 177s bus=active frames/s=701   total=169623   vbatt=13000 mV req=18 rep=4 unans=14 wfail=0 ovf=0 err=0
+t= 178s bus=active frames/s=686   total=170309   vbatt=13000 mV req=18 rep=4 unans=14 wfail=0 ovf=0 err=0
+t= 179s bus=active frames/s=698   total=171007   vbatt=13000 mV req=18 rep=4 unans=14 wfail=0 ovf=0 err=0
+t= 180s bus=active frames/s=679   total=171686   vbatt=13000 mV req=18 rep=4 unans=14 wfail=0 ovf=0 err=0
+t= 181s bus=active frames/s=706   total=172392   vbatt=13000 mV req=19 rep=4 unans=14 wfail=0 ovf=0 err=0
+UNANSWERED request at t=180.7s
+t= 182s bus=active frames/s=683   total=173075   vbatt=13000 mV req=19 rep=4 unans=15 wfail=0 ovf=0 err=0
+t= 183s bus=active frames/s=702   total=173777   vbatt=13000 mV req=19 rep=4 unans=15 wfail=0 ovf=0 err=0
+t= 184s bus=active frames/s=680   total=174457   vbatt=13000 mV req=19 rep=4 unans=15 wfail=0 ovf=0 err=0
+t= 185s bus=active frames/s=704   total=175161   vbatt=13100 mV req=19 rep=4 unans=15 wfail=0 ovf=0 err=0
+t= 186s bus=active frames/s=681   total=175842   vbatt=13000 mV req=19 rep=4 unans=15 wfail=0 ovf=0 err=0
+t= 187s bus=active frames/s=709   total=176551   vbatt=13000 mV req=19 rep=4 unans=15 wfail=0 ovf=0 err=0
+t= 188s bus=active frames/s=680   total=177231   vbatt=13000 mV req=19 rep=4 unans=15 wfail=0 ovf=0 err=0
+t= 189s bus=active frames/s=705   total=177936   vbatt=13000 mV req=19 rep=4 unans=15 wfail=0 ovf=0 err=0
+t= 190s bus=active frames/s=680   total=178616   vbatt=13000 mV req=19 rep=4 unans=15 wfail=0 ovf=0 err=0
+t= 191s bus=active frames/s=703   total=179319   vbatt=13000 mV req=20 rep=4 unans=15 wfail=0 ovf=0 err=0
+UNANSWERED request at t=190.7s
+t= 192s bus=active frames/s=683   total=180002   vbatt=13000 mV req=20 rep=4 unans=16 wfail=0 ovf=0 err=0
+t= 193s bus=active frames/s=703   total=180705   vbatt=13100 mV req=20 rep=4 unans=16 wfail=0 ovf=0 err=0
+t= 194s bus=active frames/s=682   total=181387   vbatt=13100 mV req=20 rep=4 unans=16 wfail=0 ovf=0 err=0
+t= 195s bus=active frames/s=707   total=182094   vbatt=13000 mV req=20 rep=4 unans=16 wfail=0 ovf=0 err=0
+t= 196s bus=active frames/s=680   total=182774   vbatt=13100 mV req=20 rep=4 unans=16 wfail=0 ovf=0 err=0
+t= 197s bus=active frames/s=703   total=183477   vbatt=13100 mV req=20 rep=4 unans=16 wfail=0 ovf=0 err=0
+t= 198s bus=active frames/s=680   total=184157   vbatt=13100 mV req=20 rep=4 unans=16 wfail=0 ovf=0 err=0
+t= 199s bus=active frames/s=705   total=184862   vbatt=13100 mV req=20 rep=4 unans=16 wfail=0 ovf=0 err=0
+t= 200s bus=active frames/s=700   total=185562   vbatt=13100 mV req=20 rep=4 unans=16 wfail=0 ovf=0 err=0
+t= 201s bus=active frames/s=681   total=186243   vbatt=13100 mV req=21 rep=4 unans=16 wfail=0 ovf=0 err=0
+UNANSWERED request at t=200.7s
+t= 202s bus=active frames/s=703   total=186946   vbatt=13100 mV req=21 rep=4 unans=17 wfail=0 ovf=0 err=0
+t= 203s bus=active frames/s=680   total=187626   vbatt=13100 mV req=21 rep=4 unans=17 wfail=0 ovf=0 err=0
+t= 204s bus=active frames/s=707   total=188333   vbatt=13100 mV req=21 rep=4 unans=17 wfail=0 ovf=0 err=0
+t= 205s bus=active frames/s=679   total=189012   vbatt=13100 mV req=21 rep=4 unans=17 wfail=0 ovf=0 err=0
+t= 206s bus=active frames/s=703   total=189715   vbatt=13100 mV req=21 rep=4 unans=17 wfail=0 ovf=0 err=0
+t= 207s bus=active frames/s=680   total=190395   vbatt=13100 mV req=21 rep=4 unans=17 wfail=0 ovf=0 err=0
+t= 208s bus=active frames/s=708   total=191103   vbatt=13100 mV req=21 rep=4 unans=17 wfail=0 ovf=0 err=0
+t= 209s bus=active frames/s=680   total=191783   vbatt=13100 mV req=21 rep=4 unans=17 wfail=0 ovf=0 err=0
+t= 210s bus=active frames/s=706   total=192489   vbatt=13100 mV req=21 rep=4 unans=17 wfail=0 ovf=0 err=0
+t= 211s bus=active frames/s=679   total=193168   vbatt=13200 mV req=22 rep=4 unans=17 wfail=0 ovf=0 err=0
+UNANSWERED request at t=210.8s
+t= 212s bus=active frames/s=705   total=193873   vbatt=13100 mV req=22 rep=4 unans=18 wfail=0 ovf=0 err=0
+t= 213s bus=active frames/s=679   total=194552   vbatt=13200 mV req=22 rep=4 unans=18 wfail=0 ovf=0 err=0
+t= 214s bus=active frames/s=707   total=195259   vbatt=13200 mV req=22 rep=4 unans=18 wfail=0 ovf=0 err=0
+t= 215s bus=active frames/s=682   total=195941   vbatt=13100 mV req=22 rep=4 unans=18 wfail=0 ovf=0 err=0
+t= 216s bus=active frames/s=689   total=196630   vbatt=13100 mV req=22 rep=4 unans=18 wfail=0 ovf=0 err=0
+t= 217s bus=active frames/s=705   total=197335   vbatt=13100 mV req=22 rep=4 unans=18 wfail=0 ovf=0 err=0
+t= 218s bus=active frames/s=681   total=198016   vbatt=13200 mV req=22 rep=4 unans=18 wfail=0 ovf=0 err=0
+t= 219s bus=active frames/s=703   total=198719   vbatt=13200 mV req=22 rep=4 unans=18 wfail=0 ovf=0 err=0
+t= 220s bus=active frames/s=700   total=199419   vbatt=13100 mV req=22 rep=4 unans=18 wfail=0 ovf=0 err=0
+t= 221s bus=active frames/s=683   total=200102   vbatt=13200 mV req=23 rep=4 unans=18 wfail=0 ovf=0 err=0
+UNANSWERED request at t=220.8s
+t= 222s bus=active frames/s=705   total=200807   vbatt=13100 mV req=23 rep=4 unans=19 wfail=0 ovf=0 err=0
+t= 223s bus=active frames/s=679   total=201486   vbatt=13100 mV req=23 rep=4 unans=19 wfail=0 ovf=0 err=0
+t= 224s bus=active frames/s=702   total=202188   vbatt=13100 mV req=23 rep=4 unans=19 wfail=0 ovf=0 err=0
+t= 225s bus=active frames/s=679   total=202867   vbatt=13200 mV req=23 rep=4 unans=19 wfail=0 ovf=0 err=0
+t= 226s bus=active frames/s=708   total=203575   vbatt=13200 mV req=23 rep=4 unans=19 wfail=0 ovf=0 err=0
+t= 227s bus=active frames/s=679   total=204254   vbatt=13100 mV req=23 rep=4 unans=19 wfail=0 ovf=0 err=0
+t= 228s bus=active frames/s=707   total=204961   vbatt=13100 mV req=23 rep=4 unans=19 wfail=0 ovf=0 err=0
+t= 229s bus=active frames/s=678   total=205639   vbatt=13200 mV req=23 rep=4 unans=19 wfail=0 ovf=0 err=0
+t= 230s bus=active frames/s=704   total=206343   vbatt=13200 mV req=23 rep=4 unans=19 wfail=0 ovf=0 err=0
+t= 231s bus=active frames/s=680   total=207023   vbatt=13100 mV req=24 rep=4 unans=19 wfail=0 ovf=0 err=0
+UNANSWERED request at t=230.8s
+t= 232s bus=active frames/s=706   total=207729   vbatt=13100 mV req=24 rep=4 unans=20 wfail=0 ovf=0 err=0
+t= 233s bus=active frames/s=699   total=208428   vbatt=13100 mV req=24 rep=4 unans=20 wfail=0 ovf=0 err=0
+t= 234s bus=active frames/s=683   total=209111   vbatt=13100 mV req=24 rep=4 unans=20 wfail=0 ovf=0 err=0
+t= 235s bus=active frames/s=701   total=209812   vbatt=13100 mV req=24 rep=4 unans=20 wfail=0 ovf=0 err=0
+t= 236s bus=active frames/s=680   total=210492   vbatt=13100 mV req=24 rep=4 unans=20 wfail=0 ovf=0 err=0
+t= 237s bus=active frames/s=703   total=211195   vbatt=13200 mV req=24 rep=4 unans=20 wfail=0 ovf=0 err=0
+t= 238s bus=active frames/s=682   total=211877   vbatt=13100 mV req=24 rep=4 unans=20 wfail=0 ovf=0 err=0
+t= 239s bus=active frames/s=702   total=212579   vbatt=13100 mV req=24 rep=4 unans=20 wfail=0 ovf=0 err=0
+t= 240s bus=active frames/s=681   total=213260   vbatt=13100 mV req=24 rep=4 unans=20 wfail=0 ovf=0 err=0
+t= 241s bus=active frames/s=707   total=213967   vbatt=13100 mV req=25 rep=4 unans=20 wfail=0 ovf=0 err=0
+UNANSWERED request at t=240.9s
+t= 242s bus=active frames/s=682   total=214649   vbatt=13200 mV req=25 rep=4 unans=21 wfail=0 ovf=0 err=0
+t= 243s bus=active frames/s=703   total=215352   vbatt=13100 mV req=25 rep=4 unans=21 wfail=0 ovf=0 err=0
+t= 244s bus=active frames/s=681   total=216033   vbatt=13100 mV req=25 rep=4 unans=21 wfail=0 ovf=0 err=0
+t= 245s bus=active frames/s=704   total=216737   vbatt=13200 mV req=25 rep=4 unans=21 wfail=0 ovf=0 err=0
+t= 246s bus=active frames/s=682   total=217419   vbatt=13200 mV req=25 rep=4 unans=21 wfail=0 ovf=0 err=0
+t= 247s bus=active frames/s=704   total=218123   vbatt=13200 mV req=25 rep=4 unans=21 wfail=0 ovf=0 err=0
+t= 248s bus=active frames/s=681   total=218804   vbatt=13200 mV req=25 rep=4 unans=21 wfail=0 ovf=0 err=0
+t= 249s bus=active frames/s=1037  total=219841   vbatt=13100 mV req=25 rep=4 unans=21 wfail=0 ovf=0 err=0
+t= 250s bus=active frames/s=1297  total=221138   vbatt=13100 mV req=25 rep=4 unans=21 wfail=0 ovf=0 err=0
+reply from 7E8 after 20.2 ms
+t= 251s bus=active frames/s=1324  total=222462   vbatt=13000 mV req=26 rep=5 unans=21 wfail=0 ovf=0 err=0
+t= 252s bus=active frames/s=1332  total=223794   vbatt=13000 mV req=26 rep=5 unans=21 wfail=0 ovf=0 err=0
+t= 253s bus=active frames/s=1003  total=224797   vbatt=13000 mV req=26 rep=5 unans=21 wfail=0 ovf=0 err=0
+t= 254s bus=active frames/s=704   total=225501   vbatt=13100 mV req=26 rep=5 unans=21 wfail=0 ovf=0 err=0
+t= 255s bus=active frames/s=681   total=226182   vbatt=13100 mV req=26 rep=5 unans=21 wfail=0 ovf=0 err=0
+t= 256s bus=active frames/s=705   total=226887   vbatt=13100 mV req=26 rep=5 unans=21 wfail=0 ovf=0 err=0
+t= 257s bus=active frames/s=681   total=227568   vbatt=13100 mV req=26 rep=5 unans=21 wfail=0 ovf=0 err=0
+t= 258s bus=active frames/s=707   total=228275   vbatt=13100 mV req=26 rep=5 unans=21 wfail=0 ovf=0 err=0
+t= 259s bus=active frames/s=680   total=228955   vbatt=13100 mV req=26 rep=5 unans=21 wfail=0 ovf=0 err=0
+t= 260s bus=active frames/s=702   total=229657   vbatt=13100 mV req=26 rep=5 unans=21 wfail=0 ovf=0 err=0
+t= 261s bus=active frames/s=679   total=230336   vbatt=13100 mV req=27 rep=5 unans=21 wfail=0 ovf=0 err=0
+UNANSWERED request at t=260.9s
+t= 262s bus=active frames/s=706   total=231042   vbatt=13100 mV req=27 rep=5 unans=22 wfail=0 ovf=0 err=0
+t= 263s bus=active frames/s=698   total=231740   vbatt=13100 mV req=27 rep=5 unans=22 wfail=0 ovf=0 err=0
+t= 264s bus=active frames/s=689   total=232429   vbatt=13100 mV req=27 rep=5 unans=22 wfail=0 ovf=0 err=0
+t= 265s bus=active frames/s=695   total=233124   vbatt=13100 mV req=27 rep=5 unans=22 wfail=0 ovf=0 err=0
+t= 266s bus=active frames/s=688   total=233812   vbatt=13100 mV req=27 rep=5 unans=22 wfail=0 ovf=0 err=0
+t= 267s bus=active frames/s=701   total=234513   vbatt=13100 mV req=27 rep=5 unans=22 wfail=0 ovf=0 err=0
+t= 268s bus=active frames/s=683   total=235196   vbatt=13100 mV req=27 rep=5 unans=22 wfail=0 ovf=0 err=0
+t= 269s bus=active frames/s=702   total=235898   vbatt=13100 mV req=27 rep=5 unans=22 wfail=0 ovf=0 err=0
+t= 270s bus=active frames/s=680   total=236578   vbatt=13100 mV req=27 rep=5 unans=22 wfail=0 ovf=0 err=0
+t= 271s bus=active frames/s=706   total=237284   vbatt=13100 mV req=28 rep=5 unans=22 wfail=0 ovf=0 err=0
+UNANSWERED request at t=271.0s
+t= 272s bus=active frames/s=686   total=237970   vbatt=13100 mV req=28 rep=5 unans=23 wfail=0 ovf=0 err=0
+t= 273s bus=active frames/s=699   total=238669   vbatt=13100 mV req=28 rep=5 unans=23 wfail=0 ovf=0 err=0
+t= 274s bus=active frames/s=682   total=239351   vbatt=13100 mV req=28 rep=5 unans=23 wfail=0 ovf=0 err=0
+t= 275s bus=active frames/s=704   total=240055   vbatt=13100 mV req=28 rep=5 unans=23 wfail=0 ovf=0 err=0
+t= 276s bus=active frames/s=680   total=240735   vbatt=13100 mV req=28 rep=5 unans=23 wfail=0 ovf=0 err=0
+t= 277s bus=active frames/s=705   total=241440   vbatt=13100 mV req=28 rep=5 unans=23 wfail=0 ovf=0 err=0
+t= 278s bus=active frames/s=685   total=242125   vbatt=13100 mV req=28 rep=5 unans=23 wfail=0 ovf=0 err=0
+t= 279s bus=active frames/s=700   total=242825   vbatt=13100 mV req=28 rep=5 unans=23 wfail=0 ovf=0 err=0
+t= 280s bus=active frames/s=686   total=243511   vbatt=13100 mV req=28 rep=5 unans=23 wfail=0 ovf=0 err=0
+t= 281s bus=active frames/s=701   total=244212   vbatt=13100 mV req=29 rep=5 unans=23 wfail=0 ovf=0 err=0
+UNANSWERED request at t=281.0s
+t= 282s bus=active frames/s=683   total=244895   vbatt=13100 mV req=29 rep=5 unans=24 wfail=0 ovf=0 err=0
+t= 283s bus=active frames/s=701   total=245596   vbatt=13100 mV req=29 rep=5 unans=24 wfail=0 ovf=0 err=0
+t= 284s bus=active frames/s=683   total=246279   vbatt=13100 mV req=29 rep=5 unans=24 wfail=0 ovf=0 err=0
+t= 285s bus=active frames/s=704   total=246983   vbatt=13100 mV req=29 rep=5 unans=24 wfail=0 ovf=0 err=0
+t= 286s bus=active frames/s=680   total=247663   vbatt=13100 mV req=29 rep=5 unans=24 wfail=0 ovf=0 err=0
+t= 287s bus=active frames/s=703   total=248366   vbatt=13200 mV req=29 rep=5 unans=24 wfail=0 ovf=0 err=0
+t= 288s bus=active frames/s=680   total=249046   vbatt=13200 mV req=29 rep=5 unans=24 wfail=0 ovf=0 err=0
+t= 289s bus=active frames/s=708   total=249754   vbatt=13200 mV req=29 rep=5 unans=24 wfail=0 ovf=0 err=0
+t= 290s bus=active frames/s=681   total=250435   vbatt=13100 mV req=29 rep=5 unans=24 wfail=0 ovf=0 err=0
+t= 291s bus=active frames/s=703   total=251138   vbatt=13100 mV req=30 rep=5 unans=24 wfail=0 ovf=0 err=0
+t= 292s bus=active frames/s=682   total=251820   vbatt=13100 mV req=30 rep=5 unans=24 wfail=0 ovf=0 err=0
+UNANSWERED request at t=291.0s
+t= 293s bus=active frames/s=702   total=252522   vbatt=13200 mV req=30 rep=5 unans=25 wfail=0 ovf=0 err=0
+t= 294s bus=active frames/s=681   total=253203   vbatt=13100 mV req=30 rep=5 unans=25 wfail=0 ovf=0 err=0
+t= 295s bus=active frames/s=707   total=253910   vbatt=13200 mV req=30 rep=5 unans=25 wfail=0 ovf=0 err=0
+t= 296s bus=active frames/s=682   total=254592   vbatt=13100 mV req=30 rep=5 unans=25 wfail=0 ovf=0 err=0
+t= 297s bus=active frames/s=703   total=255295   vbatt=13100 mV req=30 rep=5 unans=25 wfail=0 ovf=0 err=0
+t= 298s bus=active frames/s=682   total=255977   vbatt=13100 mV req=30 rep=5 unans=25 wfail=0 ovf=0 err=0
+t= 299s bus=active frames/s=703   total=256680   vbatt=13100 mV req=30 rep=5 unans=25 wfail=0 ovf=0 err=0
+t= 300s bus=active frames/s=682   total=257362   vbatt=13200 mV req=30 rep=5 unans=25 wfail=0 ovf=0 err=0
+t= 301s bus=active frames/s=703   total=258065   vbatt=13100 mV req=30 rep=5 unans=25 wfail=0 ovf=0 err=0
+t= 302s bus=active frames/s=681   total=258746   vbatt=13100 mV req=31 rep=5 unans=25 wfail=0 ovf=0 err=0
+UNANSWERED request at t=301.1s
+t= 303s bus=active frames/s=709   total=259455   vbatt=13100 mV req=31 rep=5 unans=26 wfail=0 ovf=0 err=0
+t= 304s bus=active frames/s=695   total=260150   vbatt=13100 mV req=31 rep=5 unans=26 wfail=0 ovf=0 err=0
+t= 305s bus=active frames/s=688   total=260838   vbatt=13100 mV req=31 rep=5 unans=26 wfail=0 ovf=0 err=0
+t= 306s bus=active frames/s=697   total=261535   vbatt=13200 mV req=31 rep=5 unans=26 wfail=0 ovf=0 err=0
+t= 307s bus=active frames/s=686   total=262221   vbatt=13200 mV req=31 rep=5 unans=26 wfail=0 ovf=0 err=0
+t= 308s bus=active frames/s=702   total=262923   vbatt=13200 mV req=31 rep=5 unans=26 wfail=0 ovf=0 err=0
+t= 309s bus=active frames/s=684   total=263607   vbatt=13100 mV req=31 rep=5 unans=26 wfail=0 ovf=0 err=0
+t= 310s bus=active frames/s=700   total=264307   vbatt=13100 mV req=31 rep=5 unans=26 wfail=0 ovf=0 err=0
+t= 311s bus=active frames/s=683   total=264990   vbatt=13100 mV req=31 rep=5 unans=26 wfail=0 ovf=0 err=0
+t= 312s bus=active frames/s=706   total=265696   vbatt=13200 mV req=32 rep=5 unans=26 wfail=0 ovf=0 err=0
+UNANSWERED request at t=311.1s
+t= 313s bus=active frames/s=682   total=266378   vbatt=13200 mV req=32 rep=5 unans=27 wfail=0 ovf=0 err=0
+t= 314s bus=active frames/s=699   total=267077   vbatt=13100 mV req=32 rep=5 unans=27 wfail=0 ovf=0 err=0
+t= 315s bus=active frames/s=679   total=267756   vbatt=13200 mV req=32 rep=5 unans=27 wfail=0 ovf=0 err=0
+t= 316s bus=active frames/s=706   total=268462   vbatt=13200 mV req=32 rep=5 unans=27 wfail=0 ovf=0 err=0
+t= 317s bus=active frames/s=681   total=269143   vbatt=13200 mV req=32 rep=5 unans=27 wfail=0 ovf=0 err=0
+t= 318s bus=active frames/s=705   total=269848   vbatt=13200 mV req=32 rep=5 unans=27 wfail=0 ovf=0 err=0
+t= 319s bus=active frames/s=680   total=270528   vbatt=13200 mV req=32 rep=5 unans=27 wfail=0 ovf=0 err=0
+t= 320s bus=active frames/s=704   total=271232   vbatt=13200 mV req=32 rep=5 unans=27 wfail=0 ovf=0 err=0
+t= 321s bus=active frames/s=680   total=271912   vbatt=13200 mV req=32 rep=5 unans=27 wfail=0 ovf=0 err=0
+t= 322s bus=active frames/s=707   total=272619   vbatt=13200 mV req=33 rep=5 unans=27 wfail=0 ovf=0 err=0
+UNANSWERED request at t=321.1s
+t= 323s bus=active frames/s=681   total=273300   vbatt=13200 mV req=33 rep=5 unans=28 wfail=0 ovf=0 err=0
+t= 324s bus=active frames/s=704   total=274004   vbatt=13200 mV req=33 rep=5 unans=28 wfail=0 ovf=0 err=0
+t= 325s bus=active frames/s=681   total=274685   vbatt=13200 mV req=33 rep=5 unans=28 wfail=0 ovf=0 err=0
+t= 326s bus=active frames/s=705   total=275390   vbatt=13200 mV req=33 rep=5 unans=28 wfail=0 ovf=0 err=0
+t= 327s bus=active frames/s=696   total=276086   vbatt=13200 mV req=33 rep=5 unans=28 wfail=0 ovf=0 err=0
+t= 328s bus=active frames/s=689   total=276775   vbatt=13200 mV req=33 rep=5 unans=28 wfail=0 ovf=0 err=0
+t= 329s bus=active frames/s=699   total=277474   vbatt=13200 mV req=33 rep=5 unans=28 wfail=0 ovf=0 err=0
+t= 330s bus=active frames/s=682   total=278156   vbatt=13200 mV req=33 rep=5 unans=28 wfail=0 ovf=0 err=0
+t= 331s bus=active frames/s=701   total=278857   vbatt=13200 mV req=33 rep=5 unans=28 wfail=0 ovf=0 err=0
+t= 332s bus=active frames/s=689   total=279546   vbatt=13200 mV req=34 rep=5 unans=28 wfail=0 ovf=0 err=0
+UNANSWERED request at t=331.2s
+t= 333s bus=active frames/s=694   total=280240   vbatt=13200 mV req=34 rep=5 unans=29 wfail=0 ovf=0 err=0
+t= 334s bus=active frames/s=681   total=280921   vbatt=13200 mV req=34 rep=5 unans=29 wfail=0 ovf=0 err=0
+t= 335s bus=active frames/s=703   total=281624   vbatt=13200 mV req=34 rep=5 unans=29 wfail=0 ovf=0 err=0
+t= 336s bus=active frames/s=683   total=282307   vbatt=13200 mV req=34 rep=5 unans=29 wfail=0 ovf=0 err=0
+t= 337s bus=active frames/s=703   total=283010   vbatt=13200 mV req=34 rep=5 unans=29 wfail=0 ovf=0 err=0
+t= 338s bus=active frames/s=684   total=283694   vbatt=13200 mV req=34 rep=5 unans=29 wfail=0 ovf=0 err=0
+t= 339s bus=active frames/s=705   total=284399   vbatt=13200 mV req=34 rep=5 unans=29 wfail=0 ovf=0 err=0
+t= 340s bus=active frames/s=681   total=285080   vbatt=13200 mV req=34 rep=5 unans=29 wfail=0 ovf=0 err=0
+t= 341s bus=active frames/s=702   total=285782   vbatt=13200 mV req=34 rep=5 unans=29 wfail=0 ovf=0 err=0
+t= 342s bus=active frames/s=697   total=286479   vbatt=13200 mV req=35 rep=5 unans=29 wfail=0 ovf=0 err=0
+UNANSWERED request at t=341.2s
+t= 343s bus=active frames/s=688   total=287167   vbatt=13200 mV req=35 rep=5 unans=30 wfail=0 ovf=0 err=0
+t= 344s bus=active frames/s=700   total=287867   vbatt=13200 mV req=35 rep=5 unans=30 wfail=0 ovf=0 err=0
+t= 345s bus=active frames/s=687   total=288554   vbatt=13200 mV req=35 rep=5 unans=30 wfail=0 ovf=0 err=0
+t= 346s bus=active frames/s=697   total=289251   vbatt=13200 mV req=35 rep=5 unans=30 wfail=0 ovf=0 err=0
+t= 347s bus=active frames/s=685   total=289936   vbatt=13200 mV req=35 rep=5 unans=30 wfail=0 ovf=0 err=0
+t= 348s bus=active frames/s=704   total=290640   vbatt=13200 mV req=35 rep=5 unans=30 wfail=0 ovf=0 err=0
+t= 349s bus=active frames/s=681   total=291321   vbatt=13200 mV req=35 rep=5 unans=30 wfail=0 ovf=0 err=0
+t= 350s bus=active frames/s=703   total=292024   vbatt=13200 mV req=35 rep=5 unans=30 wfail=0 ovf=0 err=0
+t= 351s bus=active frames/s=676   total=292700   vbatt=13200 mV req=35 rep=5 unans=30 wfail=0 ovf=0 err=0
+t= 352s bus=active frames/s=710   total=293410   vbatt=13200 mV req=36 rep=5 unans=30 wfail=0 ovf=0 err=0
+UNANSWERED request at t=351.2s
+t= 353s bus=active frames/s=676   total=294086   vbatt=13200 mV req=36 rep=5 unans=31 wfail=0 ovf=0 err=0
+t= 354s bus=active frames/s=708   total=294794   vbatt=13200 mV req=36 rep=5 unans=31 wfail=0 ovf=0 err=0
+t= 355s bus=active frames/s=677   total=295471   vbatt=13200 mV req=36 rep=5 unans=31 wfail=0 ovf=0 err=0
+t= 356s bus=active frames/s=705   total=296176   vbatt=13200 mV req=36 rep=5 unans=31 wfail=0 ovf=0 err=0
+t= 357s bus=active frames/s=679   total=296855   vbatt=13200 mV req=36 rep=5 unans=31 wfail=0 ovf=0 err=0
+t= 358s bus=active frames/s=708   total=297563   vbatt=13200 mV req=36 rep=5 unans=31 wfail=0 ovf=0 err=0
+t= 359s bus=active frames/s=681   total=298244   vbatt=13200 mV req=36 rep=5 unans=31 wfail=0 ovf=0 err=0

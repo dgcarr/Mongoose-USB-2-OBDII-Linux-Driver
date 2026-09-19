@@ -1,0 +1,30 @@
+# mongoose-client serial:AOLHE0000003666A --script tools/scripts/e2-obd-mode09-pid02-vin.txt --gap 200
+# Live vehicle, Linux native library, after TX-done messages were added. Compare with
+# analysis/captures/windows/20260913T161953-e2-obd-mode09-pid02-vin/api.log (timestamps stripped).
+# VIN redacted with analysis/redact_vin.py.
+utc_100ns=134342790494557518 step line=5: open dev
+utc_100ns=134342790494872214 Open result=0 error=
+device=1
+utc_100ns=134342790496874492 step line=6: connect dev ISO15765 NONE 500000 chan
+connect protocol=6 flags=0 baud=500000
+utc_100ns=134342790496893186 Connect result=0 error=
+channel=2
+utc_100ns=134342790498895375 step line=7: filter chan FLOW ISO15765 ISO15765_FRAME_PAD 0000ffff 000007e8 000007e0 fc
+utc_100ns=134342790498902483 StartMsgFilter result=0 error=
+filter=3
+utc_100ns=134342790500904060 step line=8: write chan ISO15765 ISO15765_FRAME_PAD 000007df0902 1000
+utc_100ns=134342790500913605 WriteMsgs result=0 error=
+written=1
+utc_100ns=134342790502915254 step line=9: read chan 16 3000
+utc_100ns=134342790532921514 ReadMsgs result=9 error=CAN read returned fewer messages than requested
+received=3
+message protocol=6 rx=9 tx=64 timestamp=604300 size=4 extra=0 data=000007df
+message protocol=6 rx=2 tx=0 timestamp=608600 size=4 extra=0 data=000007e8
+message protocol=6 rx=0 tx=0 timestamp=611800 size=24 extra=24 data=000007e8490201524544414354454456494e303030303030
+read_total=3 rounds=1
+utc_100ns=134342790534924668 step line=10: stopfilter chan fc
+utc_100ns=134342790534930157 StopMsgFilter result=0 error=
+utc_100ns=134342790536932202 step line=11: disconnect chan
+utc_100ns=134342790536937563 Disconnect result=0 error=
+utc_100ns=134342790538939323 step line=12: close dev
+utc_100ns=134342790539117972 Close result=0 error=

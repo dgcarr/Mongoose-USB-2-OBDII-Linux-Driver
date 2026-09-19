@@ -1,0 +1,97 @@
+# mongoose-client serial:AOLHE0000003666A --script tools/scripts/h3-multiframe-reads.txt --gap 200
+# Live vehicle (same Volvo), Linux native library. AFTER the fix: both ECUs' replies to PIDs 04 and 0A are delivered.
+utc_100ns=134342795423250085 step line=6: open dev
+utc_100ns=134342795423575381 Open result=0 error=
+device=1
+utc_100ns=134342795425577622 step line=7: connect dev ISO15765 NONE 500000 chan
+connect protocol=6 flags=0 baud=500000
+utc_100ns=134342795425597539 Connect result=0 error=
+channel=2
+utc_100ns=134342795427599730 step line=8: filter chan FLOW ISO15765 ISO15765_FRAME_PAD 0000ffff 000007e8 000007e0 fc0
+utc_100ns=134342795427605963 StartMsgFilter result=0 error=
+filter=3
+utc_100ns=134342795429608139 step line=9: filter chan FLOW ISO15765 ISO15765_FRAME_PAD 0000ffff 000007e9 000007e1 fc1
+utc_100ns=134342795429614545 StartMsgFilter result=0 error=
+filter=4
+utc_100ns=134342795431616167 step line=10: write chan ISO15765 ISO15765_FRAME_PAD 000007df0900 1000
+utc_100ns=134342795431643303 WriteMsgs result=0 error=
+written=1
+utc_100ns=134342795433644886 step line=11: read chan 16 1500
+utc_100ns=134342795448650243 ReadMsgs result=9 error=CAN read returned fewer messages than requested
+received=3
+message protocol=6 rx=9 tx=64 timestamp=807200 size=4 extra=0 data=000007df
+message protocol=6 rx=0 tx=0 timestamp=814600 size=10 extra=10 data=000007e9490014400000
+message protocol=6 rx=0 tx=0 timestamp=816300 size=10 extra=10 data=000007e8490054600000
+read_total=3 rounds=1
+utc_100ns=134342795450653546 step line=12: write chan ISO15765 ISO15765_FRAME_PAD 000007df0904 1000
+utc_100ns=134342795450661970 WriteMsgs result=0 error=
+written=1
+utc_100ns=134342795452663677 step line=13: read chan 16 2000
+utc_100ns=134342795472667211 ReadMsgs result=9 error=CAN read returned fewer messages than requested
+received=5
+message protocol=6 rx=9 tx=64 timestamp=2709100 size=4 extra=0 data=000007df
+message protocol=6 rx=2 tx=0 timestamp=2714600 size=4 extra=0 data=000007e9
+message protocol=6 rx=2 tx=0 timestamp=2727500 size=4 extra=0 data=000007e8
+message protocol=6 rx=0 tx=0 timestamp=2736100 size=39 extra=39 data=000007e84904023331363639353530204141000000000033313337323637392041420000000000
+message protocol=6 rx=0 tx=0 timestamp=2746900 size=23 extra=23 data=000007e949040133323239323831322041410000000000
+read_total=5 rounds=1
+utc_100ns=134342795474669722 step line=14: write chan ISO15765 ISO15765_FRAME_PAD 000007df0906 1000
+utc_100ns=134342795474680067 WriteMsgs result=0 error=
+written=1
+utc_100ns=134342795476681483 step line=15: read chan 16 2000
+utc_100ns=134342795496684140 ReadMsgs result=9 error=CAN read returned fewer messages than requested
+received=4
+message protocol=6 rx=9 tx=64 timestamp=5110800 size=4 extra=0 data=000007df
+message protocol=6 rx=0 tx=0 timestamp=5114400 size=11 extra=11 data=000007e9490601e2dd0b5c
+message protocol=6 rx=2 tx=0 timestamp=5126800 size=4 extra=0 data=000007e8
+message protocol=6 rx=0 tx=0 timestamp=5127800 size=15 extra=15 data=000007e84906029192e17dd2e4d283
+read_total=4 rounds=1
+utc_100ns=134342795498686076 step line=16: write chan ISO15765 ISO15765_FRAME_PAD 000007df090a 1000
+utc_100ns=134342795498694748 WriteMsgs result=0 error=
+written=1
+utc_100ns=134342795500696081 step line=17: read chan 16 2000
+utc_100ns=134342795520699054 ReadMsgs result=9 error=CAN read returned fewer messages than requested
+received=5
+message protocol=6 rx=9 tx=64 timestamp=7512100 size=4 extra=0 data=000007df
+message protocol=6 rx=2 tx=0 timestamp=7515400 size=4 extra=0 data=000007e8
+message protocol=6 rx=2 tx=0 timestamp=7515700 size=4 extra=0 data=000007e9
+message protocol=6 rx=0 tx=0 timestamp=7521900 size=27 extra=27 data=000007e8490a0145434d002d456e67696e65436f6e74726f6c0000
+message protocol=6 rx=0 tx=0 timestamp=7554200 size=27 extra=27 data=000007e9490a0154434d002d5472616e736d69734374726c000000
+read_total=5 rounds=1
+utc_100ns=134342795522701138 step line=18: write chan ISO15765 ISO15765_FRAME_PAD 000007df03 1000
+utc_100ns=134342795522729799 WriteMsgs result=0 error=
+written=1
+utc_100ns=134342795524731682 step line=19: read chan 16 2000
+utc_100ns=134342795544735041 ReadMsgs result=9 error=CAN read returned fewer messages than requested
+received=3
+message protocol=6 rx=9 tx=64 timestamp=9915200 size=4 extra=0 data=000007df
+message protocol=6 rx=0 tx=0 timestamp=9927400 size=6 extra=6 data=000007e84300
+message protocol=6 rx=0 tx=0 timestamp=9927600 size=6 extra=6 data=000007e94300
+read_total=3 rounds=1
+utc_100ns=134342795546737752 step line=20: write chan ISO15765 ISO15765_FRAME_PAD 000007df07 1000
+utc_100ns=134342795546747908 WriteMsgs result=0 error=
+written=1
+utc_100ns=134342795548749414 step line=21: read chan 16 2000
+utc_100ns=134342795568752450 ReadMsgs result=9 error=CAN read returned fewer messages than requested
+received=3
+message protocol=6 rx=9 tx=64 timestamp=12317100 size=4 extra=0 data=000007df
+message protocol=6 rx=0 tx=0 timestamp=12326500 size=6 extra=6 data=000007e84700
+message protocol=6 rx=0 tx=0 timestamp=12326700 size=6 extra=6 data=000007e94700
+read_total=3 rounds=1
+utc_100ns=134342795570754570 step line=22: write chan ISO15765 ISO15765_FRAME_PAD 000007df0a 1000
+utc_100ns=134342795570764043 WriteMsgs result=0 error=
+written=1
+utc_100ns=134342795572765369 step line=23: read chan 16 2000
+utc_100ns=134342795592768675 ReadMsgs result=9 error=CAN read returned fewer messages than requested
+received=2
+message protocol=6 rx=9 tx=64 timestamp=14718500 size=4 extra=0 data=000007df
+message protocol=6 rx=0 tx=0 timestamp=14726300 size=6 extra=6 data=000007e94a00
+read_total=2 rounds=1
+utc_100ns=134342795594771135 step line=24: stopfilter chan fc1
+utc_100ns=134342795594776168 StopMsgFilter result=0 error=
+utc_100ns=134342795596777577 step line=25: stopfilter chan fc0
+utc_100ns=134342795596782496 StopMsgFilter result=0 error=
+utc_100ns=134342795598783923 step line=26: disconnect chan
+utc_100ns=134342795598788002 Disconnect result=0 error=
+utc_100ns=134342795600789971 step line=27: close dev
+utc_100ns=134342795600977550 Close result=0 error=

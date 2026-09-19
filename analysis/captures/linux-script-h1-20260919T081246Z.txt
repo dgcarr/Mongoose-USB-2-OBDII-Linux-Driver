@@ -1,0 +1,68 @@
+# mongoose-client serial:AOLHE0000003666A --script tools/scripts/h1-physical-addressing.txt --gap 200
+# Live vehicle (same Volvo), Linux native library. Two flow-control filters on one channel; physical requests to 0x7E0 and 0x7E1; unsupported PID is silent; VIN as a multi-frame physical reply.
+# VIN redacted with analysis/redact_vin.py.
+utc_100ns=134342791665651124 step line=5: open dev
+utc_100ns=134342791665971352 Open result=0 error=
+device=1
+utc_100ns=134342791667973748 step line=6: connect dev ISO15765 NONE 500000 chan
+connect protocol=6 flags=0 baud=500000
+utc_100ns=134342791667992418 Connect result=0 error=
+channel=2
+utc_100ns=134342791669994458 step line=7: filter chan FLOW ISO15765 ISO15765_FRAME_PAD 0000ffff 000007e8 000007e0 fc0
+utc_100ns=134342791670000480 StartMsgFilter result=0 error=
+filter=3
+utc_100ns=134342791672001903 step line=8: filter chan FLOW ISO15765 ISO15765_FRAME_PAD 0000ffff 000007e9 000007e1 fc1
+utc_100ns=134342791672008372 StartMsgFilter result=0 error=
+filter=4
+utc_100ns=134342791674009915 step line=9: write chan ISO15765 ISO15765_FRAME_PAD 000007e00100 1000
+utc_100ns=134342791674021233 WriteMsgs result=0 error=
+written=1
+utc_100ns=134342791676022589 step line=10: read chan 16 1000
+utc_100ns=134342791686028651 ReadMsgs result=9 error=CAN read returned fewer messages than requested
+received=2
+message protocol=6 rx=9 tx=64 timestamp=805500 size=4 extra=0 data=000007e0
+message protocol=6 rx=0 tx=0 timestamp=810800 size=10 extra=10 data=000007e84100983ba013
+read_total=2 rounds=1
+utc_100ns=134342791688031441 step line=11: write chan ISO15765 ISO15765_FRAME_PAD 000007e10100 1000
+utc_100ns=134342791688040251 WriteMsgs result=0 error=
+written=1
+utc_100ns=134342791690041463 step line=12: read chan 16 1000
+utc_100ns=134342791700043710 ReadMsgs result=9 error=CAN read returned fewer messages than requested
+received=2
+message protocol=6 rx=9 tx=64 timestamp=2207500 size=4 extra=0 data=000007e1
+message protocol=6 rx=0 tx=0 timestamp=2222000 size=10 extra=10 data=000007e9410088180013
+read_total=2 rounds=1
+utc_100ns=134342791702045524 step line=13: write chan ISO15765 ISO15765_FRAME_PAD 000007e0017f 1000
+utc_100ns=134342791702060486 WriteMsgs result=0 error=
+written=1
+utc_100ns=134342791704062089 step line=14: read chan 16 1000
+utc_100ns=134342791714065280 ReadMsgs result=9 error=CAN read returned fewer messages than requested
+received=1
+message protocol=6 rx=9 tx=64 timestamp=3609600 size=4 extra=0 data=000007e0
+read_total=1 rounds=1
+utc_100ns=134342791716067757 step line=15: write chan ISO15765 ISO15765_FRAME_PAD 000007e1017f 1000
+utc_100ns=134342791716094533 WriteMsgs result=0 error=
+written=1
+utc_100ns=134342791718097209 step line=16: read chan 16 1000
+utc_100ns=134342791728102109 ReadMsgs result=9 error=CAN read returned fewer messages than requested
+received=1
+message protocol=6 rx=9 tx=64 timestamp=5012600 size=4 extra=0 data=000007e1
+read_total=1 rounds=1
+utc_100ns=134342791730104121 step line=17: write chan ISO15765 ISO15765_FRAME_PAD 000007e00902 1000
+utc_100ns=134342791730112850 WriteMsgs result=0 error=
+written=1
+utc_100ns=134342791732114220 step line=18: read chan 16 2000
+utc_100ns=134342791752118197 ReadMsgs result=9 error=CAN read returned fewer messages than requested
+received=3
+message protocol=6 rx=9 tx=64 timestamp=6414500 size=4 extra=0 data=000007e0
+message protocol=6 rx=2 tx=0 timestamp=6421000 size=4 extra=0 data=000007e8
+message protocol=6 rx=0 tx=0 timestamp=6426400 size=24 extra=24 data=000007e8490201524544414354454456494e303030303030
+read_total=3 rounds=1
+utc_100ns=134342791754119877 step line=19: stopfilter chan fc1
+utc_100ns=134342791754127370 StopMsgFilter result=0 error=
+utc_100ns=134342791756128629 step line=20: stopfilter chan fc0
+utc_100ns=134342791756133160 StopMsgFilter result=0 error=
+utc_100ns=134342791758134482 step line=21: disconnect chan
+utc_100ns=134342791758139603 Disconnect result=0 error=
+utc_100ns=134342791760140846 step line=22: close dev
+utc_100ns=134342791760321338 Close result=0 error=

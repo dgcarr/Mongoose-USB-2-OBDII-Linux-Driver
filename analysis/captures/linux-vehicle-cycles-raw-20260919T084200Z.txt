@@ -1,0 +1,12 @@
+# mongoose-client serial:AOLHE0000003666A --vehicle-cycles-raw   (100 lifecycle cycles, raw CAN, live Volvo)
+cycle 10 ok
+cycle 20 ok
+cycle 30 ok
+cycle 40 ok
+cycle 50 ok
+cycle 60 ok
+cycle 70 ok
+cycle 80 ok
+cycle 90 ok
+cycle 100 ok
+cycles=100 all passed in 6.0 s; request->reply mean 5.32 ms best 4.05 ms worst 7.55 ms

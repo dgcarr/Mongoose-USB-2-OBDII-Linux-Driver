@@ -1,0 +1,30 @@
+# mongoose-client serial:AOLHE0000003666A --script tools/scripts/e5-segmented-tx.txt --gap 200
+# Live vehicle (same Volvo), Linux native library, ISO15765. A 9-byte UDS ReadDataByIdentifier request (22 F190 F187 F18C F194) to the
+# engine ECU: longer than one CAN frame, sent as ONE cOutboundData; the adapter segmented it and the ECU answered with a positive
+# response (0x62) as a multi-frame reply, reassembled here. The reply carries the VIN and module identifiers; the payload is masked.
+utc_100ns=134342851648767633 step line=6: open dev
+utc_100ns=134342851649090859 Open result=0 error=
+device=1
+utc_100ns=134342851651093324 step line=7: connect dev ISO15765 NONE 500000 chan
+connect protocol=6 flags=0 baud=500000
+utc_100ns=134342851651113426 Connect result=0 error=
+channel=2
+utc_100ns=134342851653115684 step line=8: filter chan FLOW ISO15765 ISO15765_FRAME_PAD 0000ffff 000007e8 000007e0 fc
+utc_100ns=134342851653124079 StartMsgFilter result=0 error=
+filter=3
+utc_100ns=134342851655125847 step line=9: write chan ISO15765 ISO15765_FRAME_PAD 000007e022f190f187f18cf194 1000
+utc_100ns=134342851655142061 WriteMsgs result=0 error=
+written=1
+utc_100ns=134342851657143403 step line=10: read chan 16 3000
+utc_100ns=134342851687149766 ReadMsgs result=9 error=CAN read returned fewer messages than requested
+received=3
+message protocol=6 rx=9 tx=64 timestamp=606100 size=4 extra=0 data=000007e0
+message protocol=6 rx=2 tx=0 timestamp=629200 size=4 extra=0 data=000007e8
+message protocol=6 rx=0 tx=0 timestamp=646100 size=42 extra=42 data=000007e862f190<35 payload bytes masked: VIN and module identifiers>
+read_total=3 rounds=1
+utc_100ns=134342851689152851 step line=11: stopfilter chan fc
+utc_100ns=134342851689158968 StopMsgFilter result=0 error=
+utc_100ns=134342851691160528 step line=12: disconnect chan
+utc_100ns=134342851691168153 Disconnect result=0 error=
+utc_100ns=134342851693170186 step line=13: close dev
+utc_100ns=134342851693349121 Close result=0 error=

@@ -1,0 +1,70 @@
+# mongoose-client serial:AOLHE0000003666A --vehicle-hour-iso   (one hour, ISO15765 channel, live Volvo, started 08:44 UTC)
+# Two flow-control filters (0x7E8/0x7E0, 0x7E9/0x7E1); a functional request each second (mode 01 PIDs 00,05,0C,0D) and mode 09 PID 04 every tenth second, whose two ECUs reply with interleaved multi-frame messages.
+# Ran on the build with per-ID reassembly and TX-done messages paired by order; the later sequence-paired pairing, config, periodic and loopback code came after.
+PassThruStartMsgFilter flow-control 7E8/7E0 status=0 
+PassThruStartMsgFilter flow-control 7E9/7E1 status=0 
+iso hour soak starts: 3600 s, rss_start=4896 kB
+t=60s requests=60 single_ok=54/54 multi_ok=6/6 write_failures=0 read_errors=0 overflows=0 rss=5096 kB
+t=120s requests=120 single_ok=108/108 multi_ok=12/12 write_failures=0 read_errors=0 overflows=0 rss=5100 kB
+t=180s requests=180 single_ok=162/162 multi_ok=18/18 write_failures=0 read_errors=0 overflows=0 rss=5100 kB
+t=240s requests=240 single_ok=216/216 multi_ok=24/24 write_failures=0 read_errors=0 overflows=0 rss=5100 kB
+t=300s requests=300 single_ok=270/270 multi_ok=30/30 write_failures=0 read_errors=0 overflows=0 rss=5100 kB
+t=360s requests=360 single_ok=324/324 multi_ok=36/36 write_failures=0 read_errors=0 overflows=0 rss=5100 kB
+t=420s requests=420 single_ok=378/378 multi_ok=42/42 write_failures=0 read_errors=0 overflows=0 rss=5100 kB
+t=480s requests=480 single_ok=432/432 multi_ok=48/48 write_failures=0 read_errors=0 overflows=0 rss=5100 kB
+t=540s requests=540 single_ok=486/486 multi_ok=54/54 write_failures=0 read_errors=0 overflows=0 rss=5100 kB
+t=600s requests=600 single_ok=540/540 multi_ok=60/60 write_failures=0 read_errors=0 overflows=0 rss=5104 kB
+t=660s requests=660 single_ok=594/594 multi_ok=66/66 write_failures=0 read_errors=0 overflows=0 rss=5104 kB
+t=720s requests=720 single_ok=648/648 multi_ok=72/72 write_failures=0 read_errors=0 overflows=0 rss=5104 kB
+t=780s requests=780 single_ok=702/702 multi_ok=78/78 write_failures=0 read_errors=0 overflows=0 rss=5104 kB
+t=840s requests=840 single_ok=756/756 multi_ok=84/84 write_failures=0 read_errors=0 overflows=0 rss=5104 kB
+t=900s requests=900 single_ok=810/810 multi_ok=90/90 write_failures=0 read_errors=0 overflows=0 rss=5104 kB
+t=960s requests=960 single_ok=864/864 multi_ok=96/96 write_failures=0 read_errors=0 overflows=0 rss=5104 kB
+t=1020s requests=1020 single_ok=918/918 multi_ok=102/102 write_failures=0 read_errors=0 overflows=0 rss=5104 kB
+t=1080s requests=1080 single_ok=972/972 multi_ok=108/108 write_failures=0 read_errors=0 overflows=0 rss=5104 kB
+t=1140s requests=1140 single_ok=1026/1026 multi_ok=114/114 write_failures=0 read_errors=0 overflows=0 rss=5108 kB
+t=1200s requests=1200 single_ok=1080/1080 multi_ok=120/120 write_failures=0 read_errors=0 overflows=0 rss=5108 kB
+t=1260s requests=1260 single_ok=1134/1134 multi_ok=126/126 write_failures=0 read_errors=0 overflows=0 rss=5108 kB
+t=1320s requests=1320 single_ok=1188/1188 multi_ok=132/132 write_failures=0 read_errors=0 overflows=0 rss=5108 kB
+t=1380s requests=1380 single_ok=1242/1242 multi_ok=138/138 write_failures=0 read_errors=0 overflows=0 rss=5108 kB
+t=1440s requests=1440 single_ok=1296/1296 multi_ok=144/144 write_failures=0 read_errors=0 overflows=0 rss=5108 kB
+t=1500s requests=1500 single_ok=1350/1350 multi_ok=150/150 write_failures=0 read_errors=0 overflows=0 rss=5108 kB
+t=1560s requests=1560 single_ok=1404/1404 multi_ok=156/156 write_failures=0 read_errors=0 overflows=0 rss=5108 kB
+t=1620s requests=1620 single_ok=1458/1458 multi_ok=162/162 write_failures=0 read_errors=0 overflows=0 rss=5108 kB
+t=1680s requests=1680 single_ok=1512/1512 multi_ok=168/168 write_failures=0 read_errors=0 overflows=0 rss=5108 kB
+t=1740s requests=1740 single_ok=1566/1566 multi_ok=174/174 write_failures=0 read_errors=0 overflows=0 rss=5108 kB
+t=1800s requests=1800 single_ok=1620/1620 multi_ok=180/180 write_failures=0 read_errors=0 overflows=0 rss=5108 kB
+t=1860s requests=1860 single_ok=1674/1674 multi_ok=186/186 write_failures=0 read_errors=0 overflows=0 rss=5108 kB
+t=1920s requests=1920 single_ok=1728/1728 multi_ok=192/192 write_failures=0 read_errors=0 overflows=0 rss=5108 kB
+t=1980s requests=1980 single_ok=1782/1782 multi_ok=198/198 write_failures=0 read_errors=0 overflows=0 rss=5108 kB
+t=2040s requests=2040 single_ok=1836/1836 multi_ok=204/204 write_failures=0 read_errors=0 overflows=0 rss=5108 kB
+t=2100s requests=2100 single_ok=1890/1890 multi_ok=210/210 write_failures=0 read_errors=0 overflows=0 rss=5108 kB
+t=2160s requests=2160 single_ok=1944/1944 multi_ok=216/216 write_failures=0 read_errors=0 overflows=0 rss=5108 kB
+t=2220s requests=2220 single_ok=1998/1998 multi_ok=222/222 write_failures=0 read_errors=0 overflows=0 rss=5108 kB
+t=2280s requests=2280 single_ok=2052/2052 multi_ok=228/228 write_failures=0 read_errors=0 overflows=0 rss=5108 kB
+t=2340s requests=2340 single_ok=2106/2106 multi_ok=234/234 write_failures=0 read_errors=0 overflows=0 rss=5108 kB
+t=2400s requests=2400 single_ok=2160/2160 multi_ok=240/240 write_failures=0 read_errors=0 overflows=0 rss=5108 kB
+t=2460s requests=2460 single_ok=2214/2214 multi_ok=246/246 write_failures=0 read_errors=0 overflows=0 rss=5108 kB
+t=2520s requests=2520 single_ok=2268/2268 multi_ok=252/252 write_failures=0 read_errors=0 overflows=0 rss=5108 kB
+t=2580s requests=2580 single_ok=2322/2322 multi_ok=258/258 write_failures=0 read_errors=0 overflows=0 rss=5108 kB
+t=2640s requests=2640 single_ok=2376/2376 multi_ok=264/264 write_failures=0 read_errors=0 overflows=0 rss=5108 kB
+t=2700s requests=2700 single_ok=2430/2430 multi_ok=270/270 write_failures=0 read_errors=0 overflows=0 rss=5108 kB
+t=2760s requests=2760 single_ok=2484/2484 multi_ok=276/276 write_failures=0 read_errors=0 overflows=0 rss=5108 kB
+t=2820s requests=2820 single_ok=2538/2538 multi_ok=282/282 write_failures=0 read_errors=0 overflows=0 rss=5108 kB
+t=2880s requests=2880 single_ok=2592/2592 multi_ok=288/288 write_failures=0 read_errors=0 overflows=0 rss=5108 kB
+t=2940s requests=2940 single_ok=2646/2646 multi_ok=294/294 write_failures=0 read_errors=0 overflows=0 rss=5108 kB
+t=3000s requests=3000 single_ok=2700/2700 multi_ok=300/300 write_failures=0 read_errors=0 overflows=0 rss=5108 kB
+t=3060s requests=3060 single_ok=2754/2754 multi_ok=306/306 write_failures=0 read_errors=0 overflows=0 rss=5108 kB
+t=3120s requests=3120 single_ok=2808/2808 multi_ok=312/312 write_failures=0 read_errors=0 overflows=0 rss=5108 kB
+t=3180s requests=3180 single_ok=2862/2862 multi_ok=318/318 write_failures=0 read_errors=0 overflows=0 rss=5108 kB
+t=3240s requests=3240 single_ok=2916/2916 multi_ok=324/324 write_failures=0 read_errors=0 overflows=0 rss=5108 kB
+t=3300s requests=3300 single_ok=2970/2970 multi_ok=330/330 write_failures=0 read_errors=0 overflows=0 rss=5108 kB
+t=3360s requests=3360 single_ok=3024/3024 multi_ok=336/336 write_failures=0 read_errors=0 overflows=0 rss=5108 kB
+t=3420s requests=3420 single_ok=3078/3078 multi_ok=342/342 write_failures=0 read_errors=0 overflows=0 rss=5108 kB
+t=3480s requests=3480 single_ok=3132/3132 multi_ok=348/348 write_failures=0 read_errors=0 overflows=0 rss=5108 kB
+t=3540s requests=3540 single_ok=3186/3186 multi_ok=354/354 write_failures=0 read_errors=0 overflows=0 rss=5108 kB
+t=3600s requests=3600 single_ok=3240/3240 multi_ok=360/360 write_failures=0 read_errors=0 overflows=0 rss=5108 kB
+iso hour soak done: 3600 s requests=3600 single=3240 ok=3240 bad=0 | multi-frame=360 ok=360 bad=0
+write_failures=0 read_errors=0 overflows=0 tx_done_messages=3600 start_indications=720 second_ecu_replies=3240 stray=0
+single-frame request->reply mean 9.14 ms worst 26.22 ms (5 ms read granularity) rss_start=4896 end=5108 kB
+PassThruStopMsgFilter status=0 

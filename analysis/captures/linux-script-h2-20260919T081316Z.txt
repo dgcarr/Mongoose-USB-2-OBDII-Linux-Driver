@@ -1,0 +1,36 @@
+# mongoose-client serial:AOLHE0000003666A --script tools/scripts/h2-negative-response.txt --gap 200
+# Live vehicle (same Volvo), Linux native library. Physical read-only requests an ECU cannot serve: 7F 09 12 and 7F 22 31 come back as ordinary messages.
+utc_100ns=134342791961591724 step line=5: open dev
+utc_100ns=134342791961908503 Open result=0 error=
+device=1
+utc_100ns=134342791963909798 step line=6: connect dev ISO15765 NONE 500000 chan
+connect protocol=6 flags=0 baud=500000
+utc_100ns=134342791963928058 Connect result=0 error=
+channel=2
+utc_100ns=134342791965929309 step line=7: filter chan FLOW ISO15765 ISO15765_FRAME_PAD 0000ffff 000007e8 000007e0 fc
+utc_100ns=134342791965936986 StartMsgFilter result=0 error=
+filter=3
+utc_100ns=134342791967938370 step line=8: write chan ISO15765 ISO15765_FRAME_PAD 000007e009ff 1000
+utc_100ns=134342791967948671 WriteMsgs result=0 error=
+written=1
+utc_100ns=134342791969949906 step line=9: read chan 16 1500
+utc_100ns=134342791984955047 ReadMsgs result=9 error=CAN read returned fewer messages than requested
+received=2
+message protocol=6 rx=9 tx=64 timestamp=604400 size=4 extra=0 data=000007e0
+message protocol=6 rx=0 tx=0 timestamp=604900 size=7 extra=7 data=000007e87f0912
+read_total=2 rounds=1
+utc_100ns=134342791986957324 step line=10: write chan ISO15765 ISO15765_FRAME_PAD 000007e022ffff 1000
+utc_100ns=134342791986967173 WriteMsgs result=0 error=
+written=1
+utc_100ns=134342791988969022 step line=11: read chan 16 1500
+utc_100ns=134342792003972319 ReadMsgs result=9 error=CAN read returned fewer messages than requested
+received=2
+message protocol=6 rx=9 tx=64 timestamp=2505900 size=4 extra=0 data=000007e0
+message protocol=6 rx=0 tx=0 timestamp=2515100 size=7 extra=7 data=000007e87f2231
+read_total=2 rounds=1
+utc_100ns=134342792005974359 step line=12: stopfilter chan fc
+utc_100ns=134342792005979659 StopMsgFilter result=0 error=
+utc_100ns=134342792007980954 step line=13: disconnect chan
+utc_100ns=134342792007985651 Disconnect result=0 error=
+utc_100ns=134342792009987751 step line=14: close dev
+utc_100ns=134342792010175045 Close result=0 error=

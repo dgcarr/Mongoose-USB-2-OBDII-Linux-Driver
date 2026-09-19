@@ -1,0 +1,95 @@
+# mongoose-client serial:AOLHE0000003666A --script tools/scripts/h3-multiframe-reads.txt --gap 200
+# Live vehicle (same Volvo), Linux native library. BEFORE the per-ID reassembler fix: PIDs 04 and 0A show two start-of-message indications but only one completed message each (one ECU's reply discarded).
+utc_100ns=134342792905680890 step line=6: open dev
+utc_100ns=134342792906007412 Open result=0 error=
+device=1
+utc_100ns=134342792908009739 step line=7: connect dev ISO15765 NONE 500000 chan
+connect protocol=6 flags=0 baud=500000
+utc_100ns=134342792908029100 Connect result=0 error=
+channel=2
+utc_100ns=134342792910031371 step line=8: filter chan FLOW ISO15765 ISO15765_FRAME_PAD 0000ffff 000007e8 000007e0 fc0
+utc_100ns=134342792910038101 StartMsgFilter result=0 error=
+filter=3
+utc_100ns=134342792912040283 step line=9: filter chan FLOW ISO15765 ISO15765_FRAME_PAD 0000ffff 000007e9 000007e1 fc1
+utc_100ns=134342792912047173 StartMsgFilter result=0 error=
+filter=4
+utc_100ns=134342792914049336 step line=10: write chan ISO15765 ISO15765_FRAME_PAD 000007df0900 1000
+utc_100ns=134342792914088132 WriteMsgs result=0 error=
+written=1
+utc_100ns=134342792916089931 step line=11: read chan 16 1500
+utc_100ns=134342792931095286 ReadMsgs result=9 error=CAN read returned fewer messages than requested
+received=3
+message protocol=6 rx=9 tx=64 timestamp=808600 size=4 extra=0 data=000007df
+message protocol=6 rx=0 tx=0 timestamp=812700 size=10 extra=10 data=000007e9490014400000
+message protocol=6 rx=0 tx=0 timestamp=818900 size=10 extra=10 data=000007e8490054600000
+read_total=3 rounds=1
+utc_100ns=134342792933098227 step line=12: write chan ISO15765 ISO15765_FRAME_PAD 000007df0904 1000
+utc_100ns=134342792933111207 WriteMsgs result=0 error=
+written=1
+utc_100ns=134342792935113326 step line=13: read chan 16 2000
+utc_100ns=134342792955116230 ReadMsgs result=9 error=CAN read returned fewer messages than requested
+received=4
+message protocol=6 rx=9 tx=64 timestamp=2710900 size=4 extra=0 data=000007df
+message protocol=6 rx=2 tx=0 timestamp=2712600 size=4 extra=0 data=000007e9
+message protocol=6 rx=2 tx=0 timestamp=2728600 size=4 extra=0 data=000007e8
+message protocol=6 rx=0 tx=0 timestamp=2738200 size=39 extra=39 data=000007e84904023331363639353530204141000000000033313337323637392041420000000000
+read_total=4 rounds=1
+utc_100ns=134342792957120891 step line=14: write chan ISO15765 ISO15765_FRAME_PAD 000007df0906 1000
+utc_100ns=134342792957149926 WriteMsgs result=0 error=
+written=1
+utc_100ns=134342792959151595 step line=15: read chan 16 2000
+utc_100ns=134342792979154008 ReadMsgs result=9 error=CAN read returned fewer messages than requested
+received=4
+message protocol=6 rx=9 tx=64 timestamp=5114400 size=4 extra=0 data=000007df
+message protocol=6 rx=2 tx=0 timestamp=5128300 size=4 extra=0 data=000007e8
+message protocol=6 rx=0 tx=0 timestamp=5128500 size=11 extra=11 data=000007e9490601e2dd0b5c
+message protocol=6 rx=0 tx=0 timestamp=5129900 size=15 extra=15 data=000007e84906029192e17dd2e4d283
+read_total=4 rounds=1
+utc_100ns=134342792981156034 step line=16: write chan ISO15765 ISO15765_FRAME_PAD 000007df090a 1000
+utc_100ns=134342792981163663 WriteMsgs result=0 error=
+written=1
+utc_100ns=134342792983165217 step line=17: read chan 16 2000
+utc_100ns=134342793003168548 ReadMsgs result=9 error=CAN read returned fewer messages than requested
+received=4
+message protocol=6 rx=9 tx=64 timestamp=7516100 size=4 extra=0 data=000007df
+message protocol=6 rx=2 tx=0 timestamp=7518400 size=4 extra=0 data=000007e8
+message protocol=6 rx=2 tx=0 timestamp=7528400 size=4 extra=0 data=000007e9
+message protocol=6 rx=0 tx=0 timestamp=7570500 size=27 extra=27 data=000007e9490a0154434d002d5472616e736d69734374726c000000
+read_total=4 rounds=1
+utc_100ns=134342793005171102 step line=18: write chan ISO15765 ISO15765_FRAME_PAD 000007df03 1000
+utc_100ns=134342793005180315 WriteMsgs result=0 error=
+written=1
+utc_100ns=134342793007181520 step line=19: read chan 16 2000
+utc_100ns=134342793027184794 ReadMsgs result=9 error=CAN read returned fewer messages than requested
+received=3
+message protocol=6 rx=9 tx=64 timestamp=9917400 size=4 extra=0 data=000007df
+message protocol=6 rx=0 tx=0 timestamp=9918200 size=6 extra=6 data=000007e84300
+message protocol=6 rx=0 tx=0 timestamp=9927600 size=6 extra=6 data=000007e94300
+read_total=3 rounds=1
+utc_100ns=134342793029187317 step line=20: write chan ISO15765 ISO15765_FRAME_PAD 000007df07 1000
+utc_100ns=134342793029196426 WriteMsgs result=0 error=
+written=1
+utc_100ns=134342793031198961 step line=21: read chan 16 2000
+utc_100ns=134342793051201754 ReadMsgs result=9 error=CAN read returned fewer messages than requested
+received=3
+message protocol=6 rx=9 tx=64 timestamp=12319000 size=4 extra=0 data=000007df
+message protocol=6 rx=0 tx=0 timestamp=12327300 size=6 extra=6 data=000007e94700
+message protocol=6 rx=0 tx=0 timestamp=12327500 size=6 extra=6 data=000007e84700
+read_total=3 rounds=1
+utc_100ns=134342793053203996 step line=22: write chan ISO15765 ISO15765_FRAME_PAD 000007df0a 1000
+utc_100ns=134342793053280384 WriteMsgs result=0 error=
+written=1
+utc_100ns=134342793055283288 step line=23: read chan 16 2000
+utc_100ns=134342793075285910 ReadMsgs result=9 error=CAN read returned fewer messages than requested
+received=2
+message protocol=6 rx=9 tx=64 timestamp=14727100 size=4 extra=0 data=000007df
+message protocol=6 rx=0 tx=0 timestamp=14731900 size=6 extra=6 data=000007e94a00
+read_total=2 rounds=1
+utc_100ns=134342793077287487 step line=24: stopfilter chan fc1
+utc_100ns=134342793077293159 StopMsgFilter result=0 error=
+utc_100ns=134342793079295174 step line=25: stopfilter chan fc0
+utc_100ns=134342793079301800 StopMsgFilter result=0 error=
+utc_100ns=134342793081303914 step line=26: disconnect chan
+utc_100ns=134342793081309770 Disconnect result=0 error=
+utc_100ns=134342793083311905 step line=27: close dev
+utc_100ns=134342793083498466 Close result=0 error=

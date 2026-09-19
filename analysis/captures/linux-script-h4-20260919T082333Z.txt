@@ -1,0 +1,35 @@
+# mongoose-client serial:AOLHE0000003666A --script tools/scripts/h4-no-padding.txt --gap 200
+# Live vehicle (same Volvo), Linux native library. ISO15765_FRAME_PAD off: both requests are confirmed
+# transmitted (TX-done, tx=0) and no ECU answers. See h5 for why.
+utc_100ns=134342798138603898 step line=5: open dev
+utc_100ns=134342798138930058 Open result=0 error=
+device=1
+utc_100ns=134342798140931549 step line=6: connect dev ISO15765 NONE 500000 chan
+connect protocol=6 flags=0 baud=500000
+utc_100ns=134342798140949679 Connect result=0 error=
+channel=2
+utc_100ns=134342798142951740 step line=7: filter chan FLOW ISO15765 NONE 0000ffff 000007e8 000007e0 fc
+utc_100ns=134342798142958935 StartMsgFilter result=0 error=
+filter=3
+utc_100ns=134342798144961055 step line=8: write chan ISO15765 NONE 000007df0100 1000
+utc_100ns=134342798144968698 WriteMsgs result=0 error=
+written=1
+utc_100ns=134342798146970706 step line=9: read chan 16 1500
+utc_100ns=134342798161977636 ReadMsgs result=9 error=CAN read returned fewer messages than requested
+received=1
+message protocol=6 rx=9 tx=0 timestamp=604700 size=4 extra=0 data=000007df
+read_total=1 rounds=1
+utc_100ns=134342798163979916 step line=10: write chan ISO15765 NONE 000007e00902 1000
+utc_100ns=134342798163987143 WriteMsgs result=0 error=
+written=1
+utc_100ns=134342798165989241 step line=11: read chan 16 2000
+utc_100ns=134342798185992563 ReadMsgs result=9 error=CAN read returned fewer messages than requested
+received=1
+message protocol=6 rx=9 tx=0 timestamp=2506500 size=4 extra=0 data=000007e0
+read_total=1 rounds=1
+utc_100ns=134342798187994933 step line=12: stopfilter chan fc
+utc_100ns=134342798188000392 StopMsgFilter result=0 error=
+utc_100ns=134342798190002570 step line=13: disconnect chan
+utc_100ns=134342798190007521 Disconnect result=0 error=
+utc_100ns=134342798192009538 step line=14: close dev
+utc_100ns=134342798192188428 Close result=0 error=

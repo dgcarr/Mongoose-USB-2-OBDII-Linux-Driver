@@ -1,0 +1,97 @@
+# mongoose-client serial:AOLHE0000003666A --script tools/scripts/h9-getconfig-iso15765.txt
+# Live vehicle (same Volvo), Linux native library. GET_CONFIG per ID on an ISO15765 channel. Values match the firmware sweep of PROTOCOL.md 7d.
+utc_100ns=134342850020568753 step line=4: open dev
+utc_100ns=134342850020895112 Open result=0 error=
+device=1
+utc_100ns=134342850020895467 step line=5: connect dev ISO15765 NONE 500000 chan
+connect protocol=6 flags=0 baud=500000
+utc_100ns=134342850020913950 Connect result=0 error=
+channel=2
+utc_100ns=134342850020914151 step line=6: mark DATA_RATE
+utc_100ns=134342850020914218 step line=7: getconfig chan 0x1
+utc_100ns=134342850020919588 Ioctl GET_CONFIG result=0 error=
+config parameter=0x1 value=0x7a120
+utc_100ns=134342850020919818 step line=8: mark LOOPBACK
+utc_100ns=134342850020919883 step line=9: getconfig chan 0x3
+utc_100ns=134342850020920017 Ioctl GET_CONFIG result=0 error=
+config parameter=0x3 value=0x0
+utc_100ns=134342850020920100 step line=10: mark BIT_SAMPLE_POINT
+utc_100ns=134342850020920148 step line=11: getconfig chan 0x17
+utc_100ns=134342850020923951 Ioctl GET_CONFIG result=0 error=
+config parameter=0x17 value=0x50
+utc_100ns=134342850020924156 step line=12: mark SYNC_JUMP_WIDTH
+utc_100ns=134342850020924215 step line=13: getconfig chan 0x18
+utc_100ns=134342850020928352 Ioctl GET_CONFIG result=0 error=
+config parameter=0x18 value=0xf
+utc_100ns=134342850020928585 step line=14: mark ISO15765_BS
+utc_100ns=134342850020928652 step line=15: getconfig chan 0x1e
+utc_100ns=134342850020933383 Ioctl GET_CONFIG result=0 error=
+config parameter=0x1e value=0x0
+utc_100ns=134342850020933595 step line=16: mark ISO15765_STMIN
+utc_100ns=134342850020933652 step line=17: getconfig chan 0x1f
+utc_100ns=134342850020937714 Ioctl GET_CONFIG result=0 error=
+config parameter=0x1f value=0x0
+utc_100ns=134342850020937880 step line=18: mark BS_TX
+utc_100ns=134342850020937936 step line=19: getconfig chan 0x22
+utc_100ns=134342850020942099 Ioctl GET_CONFIG result=0 error=
+config parameter=0x22 value=0xffff
+utc_100ns=134342850020942249 step line=20: mark STMIN_TX
+utc_100ns=134342850020942306 step line=21: getconfig chan 0x23
+utc_100ns=134342850020945890 Ioctl GET_CONFIG result=0 error=
+config parameter=0x23 value=0xffff
+utc_100ns=134342850020946035 step line=22: mark ISO15765_WFT_MAX
+utc_100ns=134342850020946091 step line=23: getconfig chan 0x25
+utc_100ns=134342850020950131 Ioctl GET_CONFIG result=0 error=
+config parameter=0x25 value=0x0
+utc_100ns=134342850020950286 step line=24: mark N_BR_MIN
+utc_100ns=134342850020950340 step line=25: getconfig chan 0x2a
+utc_100ns=134342850020954231 Ioctl GET_CONFIG result=0 error=
+config parameter=0x2a value=0x0
+utc_100ns=134342850020954372 step line=26: mark ISO15765_PAD_VALUE
+utc_100ns=134342850020954427 step line=27: getconfig chan 0x2b
+utc_100ns=134342850020957143 Ioctl GET_CONFIG result=0 error=
+config parameter=0x2b value=0x0
+utc_100ns=134342850020957372 step line=28: mark N_AS_MAX
+utc_100ns=134342850020957431 step line=29: getconfig chan 0x2c
+utc_100ns=134342850020960958 Ioctl GET_CONFIG result=0 error=
+config parameter=0x2c value=0x3e8
+utc_100ns=134342850020961101 step line=30: mark N_AR_MAX
+utc_100ns=134342850020961156 step line=31: getconfig chan 0x2d
+utc_100ns=134342850020964234 Ioctl GET_CONFIG result=0 error=
+config parameter=0x2d value=0x3e8
+utc_100ns=134342850020964374 step line=32: mark N_BS_MAX
+utc_100ns=134342850020964432 step line=33: getconfig chan 0x2e
+utc_100ns=134342850020968201 Ioctl GET_CONFIG result=0 error=
+config parameter=0x2e value=0x3e8
+utc_100ns=134342850020968356 step line=34: mark N_CR_MAX
+utc_100ns=134342850020968413 step line=35: getconfig chan 0x2f
+utc_100ns=134342850020971590 Ioctl GET_CONFIG result=0 error=
+config parameter=0x2f value=0x3e8
+utc_100ns=134342850020971729 step line=36: mark N_CS_MIN
+utc_100ns=134342850020971781 step line=37: getconfig chan 0x30
+utc_100ns=134342850020974796 Ioctl GET_CONFIG result=0 error=
+config parameter=0x30 value=0x0
+utc_100ns=134342850020974941 step line=38: mark DT_PULLUP_VALUE
+utc_100ns=134342850020974998 step line=39: getconfig chan 0x10008
+utc_100ns=134342850020977998 Ioctl GET_CONFIG result=0 error=
+config parameter=0x10008 value=0x0
+utc_100ns=134342850020978149 step line=40: mark DT_ISO15765_PAD_BYTE
+utc_100ns=134342850020978205 step line=41: getconfig chan 0x10000001
+utc_100ns=134342850020981454 Ioctl GET_CONFIG result=0 error=
+config parameter=0x10000001 value=0x0
+utc_100ns=134342850020981602 step line=42: mark DT_HALF_DUPLEX
+utc_100ns=134342850020981654 step line=43: getconfig chan 0x10000007
+utc_100ns=134342850020984702 Ioctl GET_CONFIG result=0 error=
+config parameter=0x10000007 value=0x0
+utc_100ns=134342850020984845 step line=44: mark (unassigned)
+utc_100ns=134342850020984896 step line=45: getconfig chan 0x2
+utc_100ns=134342850020985988 Ioctl GET_CONFIG result=1 error=configuration parameter not supported on this channel
+config parameter=0x2 value=0x0
+utc_100ns=134342850020986113 step line=46: mark J1962_PINS: only on *_PS protocols
+utc_100ns=134342850020986171 step line=47: getconfig chan 0x8001
+utc_100ns=134342850020986471 Ioctl GET_CONFIG result=7 error=J1962_PINS only valid for *_PS ProtocolIDs
+config parameter=0x8001 value=0x0
+utc_100ns=134342850020986556 step line=48: disconnect chan
+utc_100ns=134342850020991330 Disconnect result=0 error=
+utc_100ns=134342850020991446 step line=49: close dev
+utc_100ns=134342850021171315 Close result=0 error=

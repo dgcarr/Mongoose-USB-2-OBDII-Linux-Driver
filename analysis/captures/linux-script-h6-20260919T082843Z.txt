@@ -1,0 +1,118 @@
+# mongoose-client serial:AOLHE0000003666A --script tools/scripts/h6-block-filter-live.txt --gap 100
+# Live vehicle (same Volvo), Linux native library, raw CAN. Pass-all filter, then a BLOCK filter for 0x7E8.
+# Read windows (step 8 = before the block, 11 = block active, 14 = block removed):
+#   step 8: 69 distinct IDs, 0x7E8 frames=0, 0x7E9 frames=0
+#   step 11: 70 distinct IDs, 0x7E8 frames=0, 0x7E9 frames=1
+#   step 14: 71 distinct IDs, 0x7E8 frames=1, 0x7E9 frames=1
+# FILTERED: 9420 'message' lines with an ID outside 0x700-0x7FF removed to keep the file small; the
+# tally above was computed from the full log before removal.
+utc_100ns=134342801231944472 step line=5: open dev
+utc_100ns=134342801232274190 Open result=0 error=
+device=1
+utc_100ns=134342801233276241 step line=6: connect dev CAN NONE 500000 chan
+connect protocol=5 flags=0 baud=500000
+utc_100ns=134342801233296994 Connect result=0 error=
+channel=2
+utc_100ns=134342801234298970 step line=7: filter chan PASS CAN NONE 00000000 00000000 pass
+utc_100ns=134342801234304958 StartMsgFilter result=0 error=
+filter=3
+utc_100ns=134342801235306049 step line=8: readfor chan 256 100 1
+utc_100ns=134342801235341336 ReadMsgs result=0 error=
+received=256
+utc_100ns=134342801236365674 ReadMsgs result=9 error=CAN read returned fewer messages than requested
+received=253
+utc_100ns=134342801237391703 ReadMsgs result=9 error=CAN read returned fewer messages than requested
+received=255
+utc_100ns=134342801238415067 ReadMsgs result=9 error=CAN read returned fewer messages than requested
+received=248
+utc_100ns=134342801239438429 ReadMsgs result=9 error=CAN read returned fewer messages than requested
+received=248
+utc_100ns=134342801240459075 ReadMsgs result=9 error=CAN read returned fewer messages than requested
+received=245
+utc_100ns=134342801241481084 ReadMsgs result=9 error=CAN read returned fewer messages than requested
+received=254
+utc_100ns=134342801242508466 ReadMsgs result=9 error=CAN read returned fewer messages than requested
+received=250
+utc_100ns=134342801243527788 ReadMsgs result=0 error=
+received=256
+utc_100ns=134342801244549472 ReadMsgs result=0 error=
+received=256
+utc_100ns=134342801245571824 ReadMsgs result=9 error=CAN read returned fewer messages than requested
+received=246
+read_total=2767 rounds=11
+utc_100ns=134342801246595479 step line=9: filter chan BLOCK CAN NONE 000007ff 000007e8 blk
+utc_100ns=134342801246599673 StartMsgFilter result=0 error=
+filter=4
+utc_100ns=134342801247600672 step line=10: write chan CAN NONE 000007df0201005555555555 1000
+utc_100ns=134342801247609215 WriteMsgs result=0 error=
+written=1
+utc_100ns=134342801248610239 step line=11: readfor chan 256 200 1
+utc_100ns=134342801248634716 ReadMsgs result=0 error=
+received=256
+utc_100ns=134342801248657367 ReadMsgs result=0 error=
+received=256
+utc_100ns=134342801248693472 ReadMsgs result=0 error=
+received=256
+message protocol=5 rx=0 tx=0 timestamp=1550800 size=12 extra=12 data=000007e90641008818001300
+utc_100ns=134342801249746354 ReadMsgs result=0 error=
+received=256
+utc_100ns=134342801250778142 ReadMsgs result=0 error=
+received=256
+utc_100ns=134342801251854107 ReadMsgs result=0 error=
+received=256
+utc_100ns=134342801252879942 ReadMsgs result=0 error=
+received=256
+utc_100ns=134342801253910479 ReadMsgs result=0 error=
+received=256
+utc_100ns=134342801254948589 ReadMsgs result=0 error=
+received=256
+utc_100ns=134342801256003170 ReadMsgs result=0 error=
+received=256
+utc_100ns=134342801257071128 ReadMsgs result=0 error=
+received=256
+utc_100ns=134342801258109659 ReadMsgs result=0 error=
+received=256
+utc_100ns=134342801259129055 ReadMsgs result=0 error=
+received=256
+read_total=3328 rounds=13
+utc_100ns=134342801260150089 step line=12: stopfilter chan blk
+utc_100ns=134342801260153891 StopMsgFilter result=0 error=
+utc_100ns=134342801261155124 step line=13: write chan CAN NONE 000007df0201005555555555 1000
+utc_100ns=134342801261162438 WriteMsgs result=0 error=
+written=1
+utc_100ns=134342801262163957 step line=14: readfor chan 256 200 1
+utc_100ns=134342801262171852 ReadMsgs result=0 error=
+received=256
+utc_100ns=134342801262192142 ReadMsgs result=0 error=
+received=256
+message protocol=5 rx=0 tx=0 timestamp=2892100 size=12 extra=12 data=000007e90641008818001300
+utc_100ns=134342801262280563 ReadMsgs result=0 error=
+received=256
+message protocol=5 rx=0 tx=0 timestamp=2895600 size=12 extra=12 data=000007e8064100983ba01300
+utc_100ns=134342801263320122 ReadMsgs result=0 error=
+received=256
+utc_100ns=134342801264327728 ReadMsgs result=0 error=
+received=256
+utc_100ns=134342801265357454 ReadMsgs result=0 error=
+received=256
+utc_100ns=134342801266430068 ReadMsgs result=0 error=
+received=256
+utc_100ns=134342801267484752 ReadMsgs result=0 error=
+received=256
+utc_100ns=134342801268504278 ReadMsgs result=0 error=
+received=256
+utc_100ns=134342801269551943 ReadMsgs result=0 error=
+received=256
+utc_100ns=134342801270577495 ReadMsgs result=0 error=
+received=256
+utc_100ns=134342801271680158 ReadMsgs result=0 error=
+received=256
+utc_100ns=134342801272682565 ReadMsgs result=0 error=
+received=256
+read_total=3328 rounds=13
+utc_100ns=134342801273703465 step line=15: stopfilter chan pass
+utc_100ns=134342801273706566 StopMsgFilter result=0 error=
+utc_100ns=134342801274708581 step line=16: disconnect chan
+utc_100ns=134342801274715320 Disconnect result=0 error=
+utc_100ns=134342801275717087 step line=17: close dev
+utc_100ns=134342801275901245 Close result=0 error=

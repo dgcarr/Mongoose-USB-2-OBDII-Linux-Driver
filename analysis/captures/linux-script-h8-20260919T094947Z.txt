@@ -1,0 +1,45 @@
+# mongoose-client serial:AOLHE0000003666A --script tools/scripts/h8-getconfig-can.txt
+# Live vehicle (same Volvo), Linux native library. GET_CONFIG per ID on a raw CAN channel. Values match the firmware sweep of PROTOCOL.md 7d.
+utc_100ns=134342849876167479 step line=4: open dev
+utc_100ns=134342849876491289 Open result=0 error=
+device=1
+utc_100ns=134342849876491654 step line=5: connect dev CAN NONE 500000 chan
+connect protocol=5 flags=0 baud=500000
+utc_100ns=134342849876509392 Connect result=0 error=
+channel=2
+utc_100ns=134342849876509592 step line=6: mark DATA_RATE
+utc_100ns=134342849876509656 step line=7: getconfig chan 0x1
+utc_100ns=134342849876514305 Ioctl GET_CONFIG result=0 error=
+config parameter=0x1 value=0x7a120
+utc_100ns=134342849876514526 step line=8: mark LOOPBACK
+utc_100ns=134342849876514590 step line=9: getconfig chan 0x3
+utc_100ns=134342849876514724 Ioctl GET_CONFIG result=0 error=
+config parameter=0x3 value=0x0
+utc_100ns=134342849876514807 step line=10: mark BIT_SAMPLE_POINT
+utc_100ns=134342849876514853 step line=11: getconfig chan 0x17
+utc_100ns=134342849876518974 Ioctl GET_CONFIG result=0 error=
+config parameter=0x17 value=0x50
+utc_100ns=134342849876519190 step line=12: mark SYNC_JUMP_WIDTH
+utc_100ns=134342849876519249 step line=13: getconfig chan 0x18
+utc_100ns=134342849876522893 Ioctl GET_CONFIG result=0 error=
+config parameter=0x18 value=0xf
+utc_100ns=134342849876523015 step line=14: mark DT_PULLUP_VALUE
+utc_100ns=134342849876523061 step line=15: getconfig chan 0x10008
+utc_100ns=134342849876527283 Ioctl GET_CONFIG result=0 error=
+config parameter=0x10008 value=0x0
+utc_100ns=134342849876527437 step line=16: mark (unassigned)
+utc_100ns=134342849876527490 step line=17: getconfig chan 0x2
+utc_100ns=134342849876528480 Ioctl GET_CONFIG result=1 error=configuration parameter not supported on this channel
+config parameter=0x2 value=0x0
+utc_100ns=134342849876528595 step line=18: mark ISO15765_BS: ISO15765 only, so unsupported here
+utc_100ns=134342849876528654 step line=19: getconfig chan 0x1e
+utc_100ns=134342849876528937 Ioctl GET_CONFIG result=1 error=configuration parameter not supported on this channel
+config parameter=0x1e value=0x0
+utc_100ns=134342849876529017 step line=20: mark J1962_PINS: only on *_PS protocols
+utc_100ns=134342849876529069 step line=21: getconfig chan 0x8001
+utc_100ns=134342849876529308 Ioctl GET_CONFIG result=7 error=J1962_PINS only valid for *_PS ProtocolIDs
+config parameter=0x8001 value=0x0
+utc_100ns=134342849876529383 step line=22: disconnect chan
+utc_100ns=134342849876534263 Disconnect result=0 error=
+utc_100ns=134342849876534436 step line=23: close dev
+utc_100ns=134342849876708686 Close result=0 error=

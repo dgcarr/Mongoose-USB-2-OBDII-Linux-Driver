@@ -1,0 +1,46 @@
+# mongoose-client serial:AOLHE0000003666A --script tools/scripts/g4-loopback.txt --gap 200
+# Live vehicle (same Volvo), Linux native library, raw CAN, pass filter for 0x7DF only. LOOPBACK 0: nothing comes back; LOOPBACK 1: our frame returns with RxStatus 1 (TX_MSG_TYPE); restored to 0.
+utc_100ns=134342851196757632 step line=5: open dev
+utc_100ns=134342851197082743 Open result=0 error=
+device=1
+utc_100ns=134342851199085267 step line=6: connect dev CAN NONE 500000 chan
+connect protocol=5 flags=0 baud=500000
+utc_100ns=134342851199107198 Connect result=0 error=
+channel=2
+utc_100ns=134342851201109508 step line=7: filter chan PASS CAN NONE 000007ff 000007df pass
+utc_100ns=134342851201117525 StartMsgFilter result=0 error=
+filter=3
+utc_100ns=134342851203119639 step line=8: getconfig chan 0x03
+utc_100ns=134342851203120500 Ioctl GET_CONFIG result=0 error=
+config parameter=0x3 value=0x0
+utc_100ns=134342851205122606 step line=9: write chan CAN NONE 000007df0201005555555555 1000
+utc_100ns=134342851205135952 WriteMsgs result=0 error=
+written=1
+utc_100ns=134342851207138050 step line=10: read chan 16 500
+utc_100ns=134342851212144918 ReadMsgs result=16 error=zero CAN messages received
+received=0
+read_total=0 rounds=1
+utc_100ns=134342851214147855 step line=11: setconfig chan 0x03=1
+utc_100ns=134342851214148587 Ioctl SET_CONFIG result=0 error=
+utc_100ns=134342851216149641 step line=12: getconfig chan 0x03
+utc_100ns=134342851216150293 Ioctl GET_CONFIG result=0 error=
+config parameter=0x3 value=0x1
+utc_100ns=134342851218152264 step line=13: write chan CAN NONE 000007df0201005555555555 1000
+utc_100ns=134342851218165120 WriteMsgs result=0 error=
+written=1
+utc_100ns=134342851220167362 step line=14: read chan 16 500
+utc_100ns=134342851225171095 ReadMsgs result=9 error=CAN read returned fewer messages than requested
+received=1
+message protocol=5 rx=1 tx=0 timestamp=2108900 size=12 extra=12 data=000007df0201005555555555
+read_total=1 rounds=1
+utc_100ns=134342851227173132 step line=15: setconfig chan 0x03=0
+utc_100ns=134342851227173858 Ioctl SET_CONFIG result=0 error=
+utc_100ns=134342851229175750 step line=16: getconfig chan 0x03
+utc_100ns=134342851229176405 Ioctl GET_CONFIG result=0 error=
+config parameter=0x3 value=0x0
+utc_100ns=134342851231178907 step line=17: stopfilter chan pass
+utc_100ns=134342851231185406 StopMsgFilter result=0 error=
+utc_100ns=134342851233187526 step line=18: disconnect chan
+utc_100ns=134342851233194232 Disconnect result=0 error=
+utc_100ns=134342851235195838 step line=19: close dev
+utc_100ns=134342851235381884 Close result=0 error=
