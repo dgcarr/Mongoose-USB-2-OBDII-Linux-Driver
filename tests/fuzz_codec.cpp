@@ -51,7 +51,7 @@ extern "C" int LLVMFuzzerTestOneInput(const uint8_t *data, size_t size) {
         const uint32_t interval = static_cast<uint32_t>(data[4]) | static_cast<uint32_t>(data[5]) << 8 | static_cast<uint32_t>(data[6] & 1) << 16;
         std::copy_n(data, std::min<size_t>(size, 64), probe.Data);
         try {
-            const auto periodic = mongoose::can_periodic(probe, probe.TxFlags, interval);
+            const auto periodic = mongoose::can_periodic(probe, interval);
             if (periodic.size() != size_t{13} + probe.DataSize || periodic[0] != mongoose::table_periodic) std::abort();
         } catch (const mongoose::Error &) {}
         try {
