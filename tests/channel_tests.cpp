@@ -117,7 +117,7 @@ void lifecycle() {
     CHECK(PassThruConnect(device, CAN, 0, 500000, nullptr) == ERR_NULL_PARAMETER);
     CHECK(PassThruConnect(0, CAN, 0, 500000, &id) == ERR_INVALID_DEVICE_ID && id == 0);
     CHECK(PassThruConnect(device, 1234, 0, 500000, &id) == ERR_INVALID_PROTOCOL_ID && id == 0);
-    CHECK(PassThruConnect(device, ISO15765, 0, 500000, &id) == ERR_NOT_SUPPORTED && id == 0);
+    CHECK(PassThruConnect(device, ISO14230, 0, 500000, &id) == ERR_NOT_SUPPORTED && id == 0);
     CHECK(PassThruConnect(device, CAN, 2, 500000, &id) == ERR_INVALID_FLAGS && id == 0);
     CHECK(PassThruConnect(device, CAN, 0, 0, &id) == ERR_INVALID_BAUDRATE && id == 0);
     const auto first = connect(device);

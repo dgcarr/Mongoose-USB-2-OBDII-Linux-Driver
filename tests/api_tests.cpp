@@ -37,7 +37,7 @@ int main() {
             CHECK(PassThruOpen(nullptr, &device) == 0 && device > previous); previous = device;
             CHECK(PassThruGetLastError(message) == 0); CHECK(message[0] == '\0'); // cleared on success
             uint32_t channel = 99;
-            CHECK(PassThruConnect(device, ISO15765, 0, 500000, &channel) == ERR_NOT_SUPPORTED && channel == 0);
+            CHECK(PassThruConnect(device, ISO14230, 0, 500000, &channel) == ERR_NOT_SUPPORTED && channel == 0);
             CHECK(PassThruConnect(device, 1234, 0, 500000, &channel) == ERR_INVALID_PROTOCOL_ID);
             CHECK(PassThruSetProgrammingVoltage(device, 13, 18000) == ERR_NOT_SUPPORTED);
             uint32_t voltage = 99;

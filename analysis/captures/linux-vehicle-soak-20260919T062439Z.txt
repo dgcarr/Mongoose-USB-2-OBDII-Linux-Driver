@@ -1,0 +1,10 @@
+PassThruOpen status=0 
+PassThruReadVersion status=0 
+firmware=1.1.16.0 driver=0.1.0-experimental api=04.04
+PassThruConnect 500000 status=0 
+PassThruStartMsgFilter wildcard status=0 
+soak seconds=300 frames=734506 rate=2448.4/s overflows=0 empty_rounds=0
+device_span_us=299182300 max_gap_us=6000 gaps_over_10ms=0
+PassThruStopMsgFilter status=0 
+PassThruDisconnect status=0 
+PassThruClose status=0 

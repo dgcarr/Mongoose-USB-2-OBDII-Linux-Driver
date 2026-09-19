@@ -564,6 +564,24 @@ handle in its response**; `cTableRemoveEntry` (`0x0e`) removes it by that handle
 The J2534 filter ID is a DLL-side index, not the wire handle. This resolves the
 filter-ID mapping item. Other selectors and `0x0f`/`0x10` were not exercised.
 
+The selector-2 add body is the ISO15765 **flow-control filter**, 19 bytes, and is
+implemented by `isotp_flow_control_filter()` (`src/can.cpp`):
+
+| offset | size | field |
+|---|---|---|
+| 0 | 4 | table selector, `2`, little-endian |
+| 4 | 4 | TxFlags, `0x40` (`ISO15765_FRAME_PAD`), little-endian |
+| 8 | 1 | `00`, unexplained |
+| 9 | 4 | response CAN ID to match, big-endian (`000007e8`) |
+| 13 | 1 | `00`, unexplained |
+| 14 | 4 | flow-control CAN ID to send to, big-endian (`000007e0`) |
+| 18 | 1 | `00`, unexplained |
+
+There is no mask on the wire, so the firmware matches the identifier exactly. The three
+single bytes are reproduced as the vendor sent them; their meaning is not known, and the
+offsets of the two IDs were fixed by where `07 e8` and `07 e0` sit in the captured bytes.
+A Linux live run against the Volvo (2026-09-19) confirmed the layout end to end.
+
 ### ISO15765 responsibility is split — matters for any portable implementation
 
 - **The adapter generates flow control.** Indication `0x010e` reports an FC frame

@@ -42,9 +42,57 @@ Bytes can_transmit(const PASSTHRU_MSG &message, uint32_t channel_flags, uint32_t
     payload.insert(payload.end(), message.Data, message.Data + message.DataSize);
     return payload;
 }
+Bytes isotp_flow_control_filter(const PASSTHRU_MSG &mask, const PASSTHRU_MSG &pattern,
+                                const PASSTHRU_MSG &flow) {
+    for (const auto *message : {&mask, &pattern, &flow})
+        if (message->ProtocolID != ISO15765)
+            throw Error(ERR_MSG_PROTOCOL_ID, "filter protocol must match ISO15765 channel");
+    const uint32_t flags = pattern.TxFlags;
+    if (mask.TxFlags != flags || flow.TxFlags != flags)
+        throw Error(ERR_INVALID_MSG, "mask, pattern and flow-control flags must agree");
+    if (flags & ~static_cast<uint32_t>(ISO15765_FRAME_PAD))
+        throw Error(ERR_INVALID_FLAGS, "unsupported ISO15765 filter flags");
+    for (const auto *message : {&mask, &pattern, &flow})
+        if (message->DataSize != 4) throw Error(ERR_INVALID_MSG, "ISO15765 filter messages are four ID bytes");
+    const auto identifier = [](const PASSTHRU_MSG &message) {
+        return static_cast<uint32_t>(message.Data[0]) << 24 | static_cast<uint32_t>(message.Data[1]) << 16 |
+               static_cast<uint32_t>(message.Data[2]) << 8 | message.Data[3];
+    };
+    if ((identifier(mask) & 0x7ff) != 0x7ff)
+        throw Error(ERR_INVALID_MSG, "the adapter matches the whole 11-bit ID; mask must cover it");
+    if (identifier(pattern) > 0x7ff || identifier(flow) > 0x7ff)
+        throw Error(ERR_INVALID_MSG, "only 11-bit ISO15765 identifiers are supported");
+    // 02000000 40000000 00 000007e8 00 000007e0 00, byte for byte as the vendor sent it.
+    Bytes payload{2,0,0,0, 0,0,0,0, 0, 0,0,0,0, 0, 0,0,0,0, 0};
+    put16(payload, 4, static_cast<uint16_t>(flags));
+    put16(payload, 6, static_cast<uint16_t>(flags >> 16));
+    std::copy_n(pattern.Data, 4, payload.begin() + 9);
+    std::copy_n(flow.Data, 4, payload.begin() + 14);
+    return payload;
+}
+Bytes isotp_transmit(const PASSTHRU_MSG &message, uint32_t timeout_ms) {
+    if (message.ProtocolID != ISO15765)
+        throw Error(ERR_MSG_PROTOCOL_ID, "message protocol must match ISO15765 channel");
+    if (message.TxFlags & ~static_cast<uint32_t>(ISO15765_FRAME_PAD))
+        throw Error(ERR_INVALID_FLAGS, "unsupported ISO15765 transmit flags");
+    // ID plus up to seven service bytes fits one CAN frame; longer needs the adapter to
+    // segment, which no capture shows.
+    if (message.DataSize < 5 || message.DataSize > 11)
+        throw Error(message.DataSize > 11 ? ERR_NOT_SUPPORTED : ERR_INVALID_MSG,
+                    "ISO15765 transmit supports one single frame: ID plus 1..7 data bytes");
+    Bytes payload(12, 0);
+    put16(payload, 0, static_cast<uint16_t>(message.TxFlags));
+    put16(payload, 2, static_cast<uint16_t>(message.TxFlags >> 16));
+    put16(payload, 4, static_cast<uint16_t>(timeout_ms));
+    put16(payload, 6, static_cast<uint16_t>(timeout_ms >> 16));
+    put16(payload, 8, static_cast<uint16_t>(message.DataSize));
+    put16(payload, 10, 0);
+    payload.insert(payload.end(), message.Data, message.Data + message.DataSize);
+    return payload;
+}
 void CanReceiver::receive(std::span<const uint8_t> body) {
     std::lock_guard lock(mutex_);
-    if (stopped_ || body.size() < 12 || le16(body, 0) != 0 || le16(body, 2) != channel_node(CAN)) return;
+    if (stopped_ || body.size() < 12 || le16(body, 0) != 0 || le16(body, 2) != channel_node(protocol_)) return;
     const auto opcode = le16(body, 4);
     if (opcode == 10) {
         if (body.size() < 20) return;
@@ -62,6 +110,15 @@ void CanReceiver::receive(std::span<const uint8_t> body) {
     if (body.size() < 24 || le16(body, 22) < 4 || le16(body, 22) > 12 ||
         body.size() != size_t{24} + le16(body, 22)) {
         malformed_ = true; ready_.notify_all(); return;
+    }
+    if (protocol_ == ISO15765) {
+        const uint32_t timestamp = le32(body, 16);
+        for (auto &output : reassembler_.feed(body.subspan(24, le16(body, 22)))) {
+            if (messages_.size() == message_capacity) { overflow_ = true; break; }
+            messages_.push_back({output.rx_status, timestamp, std::move(output.data)});
+        }
+        ready_.notify_all();
+        return;
     }
     if (frames_.size() == capacity) {
         overflow_ = true; ready_.notify_all(); return; // preserve queued frames; drop newest
@@ -86,14 +143,24 @@ bool CanReceiver::await_transmitted(size_t target, std::chrono::steady_clock::ti
 void CanReceiver::stop(int32_t code, const std::string &reason) {
     std::lock_guard lock(mutex_);
     if (!stopped_) { stopped_ = code; reason_ = reason; }
-    frames_.clear(); ready_.notify_all();
+    frames_.clear(); messages_.clear(); ready_.notify_all();
 }
 void CanReceiver::read(PASSTHRU_MSG *messages, uint32_t requested, uint32_t &count, uint32_t timeout_ms) {
     const auto deadline = std::chrono::steady_clock::now() + std::chrono::milliseconds(timeout_ms);
     std::unique_lock lock(mutex_);
     count = 0;
+    const auto pending = [&] { return protocol_ == ISO15765 ? !messages_.empty() : !frames_.empty(); };
     while (count < requested) {
         if (stopped_) throw Error(stopped_, reason_);
+        while (protocol_ == ISO15765 && !messages_.empty() && count < requested) {
+            auto message = std::move(messages_.front()); messages_.pop_front();
+            auto &out = messages[count++];
+            out = {};
+            out.ProtocolID = ISO15765; out.RxStatus = message.status; out.Timestamp = message.timestamp;
+            out.DataSize = static_cast<uint32_t>(message.data.size());
+            out.ExtraDataIndex = out.DataSize;
+            std::copy(message.data.begin(), message.data.end(), out.Data);
+        }
         while (!frames_.empty() && count < requested) {
             const auto frame = frames_.front(); frames_.pop_front();
             auto &message = messages[count++];
@@ -103,7 +170,7 @@ void CanReceiver::read(PASSTHRU_MSG *messages, uint32_t requested, uint32_t &cou
             std::copy_n(frame.data.begin(), frame.size, message.Data);
         }
         if (count == requested || !timeout_ms || overflow_ || malformed_) break;
-        if (!ready_.wait_until(lock, deadline, [&] { return stopped_ || !frames_.empty() || overflow_ || malformed_; })) break;
+        if (!ready_.wait_until(lock, deadline, [&] { return stopped_ || pending() || overflow_ || malformed_; })) break;
     }
     if (std::exchange(overflow_, false)) throw Error(ERR_BUFFER_OVERFLOW, "CAN receive buffer overflow; messages lost");
     if (std::exchange(malformed_, false)) throw Error(ERR_INVALID_MSG, "malformed CAN receive frame discarded");

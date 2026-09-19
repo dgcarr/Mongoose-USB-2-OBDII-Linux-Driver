@@ -17,8 +17,9 @@ struct Device {
     bool closed = false, reopen_required = false, wire_channel_open = false;
     uint32_t channel = 0;
     uint32_t channel_flags = 0;
+    uint16_t protocol = CAN;  // protocol of the open channel: CAN or ISO15765
     std::shared_ptr<CanReceiver> receiver;
-    std::map<uint32_t, uint32_t> filters; // public ID -> opaque firmware handle (table 0)
+    std::map<uint32_t, uint32_t> filters; // public ID -> opaque firmware handle (table 0, or 2 for ISO15765)
 };
 std::map<uint32_t, std::shared_ptr<Device>> devices, channels;
 uint64_t next_handle = 1;
@@ -83,6 +84,7 @@ void retire_channel(Device &owner) {
     std::lock_guard lock(devices_mutex);
     channels.erase(owner.channel);
     owner.channel = 0;
+    owner.protocol = CAN;
 }
 void uncertain_channel(Device &owner) {
     owner.reopen_required = true;
@@ -93,7 +95,7 @@ void uncertain_channel(Device &owner) {
 Bytes channel_command(Device &owner, uint16_t opcode, std::span<const uint8_t> payload = {},
                       std::chrono::milliseconds timeout = std::chrono::seconds(10), uint16_t chan = 0) {
     try {
-        return owner.session->command(opcode, payload, timeout, channel_node(CAN), chan);
+        return owner.session->command(opcode, payload, timeout, channel_node(owner.protocol), chan);
     } catch (...) {
         if (!owner.session->usable()) uncertain_channel(owner);
         throw;
@@ -179,8 +181,11 @@ int32_t J2534_CALL PassThruConnect(uint32_t id, uint32_t protocol, uint32_t flag
         if (state.reopen_required) throw Error(ERR_DEVICE_NOT_CONNECTED, "channel state uncertain; close and reopen device");
         if ((protocol == CAN || protocol == ISO15765) && state.channel)
             throw Error(ERR_CHANNEL_IN_USE, "CAN hardware is already in use");
-        if (protocol != CAN) unsupported("channel protocol");
-        if (flags & ~static_cast<uint32_t>(CAN_29BIT_ID)) throw Error(ERR_INVALID_FLAGS, "unsupported CAN flags");
+        if (protocol != CAN && protocol != ISO15765) unsupported("channel protocol");
+        // 29-bit ISO15765 has no capture, so its filter and addressing layout is unknown.
+        const uint32_t allowed = protocol == CAN ? static_cast<uint32_t>(CAN_29BIT_ID) : 0u;
+        if (flags & ~allowed) throw Error(ERR_INVALID_FLAGS, protocol == CAN ? "unsupported CAN flags"
+                                                                              : "unsupported ISO15765 flags");
         uint32_t allocated;
         {
             std::lock_guard lock(devices_mutex);
@@ -190,7 +195,8 @@ int32_t J2534_CALL PassThruConnect(uint32_t id, uint32_t protocol, uint32_t flag
         for (uint32_t word : {flags, baud})
             for (unsigned shift = 0; shift < 32; shift += 8)
                 payload.push_back(static_cast<uint8_t>(word >> shift));
-        auto receiver = std::make_shared<CanReceiver>();
+        auto receiver = std::make_shared<CanReceiver>(static_cast<uint16_t>(protocol));
+        state.protocol = static_cast<uint16_t>(protocol);
         accepted(channel_command(state, 6, payload));
         state.wire_channel_open = true;
         try {
@@ -240,6 +246,9 @@ int32_t J2534_CALL PassThruWriteMsgs(uint32_t channel, PASSTHRU_MSG *messages, u
         owner.session();
         auto &state = *owner.state;
         if (!requested || requested > 10000) throw Error(ERR_FAILED, "message count must be 1..10000");
+        // Without a flow-control filter the adapter cannot answer a multi-frame reply.
+        if (state.protocol == ISO15765 && state.filters.empty())
+            throw Error(ERR_NO_FLOW_CONTROL, "ISO15765 channel has no flow-control filter");
         // The adapter is told the caller's timeout; the host still has to wait for the
         // acknowledgement, so a zero (queue-and-return) timeout keeps a response budget.
         const auto budget = std::chrono::milliseconds(timeout ? std::min(timeout, 60000u) : 1000u);
@@ -247,7 +256,8 @@ int32_t J2534_CALL PassThruWriteMsgs(uint32_t channel, PASSTHRU_MSG *messages, u
         auto receiver = state.receiver;
         const auto already = receiver ? receiver->transmitted() : 0;
         for (uint32_t index = 0; index < requested; ++index) {
-            const auto payload = can_transmit(messages[index], state.channel_flags, timeout);
+            const auto payload = state.protocol == ISO15765 ? isotp_transmit(messages[index], timeout)
+                                                            : can_transmit(messages[index], state.channel_flags, timeout);
             accepted(channel_command(state, 8, payload, budget, data_chan), Allow::Queued);
             if (!timeout) *count = index + 1;  // queue-and-return: accepted is all we claim
         }
@@ -275,9 +285,16 @@ int32_t J2534_CALL PassThruStartMsgFilter(uint32_t channel, uint32_t type, PASST
         auto owner = lookup(channel, true);
         owner.session();
         auto &state = *owner.state;
-        if (type != PASS_FILTER) unsupported("only CAN PASS_FILTER is implemented");
-        if (flow) throw Error(ERR_INVALID_MSG, "PASS_FILTER requires no flow-control message");
-        const auto payload = can_pass_filter(*mask, *pattern, state.channel_flags);
+        Bytes payload;
+        if (state.protocol == ISO15765) {
+            if (type != FLOW_CONTROL_FILTER) unsupported("only ISO15765 FLOW_CONTROL_FILTER is implemented");
+            if (!flow) throw Error(ERR_INVALID_MSG, "FLOW_CONTROL_FILTER requires a flow-control message");
+            payload = isotp_flow_control_filter(*mask, *pattern, *flow);
+        } else {
+            if (type != PASS_FILTER) unsupported("only CAN PASS_FILTER is implemented");
+            if (flow) throw Error(ERR_INVALID_MSG, "PASS_FILTER requires no flow-control message");
+            payload = can_pass_filter(*mask, *pattern, state.channel_flags);
+        }
         uint32_t allocated;
         { std::lock_guard lock(devices_mutex); allocated = allocate_handle(); }
         auto response = channel_command(state, 0x0d, payload);
@@ -290,7 +307,7 @@ int32_t J2534_CALL PassThruStartMsgFilter(uint32_t channel, uint32_t type, PASST
         try { state.filters.emplace(allocated, handle); }
         catch (...) {
             const auto original = std::current_exception();
-            Bytes remove(8, 0); put16(remove, 4, static_cast<uint16_t>(handle)); put16(remove, 6, static_cast<uint16_t>(handle >> 16));
+            Bytes remove(8, 0); remove[0] = state.protocol == ISO15765 ? 2 : 0; put16(remove, 4, static_cast<uint16_t>(handle)); put16(remove, 6, static_cast<uint16_t>(handle >> 16));
             try { accepted(channel_command(state, 0x0e, remove)); }
             catch (...) { uncertain_channel(state); }
             std::rethrow_exception(original);
@@ -305,6 +322,7 @@ int32_t J2534_CALL PassThruStopMsgFilter(uint32_t channel, uint32_t id) {
         const auto found = state.filters.find(id);
         if (found == state.filters.end()) throw Error(ERR_INVALID_FILTER_ID, "invalid filter ID for channel");
         Bytes payload(8, 0);
+        payload[0] = state.protocol == ISO15765 ? 2 : 0;  // table selector, as the vendor uses
         put16(payload, 4, static_cast<uint16_t>(found->second));
         put16(payload, 6, static_cast<uint16_t>(found->second >> 16));
         accepted(channel_command(state, 0x0e, payload));

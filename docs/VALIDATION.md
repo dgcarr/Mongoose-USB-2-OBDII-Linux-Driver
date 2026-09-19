@@ -104,7 +104,8 @@ libusb figures above:
 | CAN PASS filters | Captured vendor frames | Yes | Live bus: wildcard passes all, `0x7E8`/`0x7F8` mask passes none of the non-matching IDs |
 | CAN transmit / WriteMsgs | Captured vendor frames | Yes | Live bus: timed write confirmed by `iMsgTxDone`; raw frames need ISO-TP PCI by hand; two ECUs replied |
 | ISO15765 receive reassembly | Captured host reassembly / firmware flow control | Yes | Reproduces the captured VIN exchange offline |
-| ISO15765 channel / timing | Captured host reassembly / firmware flow control | No | Windows reference only; timing variations pending |
+| ISO15765 channel | Captured open, flow-control filter, single-frame request | Yes, 11-bit, single-frame transmit | Live Volvo: VIN request answered, multi-frame reply reassembled (2026-09-19) |
+| ISO15765 timing / segmented transmit / 29-bit | Partial | No | STmin, block size, N_Bs unvaried; nothing captured for the rest |
 | K-line / J1850PWM | Partial | No | Suitable hardware required |
 | BLOCK filters / periodic / configuration | Partial | No | Pending |
 | Programming-voltage output | Partial | No | Pending electrical validation |
@@ -424,9 +425,9 @@ followed in memory. And extended addressing is absent: the vendor shifts every o
 one byte for it, but no capture exercises that path, and untested reassembly is worse
 than none.
 
-`PassThruConnect(ISO15765, ...)` still returns `ERR_NOT_SUPPORTED`. The reassembler is
-the part that can be proven offline; wiring up the channel means STmin, block size and
-N_Bs, which nothing on the bench can exercise.
+`PassThruConnect(ISO15765, ...)` has since been wired up; see "ISO15765 channel on a live
+vehicle" below. What stays untouched is the STmin, block size and N_Bs behaviour, which
+the adapter's own flow control decides and nothing here varies.
 
 ## First Linux run on a live vehicle (2026-09-19)
 
@@ -462,10 +463,9 @@ which is wrong for a 500 kbit bus, so they were not used on the car.
   `0x41`, PID 00, then each ECU's supported-PID bitmask. This is a request out and a reply
   in on a real vehicle, the first end-to-end diagnostic exchange on Linux.
 - **The VIN request (mode 09 PID 02) drew no first frame.** A multi-frame reply needs a
-  flow-control frame to `0x7E0` from the requester. The adapter generates that only for an
-  ISO15765 channel, and this library still refuses `PassThruConnect(ISO15765)`, so on a raw
-  CAN channel we would have to send it ourselves. No `10 14` first frame was seen at all
-  here, so this is not yet explained and is left open, not treated as a fault.
+  flow-control frame to `0x7E0` from the requester, which the adapter only generates for an
+  ISO15765 channel. On a raw CAN channel that never happens, so no reply was seen. This is
+  settled by the ISO15765 section below: the same request on an ISO15765 channel is answered.
 - The bench `--transmit-probe` and `check_transmit` send the same un-framed `09 02`. They
   were harmless with no bus, but they would not draw a reply on a car.
 - The 200-frame cap in the first draft of `--vehicle-check` filled before any reply could
@@ -478,6 +478,56 @@ un-framed runs, ignition on and engine running, that drew nothing. `...T061026Z.
 200-frame cap; they carry the stray-frame and zero-frame results
 above. A first draft run, which showed the cap problem, was deleted as superseded.
 
+## Sustained receive on a live vehicle (2026-09-19)
+
+`build/mongoose-client serial:SERIAL --vehicle-soak`: five minutes, passive, one wildcard
+pass filter on a 500 kbit channel, same Volvo with the engine running, nothing transmitted.
+This is the `cdc_acm` URB path under real load, which the pty harness could not reach.
+
+| | Windows D4 | Linux `cdc_acm` |
+|---|---|---|
+| frames | 736512 | 734506 |
+| rate | 2455 msg/s | 2448 msg/s |
+| max device-timestamp gap | 6000 us | 6000 us |
+| gaps over 10 ms | 0 | 0 |
+| overflows / empty rounds | none reported | 0 / 0 |
+
+The rates and gap profile agree to within a third of a percent, and no read reported
+`ERR_BUFFER_OVERFLOW`. As with the Windows run, this does **not** prove zero loss: nothing
+counts the frames the bus carried independently of the adapter, and the two runs saw
+different traffic. What it does show is that the host, tty and `cdc_acm` keep up with the
+rate the Windows stack sustained, with no back-pressure and the same worst-case gap.
+Evidence: `analysis/captures/linux-vehicle-soak-20260919T062439Z.txt`.
+
+## ISO15765 channel on a live vehicle (2026-09-19)
+
+`PassThruConnect(ISO15765)` is now implemented, on the same Volvo, engine running. The
+wire forms all come from Windows captures D3 and E2, and `tests/isotp_tests.cpp` pins the
+two encoders to the vendor's bytes.
+
+- **Open** is `cOpenChannel` then `cSetPin` to node `0x0601`, the same bodies as CAN.
+- **`FLOW_CONTROL_FILTER`** is `cTableAddEntry` with table selector 2, body
+  `02000000 40000000 00 <response ID> 00 <request ID> 00`, and is removed with selector 2.
+  The adapter takes no mask, so a mask that does not cover the 11-bit ID is refused instead
+  of being silently widened. The vendor's own step passed `0000ffff` and that is accepted.
+- **Transmit** is the CAN ID plus service bytes only; the adapter adds the PCI byte. Only a
+  single frame (ID plus 1..7 bytes) is sent, since no capture shows a segmented transmit.
+  A write with no flow-control filter is refused with `ERR_NO_FLOW_CONTROL`, as the J2534
+  spec requires; the vendor's behaviour there is unobserved.
+- **Receive** feeds the segments through `IsoTpReassembler` inside the channel's receiver.
+
+Result: mode 09 PID 02 to `0x7DF` returned a `START_OF_MESSAGE` indication (`RxStatus 0x2`,
+four ID bytes) and then one 24-byte message from `0x7E8`: the ID, `49 02 01`, and the
+17-character VIN. The write was confirmed (`confirmed=1`), and the host sent no flow
+control of its own. This reproduces on Linux exactly what Windows capture E2 shows.
+
+The VIN is redacted in the committed evidence with `analysis/redact_vin.py`, as the earlier
+captures were. Evidence: `analysis/captures/linux-vehicle-iso-20260919T062314Z.txt`.
+
+Not covered: 29-bit ISO15765 (no capture of its filter layout, so refused with
+`ERR_INVALID_FLAGS`), segmented transmit, extended addressing, `PASS_FILTER` on an ISO15765
+channel, and any variation of STmin or block size.
+
 ## Next blocking work
 
 Every item this list carried that the bench could reach is now done: pass filters and the
@@ -488,16 +538,14 @@ be closed by more work on a desk.
 
 Vehicle-blocked:
 
-1. Prove filters actually filter, transmit actually transmits, and received frames decode
-   end to end. Everything above establishes that the adapter accepts our frames and that
-   the host handles what comes back; none of it shows a message crossing a bus.
-2. Confirm that a timed `WriteMsgs` reports success on a live bus. The Windows captures
-   show one `iMsgTxDone` per transmit, so it should; on the bench it correctly reports
-   that nothing was sent.
-3. ISO15765 timing -- STmin, block size and N_Bs remain untested and unvaried -- and
-   wiring the reassembler to a live ISO15765 channel, which those parameters gate.
-4. `cdc_acm` throughput parity. The pty harness bounds the host side at 311500 msg/s, but
-   the URB path between adapter and kernel is untested under load.
+1. ~~Prove filters filter, transmit transmits and received frames decode end to end.~~
+   Done on the live Volvo, 2026-09-19 (see "First Linux run on a live vehicle").
+2. ~~Confirm that a timed `WriteMsgs` reports success on a live bus.~~ Done: `confirmed=1` on
+   both raw CAN and ISO15765 channels.
+3. ISO15765 **timing** -- STmin, block size and N_Bs remain untested and unvaried. The
+   channel itself is wired to the reassembler and answers a live VIN request; segmented
+   transmit and 29-bit addressing are not attempted (see the ISO15765 section above).
+4. ~~`cdc_acm` throughput parity.~~ Measured 2026-09-19, see below.
 5. Complete remaining protocol engines, periodic messages and IOCTLs with suitable
    vehicles/fixtures. C3/C4 are settled for this adapter: only one CAN-family channel can
    be open; further chan-field semantics cannot be inferred here.

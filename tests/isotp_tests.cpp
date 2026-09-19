@@ -1,6 +1,7 @@
 // Host-side ISO15765 reassembly, tested against the captured VIN exchange. No hardware
 // is involved: the adapter generates flow control itself, so reassembly is a pure
 // function of the inbound frame sequence.
+#include "can.hpp"
 #include "isotp.hpp"
 #include <fstream>
 #include <iostream>
@@ -127,6 +128,66 @@ void trailing_bytes_are_trimmed() {
     CHECK(hex(done[0].data) == "000007e8aabbccddeeff1122");
     CHECK(!reassembler.assembling());
 }
+PASSTHRU_MSG iso_message(uint32_t flags, const char *hex_data) {
+    PASSTHRU_MSG message{};
+    const auto bytes = unhex(hex_data);
+    message.ProtocolID = ISO15765; message.TxFlags = flags; message.DataSize = static_cast<uint32_t>(bytes.size());
+    std::copy(bytes.begin(), bytes.end(), message.Data);
+    return message;
+}
+template<class F> void refused(F &&operation, int32_t code) {
+    try { operation(); } catch (const Error &error) { CHECK(error.code == code); return; }
+    CHECK(!"expected an Error");
+}
+// Byte for byte the cTableAddEntry body of Windows capture D3/E2 (selector 2, FRAME_PAD,
+// response ID 0x7E8, flow-control ID 0x7E0). The mask is the one the vendor's own step used.
+void vendor_flow_control_filter() {
+    const auto mask = iso_message(ISO15765_FRAME_PAD, "0000ffff");
+    const auto pattern = iso_message(ISO15765_FRAME_PAD, "000007e8");
+    const auto flow = iso_message(ISO15765_FRAME_PAD, "000007e0");
+    CHECK(hex(isotp_flow_control_filter(mask, pattern, flow)) == "020000004000000000000007e800000007e000");
+    // The adapter matches the whole identifier, so a mask that does not cover it is refused.
+    refused([&] { isotp_flow_control_filter(iso_message(ISO15765_FRAME_PAD, "000000ff"), pattern, flow); }, ERR_INVALID_MSG);
+    refused([&] { isotp_flow_control_filter(mask, iso_message(0, "000007e8"), flow); }, ERR_INVALID_MSG);
+    refused([&] { isotp_flow_control_filter(mask, iso_message(ISO15765_FRAME_PAD, "000107e8"), flow); }, ERR_INVALID_MSG);
+    auto wrong = pattern; wrong.ProtocolID = CAN;
+    refused([&] { isotp_flow_control_filter(mask, wrong, flow); }, ERR_MSG_PROTOCOL_ID);
+}
+// Windows capture E2: the request is the CAN ID and the service bytes, with no PCI byte.
+void vendor_transmit() {
+    CHECK(hex(isotp_transmit(iso_message(ISO15765_FRAME_PAD, "000007df0902"), 1000)) ==
+          "40000000e803000006000000000007df0902");
+    refused([&] { isotp_transmit(iso_message(ISO15765_FRAME_PAD, "000007df"), 1000); }, ERR_INVALID_MSG);
+    refused([&] { isotp_transmit(iso_message(ISO15765_ADDR_TYPE, "000007df0902"), 1000); }, ERR_INVALID_FLAGS);
+    // A segmented transmit has never been observed, so it is not attempted.
+    refused([&] { isotp_transmit(iso_message(0, "000007df0102030405060708"), 1000); }, ERR_NOT_SUPPORTED);
+}
+Bytes inbound(uint32_t timestamp, const char *frame) {
+    Bytes body(24, 0);
+    put16(body, 2, channel_node(ISO15765)); put16(body, 4, 9);
+    put16(body, 16, static_cast<uint16_t>(timestamp)); put16(body, 22, 12);
+    const auto data = unhex(frame);
+    body.insert(body.end(), data.begin(), data.end());
+    return body;
+}
+// The three captured VIN frames, through the receiver the ISO15765 channel actually uses.
+void receiver_reassembles_captured_vin() {
+    CanReceiver receiver(ISO15765);
+    for (const char *frame : {"000007e81014490201524544", "000007e82141435445445649", "000007e8224e303030303030"})
+        receiver.receive(inbound(1, frame));
+    PASSTHRU_MSG out[3]{}; uint32_t count = 0;
+    try { receiver.read(out, 3, count, 0); } catch (const Error &error) { CHECK(error.code == ERR_TIMEOUT || error.code == ERR_BUFFER_EMPTY); }
+    CHECK(count == 2);
+    CHECK(out[0].ProtocolID == ISO15765 && out[0].RxStatus == START_OF_MESSAGE && out[0].DataSize == 4);
+    CHECK(out[1].ProtocolID == ISO15765 && out[1].RxStatus == 0 && out[1].DataSize == 24);
+    CHECK(hex(Bytes(out[1].Data, out[1].Data + 4)) == "000007e8");
+    // A CAN channel never sees the reassembler: a frame for the other protocol is ignored.
+    CanReceiver can(CAN);
+    can.receive(inbound(1, "000007e81014490201524544"));
+    PASSTHRU_MSG none{}; uint32_t got = 0;
+    try { can.read(&none, 1, got, 0); } catch (const Error &error) { CHECK(error.code == ERR_BUFFER_EMPTY); }
+    CHECK(got == 0);
+}
 }
 int main() {
     try {
@@ -138,6 +199,9 @@ int main() {
         foreign_can_id_does_not_disturb_assembly();
         rejects_malformed_first_frames();
         trailing_bytes_are_trimmed();
+        vendor_flow_control_filter();
+        vendor_transmit();
+        receiver_reassembles_captured_vin();
         std::cout << "ISO15765 reassembly against the captured VIN exchange passed\n";
         return 0;
     } catch (const std::exception &error) { std::cerr << error.what() << '\n'; return 1; }

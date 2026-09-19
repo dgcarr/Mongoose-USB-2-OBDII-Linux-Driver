@@ -1,0 +1,13 @@
+PassThruOpen status=0 
+PassThruReadVersion status=0 
+firmware=1.1.16.0 driver=0.1.0-experimental api=04.04
+PassThruConnect ISO15765 500000 status=0 
+PassThruStartMsgFilter flow-control 7E8/7E0 status=0 
+PassThruWriteMsgs 7DF 09 02 (blocking) status=0 
+confirmed=1
+rx rxstatus=0x2 size=4 data=000007e8  ascii=
+rx rxstatus=0x0 size=24 data=000007e8490201524544414354454456494e303030303030  ascii=I..REDACTEDVIN000000
+messages=2
+PassThruStopMsgFilter status=0 
+PassThruDisconnect status=0 
+PassThruClose status=0 

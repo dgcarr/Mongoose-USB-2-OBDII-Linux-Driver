@@ -129,6 +129,92 @@ static int32_t check_vehicle(uint32_t channel, int request) {
     report("PassThruStopMsgFilter", stopped);
     return status ? status : stopped;
 }
+// Live-vehicle ISO15765 check, the same exchange as Windows capture E2: a flow-control
+// filter for response 0x7E8 / request 0x7E0, then one read-only mode 09 PID 02 (VIN)
+// request to the functional address. The adapter segments flow control and the library
+// reassembles, so the caller sees one message per reply.
+static void iso_message(PASSTHRU_MSG *message, uint32_t id, const uint8_t *service, uint32_t size) {
+    memset(message, 0, sizeof(*message));
+    message->ProtocolID = ISO15765; message->TxFlags = ISO15765_FRAME_PAD;
+    message->Data[0] = (uint8_t)(id >> 24); message->Data[1] = (uint8_t)(id >> 16);
+    message->Data[2] = (uint8_t)(id >> 8); message->Data[3] = (uint8_t)id;
+    if (size) memcpy(&message->Data[4], service, size);
+    message->DataSize = 4 + size;
+}
+static int32_t check_vehicle_iso(uint32_t channel) {
+    PASSTHRU_MSG mask, pattern, flow;
+    iso_message(&mask, 0xffffffffu, NULL, 0);
+    iso_message(&pattern, 0x7e8, NULL, 0);
+    iso_message(&flow, 0x7e0, NULL, 0);
+    uint32_t filter = 0;
+    int32_t status = PassThruStartMsgFilter(channel, FLOW_CONTROL_FILTER, &mask, &pattern, &flow, &filter);
+    report("PassThruStartMsgFilter flow-control 7E8/7E0", status);
+    if (status) return status;
+    static const uint8_t vin[2] = {0x09, 0x02};
+    PASSTHRU_MSG request;
+    iso_message(&request, 0x7df, vin, 2);
+    uint32_t sent = 1;
+    status = PassThruWriteMsgs(channel, &request, &sent, 250);
+    report("PassThruWriteMsgs 7DF 09 02 (blocking)", status);
+    printf("confirmed=%u\n", sent);
+    if (status == ERR_TIMEOUT) status = 0;
+    const time_t end = time(NULL) + 4;
+    unsigned messages = 0;
+    while (time(NULL) < end && !status) {
+        PASSTHRU_MSG in;
+        memset(&in, 0, sizeof(in));
+        uint32_t count = 1;
+        const int32_t rd = PassThruReadMsgs(channel, &in, &count, 100);
+        if (rd && rd != ERR_BUFFER_EMPTY && rd != ERR_TIMEOUT) { report("PassThruReadMsgs", rd); status = rd; break; }
+        for (uint32_t i = 0; i < count; ++i, ++messages) {
+            printf("rx rxstatus=0x%x size=%u data=", in.RxStatus, in.DataSize);
+            for (uint32_t b = 0; b < in.DataSize; ++b) printf("%02x", in.Data[b]);
+            printf("  ascii=");
+            for (uint32_t b = 4; b < in.DataSize; ++b) putchar(in.Data[b] >= 32 && in.Data[b] < 127 ? in.Data[b] : '.');
+            printf("\n");
+        }
+    }
+    printf("messages=%u\n", messages);
+    const int32_t stopped = PassThruStopMsgFilter(channel, filter);
+    report("PassThruStopMsgFilter", stopped);
+    return status ? status : stopped;
+}
+// Passive sustained-receive measurement on a live bus: one wildcard filter, no transmit.
+// Reports the read errors that would show loss, and gaps between device timestamps.
+static int32_t check_vehicle_soak(uint32_t channel, unsigned seconds) {
+    PASSTHRU_MSG mask = {0}, pattern = {0};
+    mask.ProtocolID = pattern.ProtocolID = CAN;
+    mask.DataSize = pattern.DataSize = 4;
+    uint32_t filter = 0;
+    int32_t status = PassThruStartMsgFilter(channel, PASS_FILTER, &mask, &pattern, NULL, &filter);
+    report("PassThruStartMsgFilter wildcard", status);
+    if (status) return status;
+    const time_t end = time(NULL) + seconds;
+    unsigned long total = 0, overflows = 0, empty_rounds = 0, gaps_over_10ms = 0;
+    uint32_t last = 0, max_gap = 0, first = 0;
+    int have_last = 0;
+    static PASSTHRU_MSG batch[256];
+    while (time(NULL) < end) {
+        uint32_t count = 256;
+        const int32_t rd = PassThruReadMsgs(channel, batch, &count, 100);
+        if (rd == ERR_BUFFER_OVERFLOW) { ++overflows; }
+        else if (rd == ERR_BUFFER_EMPTY) { ++empty_rounds; }
+        else if (rd && rd != ERR_TIMEOUT) { report("PassThruReadMsgs", rd); status = rd; break; }
+        for (uint32_t i = 0; i < count; ++i) {
+            const uint32_t ts = batch[i].Timestamp;
+            if (!have_last) { first = ts; have_last = 1; }
+            else { const uint32_t gap = ts - last; if (gap > max_gap) max_gap = gap; if (gap > 10000) ++gaps_over_10ms; }
+            last = ts;
+        }
+        total += count;
+    }
+    printf("soak seconds=%u frames=%lu rate=%.1f/s overflows=%lu empty_rounds=%lu\n",
+           seconds, total, (double)total / seconds, overflows, empty_rounds);
+    printf("device_span_us=%u max_gap_us=%u gaps_over_10ms=%lu\n", last - first, max_gap, gaps_over_10ms);
+    const int32_t stopped = PassThruStopMsgFilter(channel, filter);
+    report("PassThruStopMsgFilter", stopped);
+    return status ? status : stopped;
+}
 int main(int argc, char **argv) {
     uint32_t device = 0;
     const int can_lifecycle = argc == 3 && strcmp(argv[2], "--can-lifecycle") == 0;
@@ -136,11 +222,13 @@ int main(int argc, char **argv) {
     const int can_transmit = argc == 3 && strcmp(argv[2], "--can-transmit-check") == 0;
     const int vehicle_listen = argc == 3 && strcmp(argv[2], "--vehicle-listen") == 0;
     const int vehicle_check = argc == 3 && strcmp(argv[2], "--vehicle-check") == 0;
+    const int vehicle_soak = argc == 3 && strcmp(argv[2], "--vehicle-soak") == 0;
+    const int vehicle_iso = argc == 3 && strcmp(argv[2], "--vehicle-iso") == 0;
     if (argc > 3 || (argc >= 2 && strncmp(argv[1], "serial:", 7)) ||
         (argc == 3 && !can_lifecycle && !can_receive && !can_transmit &&
-         !vehicle_listen && !vehicle_check)) {
+         !vehicle_listen && !vehicle_check && !vehicle_iso && !vehicle_soak)) {
         fprintf(stderr, "Usage: mongoose-client [serial:SERIAL [--can-lifecycle|--can-receive-check|"
-                        "--can-transmit-check|--vehicle-listen|--vehicle-check]]\n"); return 2;
+                        "--can-transmit-check|--vehicle-listen|--vehicle-check|--vehicle-iso|--vehicle-soak]]\n"); return 2;
     }
     int32_t status = PassThruOpen(argc >= 2 ? argv[1] : NULL, &device);
     report("PassThruOpen", status);
@@ -156,6 +244,28 @@ int main(int argc, char **argv) {
         report("PassThruConnect 500000", channel_status);
         if (!channel_status) {
             channel_status = check_vehicle(channel, vehicle_check);
+            const int32_t disconnected = PassThruDisconnect(channel);
+            report("PassThruDisconnect", disconnected);
+            if (!channel_status) channel_status = disconnected;
+        }
+    }
+    if (vehicle_soak && !version) {
+        uint32_t channel = 0;
+        channel_status = PassThruConnect(device, CAN, 0, 500000, &channel);
+        report("PassThruConnect 500000", channel_status);
+        if (!channel_status) {
+            channel_status = check_vehicle_soak(channel, 300);
+            const int32_t disconnected = PassThruDisconnect(channel);
+            report("PassThruDisconnect", disconnected);
+            if (!channel_status) channel_status = disconnected;
+        }
+    }
+    if (vehicle_iso && !version) {
+        uint32_t channel = 0;
+        channel_status = PassThruConnect(device, ISO15765, 0, 500000, &channel);
+        report("PassThruConnect ISO15765 500000", channel_status);
+        if (!channel_status) {
+            channel_status = check_vehicle_iso(channel);
             const int32_t disconnected = PassThruDisconnect(channel);
             report("PassThruDisconnect", disconnected);
             if (!channel_status) channel_status = disconnected;
