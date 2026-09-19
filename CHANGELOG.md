@@ -5,6 +5,7 @@ The format follows Keep a Changelog. There have been no releases; everything is 
 ## Unreleased (0.1.0)
 
 ### Added
+- Licensed under LGPL-2.1-or-later (`LICENSE`); the Arch, DEB and RPM metadata name the licence and maintainer.
 - A J2534-1 04.04 library for the MongoosePro JLR adapter over the kernel's cdc_acm serial port: raw CAN
   (11-bit and 29-bit) and 11-bit ISO15765, pass, block and flow-control filters, timed and queued writes with
   delivery confirmation, multi-frame receive reassembly (one conversation per source ID) and multi-frame transmit.
@@ -27,6 +28,9 @@ The format follows Keep a Changelog. There have been no releases; everything is 
 - An unknown or inapplicable IOCTL ID returns `ERR_INVALID_IOCTL_ID`, as the vendor does.
 
 ### Fixed
+- Writes validate the entire batch before sending, count confirmations per call on every exit, and use one uncapped deadline; outbound status `0x101` returns `ERR_BUFFER_FULL`.
+- Periodic teardown clears entries left by ambiguous adds, and a failed host insertion removes the firmware entry.
+- ISO15765 flow-control filters with a NULL flow-control message return `ERR_NULL_PARAMETER`.
 - Multi-frame replies from two ECUs answering one functional request no longer lose one of them.
 - An ISO15765 channel is closed on its own node (`0x0601`), not the CAN node.
 - The bench transmit probes sent an un-framed request that no ECU could answer.

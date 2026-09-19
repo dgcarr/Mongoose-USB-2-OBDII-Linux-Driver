@@ -17,6 +17,7 @@ struct Device {
     std::shared_ptr<Session> session;
     std::mutex lifecycle;
     bool closed = false, reopen_required = false, wire_channel_open = false;
+    bool periodic_untracked = false;  // an add may have reached the adapter without a handle we hold
     uint32_t channel = 0;
     uint32_t channel_flags = 0;
     uint16_t protocol = CAN;  // protocol of the open channel: CAN or ISO15765
@@ -80,7 +81,7 @@ LockedDevice device(uint32_t id) { return lookup(id); }
 // Returns whether the channel had periodic messages running, which the caller must clear on the wire
 // before the channel is closed: a message left in the adapter's table would keep transmitting.
 bool retire_channel(Device &owner) {
-    const bool had_periodic = !owner.periodics.empty();
+    const bool had_periodic = owner.periodic_untracked || !owner.periodics.empty();
     owner.session->set_can_receiver({});
     owner.receiver.reset();
     owner.filters.clear();
@@ -124,6 +125,12 @@ void accepted(std::span<const uint8_t> response, Allow allow = Allow::None) {
     char message[80];
     std::snprintf(message, sizeof(message), "adapter status 0x%08x (mapping not yet validated)", status);
     throw Error(ERR_FAILED, message);
+}
+// Empties the adapter's periodic table (cTableClear on table 4) and forgets what was tracked of it.
+void clear_periodic_table(Device &owner) {
+    accepted(channel_command(owner, 0x10, Bytes{table_periodic, 0, 0, 0}));
+    owner.periodics.clear();
+    owner.periodic_untracked = false;
 }
 uint32_t get_value(Session &session, uint8_t selector) {
     const Bytes payload{selector, 0, 0, 0};
@@ -171,7 +178,7 @@ int32_t J2534_CALL PassThruClose(uint32_t id) {
         const bool periodic = retire_channel(state);
         std::exception_ptr error;
         if (state.wire_channel_open && periodic) {
-            try { accepted(channel_command(state, 0x10, Bytes{table_periodic, 0, 0, 0})); }
+            try { clear_periodic_table(state); }
             catch (...) { error = std::current_exception(); }
         }
         if (state.wire_channel_open) {
@@ -238,7 +245,7 @@ int32_t J2534_CALL PassThruDisconnect(uint32_t id) {
         const bool periodic = retire_channel(state);
         std::exception_ptr error;
         if (periodic) {
-            try { accepted(channel_command(state, 0x10, Bytes{table_periodic, 0, 0, 0})); }
+            try { clear_periodic_table(state); }
             catch (...) { error = std::current_exception(); }
         }
         try { accepted(channel_command(state, 7)); state.wire_channel_open = false; }
@@ -267,41 +274,58 @@ int32_t J2534_CALL PassThruWriteMsgs(uint32_t channel, PASSTHRU_MSG *messages, u
         // Without a flow-control filter the adapter cannot answer a multi-frame reply.
         if (state.protocol == ISO15765 && state.filters.empty())
             throw Error(ERR_NO_FLOW_CONTROL, "ISO15765 channel has no flow-control filter");
-        // The adapter is told the caller's timeout; the host still has to wait for the
-        // acknowledgement, so a zero (queue-and-return) timeout keeps a response budget.
-        const auto budget = std::chrono::milliseconds(timeout ? std::min(timeout, 60000u) : 1000u);
-        const auto deadline = std::chrono::steady_clock::now() + budget;
+        const auto now = std::chrono::steady_clock::now();
+        const auto available = std::chrono::duration_cast<std::chrono::milliseconds>(
+            std::chrono::steady_clock::time_point::max() - now);
+        const auto duration = std::chrono::milliseconds(static_cast<int64_t>(timeout));
+        const auto deadline = duration >= available ? std::chrono::steady_clock::time_point::max() : now + duration;
+        std::vector<Bytes> payloads;
+        payloads.reserve(requested);
+        for (uint32_t index = 0; index < requested; ++index)
+            payloads.push_back(state.protocol == ISO15765 ? isotp_transmit(messages[index], timeout)
+                                                         : can_transmit(messages[index], timeout));
         auto receiver = state.receiver;
-        const auto already = receiver ? receiver->transmitted() : 0;
-        for (uint32_t index = 0; index < requested; ++index) {
-            const auto payload = state.protocol == ISO15765 ? isotp_transmit(messages[index], timeout)
-                                                            : can_transmit(messages[index], timeout);
-            // Record the request under its sequence number before it goes out: the adapter's
-            // iMsgTxDone echoes that sequence and can reach the reader thread before this thread sees
-            // the command response.
-            bool noted = false;
-            const auto record = [&](uint16_t sequence) {
-                if (receiver) { receiver->note_transmit(messages[index], sequence); noted = true; }
-            };
-            // The data command's chan field counts the messages of this call still to send, as the vendor's
-            // write wrapper 1000c270 tags them: 1 for a single message, which is all the captures have.
-            const auto remaining = static_cast<uint16_t>(std::min<uint32_t>(requested - index, 0xffff));
-            try { accepted(channel_command(state, 8, payload, budget, remaining, record), Allow::Queued); }
-            catch (...) { if (noted) receiver->forget_transmit(); throw; }
-            if (!timeout) *count = index + 1;  // queue-and-return: accepted is all we claim
-        }
-        if (!timeout) return;
-        // J2534 blocks a timed write until the messages are sent, and the adapter says
-        // when that happened: one iMsgTxDone per transmitted frame. Reporting the queued
-        // count here instead would claim delivery for frames that never left the
-        // controller -- which is exactly what happens with no bus attached.
         if (!receiver) throw Error(ERR_DEVICE_NOT_CONNECTED, "channel has no receiver");
-        owner.lock.unlock(); // Disconnect/Close must be able to wake a blocked writer
-        const bool confirmed = receiver->await_transmitted(already + requested, deadline);
-        const auto sent = receiver->transmitted() - already;
-        *count = static_cast<uint32_t>(std::min<size_t>(sent, requested));
-        if (!confirmed)
-            throw Error(ERR_TIMEOUT, "adapter did not confirm transmission of every message");
+        const auto call = std::make_shared<CanReceiver::TransmitCount>();
+        try {
+            for (uint32_t index = 0; index < requested; ++index) {
+                const auto before_send = std::chrono::steady_clock::now();
+                if (timeout && before_send >= deadline) throw Error(ERR_TIMEOUT, "write deadline expired");
+                const auto budget = timeout ? std::clamp(
+                    std::chrono::duration_cast<std::chrono::milliseconds>(deadline - before_send),
+                    std::chrono::milliseconds(1000), std::chrono::milliseconds(10000)) : std::chrono::milliseconds(1000);
+                // Record the request under its sequence number before it goes out: the adapter's
+                // iMsgTxDone echoes that sequence and can reach the reader thread before this thread sees
+                // the command response.
+                bool noted = false;
+                const auto record = [&](uint16_t sequence) {
+                    receiver->note_transmit(messages[index], sequence, call); noted = true;
+                };
+                // The data command's chan field counts the messages of this call still to send, as the vendor's
+                // write wrapper 1000c270 tags them: 1 for a single message, which is all the captures have.
+                const auto remaining = static_cast<uint16_t>(std::min<uint32_t>(requested - index, 0xffff));
+                try {
+                    const auto response = channel_command(state, 8, payloads[index], budget, remaining, record);
+                    if (Session::status(response) == 0x101) throw Error(ERR_BUFFER_FULL, "adapter transmit buffer full");
+                    accepted(response, Allow::Queued);
+                }
+                catch (...) { if (noted) receiver->forget_transmit(); throw; }
+                if (!timeout) *count = index + 1;  // queue-and-return: accepted is all we claim
+            }
+            if (!timeout) return;
+            // J2534 blocks a timed write until the messages are sent, and the adapter says
+            // when that happened: one iMsgTxDone per transmitted frame. Reporting the queued
+            // count here instead would claim delivery for frames that never left the
+            // controller -- which is exactly what happens with no bus attached.
+            owner.lock.unlock(); // Disconnect/Close must be able to wake a blocked writer
+            const bool confirmed = receiver->await_transmitted(call, requested, deadline);
+            if (!confirmed)
+                throw Error(ERR_TIMEOUT, "adapter did not confirm transmission of every message");
+        } catch (...) {
+            if (timeout) *count = static_cast<uint32_t>(receiver->confirmed(call));
+            throw;
+        }
+        *count = static_cast<uint32_t>(receiver->confirmed(call));
     });
 }
 // Periodic messages are cTableAddEntry (0x0d) on table 4, removed with cTableRemoveEntry (0x0e) and
@@ -319,13 +343,28 @@ int32_t J2534_CALL PassThruStartPeriodicMsg(uint32_t channel, PASSTHRU_MSG *mess
         if (state.periodics.size() >= 10) throw Error(ERR_EXCEEDED_LIMIT, "at most 10 periodic messages per channel");
         uint32_t allocated;
         { std::lock_guard lock(devices_mutex); allocated = allocate_handle(); }
+        const bool was_untracked = state.periodic_untracked;
+        state.periodic_untracked = true;  // until the entry is known to sit in `periodics`
         auto response = channel_command(state, 0x0d, payload);
-        accepted(response);
+        try { accepted(response); }
+        catch (...) { state.periodic_untracked = was_untracked; throw; }
         if (response.size() < 24) {
             uncertain_channel(state);
             throw Error(ERR_FAILED, "periodic response missing firmware handle; reopen device");
         }
-        state.periodics.emplace(allocated, le32(response, 20));
+        const auto handle = le32(response, 20);
+        try { state.periodics.emplace(allocated, handle); }
+        catch (...) {
+            const auto original = std::current_exception();
+            Bytes remove(8, 0); remove[0] = table_periodic;
+            put16(remove, 4, static_cast<uint16_t>(handle)); put16(remove, 6, static_cast<uint16_t>(handle >> 16));
+            try {
+                accepted(channel_command(state, 0x0e, remove));
+                state.periodic_untracked = was_untracked;
+            } catch (...) { uncertain_channel(state); }
+            std::rethrow_exception(original);
+        }
+        state.periodic_untracked = was_untracked;
         *id = allocated;
     });
 }
@@ -351,7 +390,7 @@ int32_t J2534_CALL PassThruStartMsgFilter(uint32_t channel, uint32_t type, PASST
         Bytes payload;
         if (state.protocol == ISO15765) {
             if (type != FLOW_CONTROL_FILTER) unsupported("only ISO15765 FLOW_CONTROL_FILTER is implemented");
-            if (!flow) throw Error(ERR_INVALID_MSG, "FLOW_CONTROL_FILTER requires a flow-control message");
+            if (!flow) throw Error(ERR_NULL_PARAMETER, "FLOW_CONTROL_FILTER requires a flow-control message");
             // The vendor refuses a 65th flow-control filter ("Only 64 filters are permitted total").
             if (std::count_if(state.filters.begin(), state.filters.end(),
                               [](const auto &entry) { return entry.second.table == table_flow_control; }) >= 64)
@@ -451,9 +490,8 @@ void channel_ioctl(uint32_t channel, uint32_t ioctl_id) {
         return;
     }
     case CLEAR_PERIODIC_MSGS:
-        if (state.periodics.empty()) return;  // nothing to say to the adapter
-        accepted(channel_command(state, 0x10, Bytes{table_periodic, 0, 0, 0}));
-        state.periodics.clear();
+        if (!state.periodic_untracked && state.periodics.empty()) return;  // nothing to say to the adapter
+        clear_periodic_table(state);
         return;
     default:
         throw Error(ERR_INVALID_IOCTL_ID, "not a channel IOCTL");

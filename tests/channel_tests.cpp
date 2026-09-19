@@ -950,6 +950,90 @@ void transmit_unconfirmed() {
     CHECK(PassThruWriteMsgs(channel, &message, &count, 30) == ERR_TIMEOUT && count == 0);
     CHECK(PassThruClose(device) == 0); script->finished();
 }
+void write_batch_validation() {
+    auto script = prepare(); script->connect(); script->disconnect(); script->add(5);
+    const auto device = open(), channel = connect(device);
+    std::array messages{can_message("000007df0902"), can_message("000007e00902")};
+    messages[1].ProtocolID = ISO15765;
+    uint32_t count = 2;
+    CHECK(PassThruWriteMsgs(channel, messages.data(), &count, 30) == ERR_MSG_PROTOCOL_ID && count == 0);
+    CHECK(!script->mismatch);
+    CHECK(PassThruClose(device) == 0); script->finished();
+}
+void write_partial_confirmation(bool refused) {
+    auto script = prepare(); script->connect();
+    script->add(8, unhex("000000001e00000006000000000007df0902"), channel_node(CAN), 0x100, 2);
+    script->steps.back().exchange.in.push_back(tx_done_indication(script->sequence));
+    script->add(8, unhex("000000001e00000006000000000007e00902"), channel_node(CAN), refused ? 0x203 : 0x100, 1);
+    script->disconnect(); script->add(5);
+    const auto device = open(), channel = connect(device);
+    std::array messages{can_message("000007df0902"), can_message("000007e00902")};
+    uint32_t count = 2;
+    CHECK(PassThruWriteMsgs(channel, messages.data(), &count, 30) == (refused ? ERR_FAILED : ERR_TIMEOUT));
+    CHECK(count == 1);
+    CHECK(PassThruClose(device) == 0); script->finished();
+}
+void write_confirmation_ownership() {
+    auto script = prepare(); script->connect();
+    script->add(8, unhex("000000000000000006000000000007df0902"), channel_node(CAN), 0x100, 1);
+    const auto first_sequence = script->sequence;
+    script->add(8, unhex("000000001e00000006000000000007e00902"), channel_node(CAN), 0x100, 1);
+    script->steps.back().exchange.in.push_back(tx_done_indication(first_sequence));
+    script->disconnect(); script->add(5);
+    const auto device = open(), channel = connect(device);
+    auto first = can_message("000007df0902"), second = can_message("000007e00902");
+    uint32_t count = 1;
+    CHECK(PassThruWriteMsgs(channel, &first, &count, 0) == 0 && count == 1);
+    CHECK(PassThruWriteMsgs(channel, &second, &count, 30) == ERR_TIMEOUT && count == 0);
+    CHECK(PassThruClose(device) == 0); script->finished();
+}
+void write_buffer_full() {
+    auto script = prepare(); script->connect();
+    script->add(8, unhex("000000000000000006000000000007df0902"), channel_node(CAN), 0x101, 1);
+    const auto refused_sequence = script->sequence;
+    script->add(8, unhex("000000000000000006000000000007df0902"), channel_node(CAN), 0x100, 1);
+    script->steps.back().exchange.in.push_back(tx_done_indication(refused_sequence));
+    script->disconnect(); script->add(5);
+    const auto device = open(), channel = connect(device);
+    SCONFIG loopback{LOOPBACK, 1}; SCONFIG_LIST config{1, &loopback};
+    CHECK(PassThruIoctl(channel, SET_CONFIG, &config, nullptr) == 0);
+    auto message = can_message("000007df0902"); uint32_t count = 1;
+    CHECK(PassThruWriteMsgs(channel, &message, &count, 0) == ERR_BUFFER_FULL && count == 0);
+    count = 1;
+    CHECK(PassThruWriteMsgs(channel, &message, &count, 0) == 0 && count == 1);
+    CHECK(PassThruReadMsgs(channel, &message, &count, 0) == ERR_BUFFER_EMPTY && count == 0);
+    CHECK(PassThruClose(device) == 0); script->finished();
+}
+void periodic_missing_handle(bool implicit) {
+    auto script = prepare(); script->connect();
+    script->add(0x0d, unhex("04000000640000000000000006000007df0902"), channel_node(CAN));
+    script->add(0x10, Bytes{table_periodic, 0, 0, 0}, channel_node(CAN));
+    script->disconnect(); script->add(5);
+    const auto device = open(), channel = connect(device);
+    auto message = can_message("000007df0902"); uint32_t id = 99;
+    CHECK(PassThruStartPeriodicMsg(channel, &message, &id, 100) == ERR_FAILED && id == 0);
+    if (!implicit) CHECK(PassThruDisconnect(channel) == 0);
+    CHECK(PassThruClose(device) == 0); script->finished();
+}
+void flow_control_null() {
+    auto script = prepare();
+    constexpr auto node = channel_node(ISO15765);
+    script->add(6, unhex("0000000020a10700"), node);
+    script->add(0x12, unhex("01000000060000000e000000"), node);
+    script->add(7, {}, node); script->add(5);
+    const auto device = open(); uint32_t channel = 0;
+    CHECK(PassThruConnect(device, ISO15765, 0, 500000, &channel) == 0);
+    auto mask = iso_message("0000ffff", ISO15765_FRAME_PAD), pattern = iso_message("000007e8", ISO15765_FRAME_PAD);
+    uint32_t id = 99;
+    CHECK(PassThruStartMsgFilter(channel, FLOW_CONTROL_FILTER, &mask, &pattern, nullptr, &id) == ERR_NULL_PARAMETER);
+    CHECK(id == 0);
+    CHECK(PassThruClose(device) == 0); script->finished();
+}
+void conformance() {
+    write_batch_validation(); write_partial_confirmation(false); write_partial_confirmation(true);
+    write_confirmation_ownership(); write_buffer_full();
+    periodic_missing_handle(false); periodic_missing_handle(true); flow_control_null();
+}
 void waiting_write(unsigned action) {
     auto script = prepare(); script->connect();
     // 0x100 queued response for the outbound data; no iMsgTxDone confirmation.
@@ -994,8 +1078,13 @@ std::unique_ptr<Transport> open_transport(const Selector &, Trace) {
     CHECK(next_script); return std::make_unique<ScriptTransport>(std::exchange(next_script, {}));
 }
 }
-int main() {
+int main(int argc, char **argv) {
     try {
+        conformance();
+        if (argc > 1 && std::strcmp(argv[1], "conformance") == 0) {
+            std::cout << "J2534 conformance scenarios passed\n";
+            return 0;
+        }
         transmit_flags_verbatim(); transmit(); transmit_confirmed(); transmit_unconfirmed();
         filter_contract(); block_filter(); clear_buffers(); config_can(); config_iso15765(); iso15765_exchange(); flow_control_limit(); periodic_messages(); periodic_limit(); many_filters(); filter_failure(false); filter_failure(true);
         captured_receive(); receive_edges(); partial_read_cancel();

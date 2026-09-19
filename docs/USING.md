@@ -149,6 +149,18 @@ A `SET_CONFIG` list is checked as a whole before anything is written, so a bad e
 was. An ID the channel does not have is `ERR_NOT_SUPPORTED`; a value out of range is `ERR_INVALID_IOCTL_VALUE`.
 The non-volatile store IDs (`0xC002`..`0xC00A`) are refused: they write adapter memory.
 
+## J2534 conformance notes
+
+These deviations were reviewed and deliberately kept:
+
+- The `CAN_ID_BOTH` (`0x800`) Connect flag is refused with `ERR_INVALID_FLAGS`; no hardware is available to validate it.
+- An adapter-rejected baud is reported as `ERR_FAILED`, not `ERR_INVALID_BAUDRATE`; only a zero baud is rejected on the host.
+- Unknown or inapplicable filter types return `ERR_NOT_SUPPORTED` where the vendor returns `ERR_FAILED`.
+- `ERR_NOT_UNIQUE` is never returned; duplicate flow-control filters are accepted, up to 64.
+- `SET_CONFIG` validates the whole list before applying any of it, where the vendor applies entries one by one.
+- The `CLEAR_*` and `READ_VBATT`/`READ_PROG_VOLTAGE` ioctls ignore stray non-NULL input or output pointers, where the vendor returns `ERR_FAILED`.
+- `CLEAR_RX_BUFFER` can also discard a frame that arrived in the same USB transfer as its acknowledgement.
+
 ## Errors
 
 `PassThruGetLastError` returns a text of at most 79 characters for the last call that failed and is cleared by

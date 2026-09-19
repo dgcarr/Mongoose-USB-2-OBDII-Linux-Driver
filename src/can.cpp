@@ -164,13 +164,13 @@ void CanReceiver::receive(std::span<const uint8_t> body) {
     frames_.push_back(frame);
     ready_.notify_all();
 }
-void CanReceiver::note_transmit(const PASSTHRU_MSG &message, uint16_t sequence) {
+void CanReceiver::note_transmit(const PASSTHRU_MSG &message, uint16_t sequence, const TransmitCall &call) {
     std::lock_guard lock(mutex_);
     // A bus that never confirms (nothing attached) leaves every record unpaired; the oldest is the
     // one least likely to be confirmed, so it goes rather than failing the write.
     if (pending_transmits_.size() == message_capacity) pending_transmits_.pop_front();
     const auto size = std::min<size_t>(message.DataSize, 4 + 8 + 4096);
-    pending_transmits_.push_back({sequence, message.TxFlags, Bytes(message.Data, message.Data + size)});
+    pending_transmits_.push_back({sequence, message.TxFlags, Bytes(message.Data, message.Data + size), call});
 }
 void CanReceiver::set_loopback(bool enabled) {
     std::lock_guard lock(mutex_);
@@ -191,6 +191,7 @@ bool CanReceiver::deliver_confirmed(uint16_t sequence, uint32_t timestamp) {
     if (found == pending_transmits_.end()) return false;
     const PendingTransmit sent = std::move(*found);
     pending_transmits_.erase(pending_transmits_.begin(), found + 1);
+    if (sent.call) ++sent.call->confirmed;
     if (protocol_ == ISO15765) {
         if (sent.message.size() >= 4) {
             if (messages_.size() == message_capacity) { overflow_ = true; return true; }
@@ -227,11 +228,15 @@ size_t CanReceiver::transmitted() {
     std::lock_guard lock(mutex_);
     return transmitted_;
 }
-bool CanReceiver::await_transmitted(size_t target, std::chrono::steady_clock::time_point deadline) {
+size_t CanReceiver::confirmed(const TransmitCall &call) {
+    std::lock_guard lock(mutex_);
+    return call->confirmed;
+}
+bool CanReceiver::await_transmitted(const TransmitCall &call, size_t target, std::chrono::steady_clock::time_point deadline) {
     std::unique_lock lock(mutex_);
-    ready_.wait_until(lock, deadline, [&] { return stopped_ || transmitted_ >= target; });
+    ready_.wait_until(lock, deadline, [&] { return stopped_ || call->confirmed >= target; });
     if (stopped_) throw Error(stopped_, reason_);
-    return transmitted_ >= target;
+    return call->confirmed >= target;
 }
 void CanReceiver::stop(int32_t code, const std::string &reason) {
     std::lock_guard lock(mutex_);

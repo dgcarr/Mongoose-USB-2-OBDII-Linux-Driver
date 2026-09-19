@@ -22,8 +22,11 @@ public:
     // iMsgTxDone accounting. The adapter emits one per transmitted frame, so a blocking WriteMsgs can
     // wait on the count to report what was sent rather than what was merely queued. Only confirmations
     // that pair with a write recorded by note_transmit are counted.
+    struct TransmitCount { size_t confirmed = 0; };
+    using TransmitCall = std::shared_ptr<TransmitCount>;
     size_t transmitted();
-    bool await_transmitted(size_t target, std::chrono::steady_clock::time_point deadline);
+    size_t confirmed(const TransmitCall &call);
+    bool await_transmitted(const TransmitCall &call, size_t target, std::chrono::steady_clock::time_point deadline);
     // ISO15765 transmit indication. The vendor DLL puts one message in the receive queue for
     // every request the adapter reports sent: RxStatus TX_MSG_TYPE|TX_DONE, the request's
     // CAN ID alone as data, its TxFlags, and the adapter's own timestamp (Windows captures
@@ -35,7 +38,7 @@ public:
     // confirmed cannot shift later confirmations onto the wrong request. Raw CAN records too: it
     // delivers nothing unless LOOPBACK is set, and that can change between the write and the
     // confirmation. The oldest record is dropped when 256 are outstanding.
-    void note_transmit(const PASSTHRU_MSG &message, uint16_t sequence);
+    void note_transmit(const PASSTHRU_MSG &message, uint16_t sequence, const TransmitCall &call = {});
     void forget_transmit();  // the write that noted this request was refused
     // SConfig LOOPBACK. It lives on the host: the vendor keeps it in the channel object, never sends
     // it to the firmware, and acts on it when a transmit is confirmed. With it set every confirmed
@@ -57,7 +60,7 @@ private:
         uint32_t tx_flags = 0;
     };
     struct Message { uint32_t status, timestamp; Bytes data; uint32_t tx_flags = 0; };
-    struct PendingTransmit { uint16_t sequence; uint32_t flags; Bytes message; };  // message: ID plus data
+    struct PendingTransmit { uint16_t sequence; uint32_t flags; Bytes message; TransmitCall call; };  // message: ID plus data
     const uint16_t protocol_;
     IsoTpReassembler reassembler_;
     std::deque<Message> messages_;
