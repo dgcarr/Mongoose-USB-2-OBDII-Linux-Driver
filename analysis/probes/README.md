@@ -14,6 +14,7 @@ Independent validation of the recovered wire protocol against the adapter over p
 | `probe_getvalue.py` | Pins the `cGetValue` body shape, then sweeps selectors |
 | `probe_boardstate.py` | FIRMWARE → (reset) BOOTLOADER → (jump) FIRMWARE; leaves firmware running |
 | `reset_test.py` | `USBDEVFS_RESET`, then re-probes — proves `0xdb` is not required |
+| `write_batch_probe.c` | Through the J2534 library: single versus multi-message queued writes (C; build line in its header) |
 
 ## Safety
 

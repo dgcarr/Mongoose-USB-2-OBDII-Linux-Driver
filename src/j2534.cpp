@@ -315,11 +315,14 @@ int32_t J2534_CALL PassThruWriteMsgs(uint32_t channel, PASSTHRU_MSG *messages, u
                 const auto record = [&](uint16_t sequence) {
                     receiver->note_transmit(messages[index], sequence, call); noted = true;
                 };
-                // The data command's chan field counts the messages of this call still to send, as the vendor's
-                // write wrapper 1000c270 tags them: 1 for a single message, which is all the captures have.
-                const auto remaining = static_cast<uint16_t>(std::min<uint32_t>(requested - index, 0xffff));
+                // The data command's chan field is 1: each message is sent as a transaction of its own. The vendor
+                // (1000c270) instead sends a whole call as one transaction, every message counting down the messages
+                // still to send, and the firmware answers once, after the last. Waiting for a response per command
+                // as this loop does, a count above 1 is never answered: on the adapter a three-message write timed
+                // out on its first command, while three one-message writes back to back were all accepted.
+                constexpr uint16_t one_message_transaction = 1;
                 try {
-                    const auto response = channel_command(state, 8, payloads[index], budget, remaining, record);
+                    const auto response = channel_command(state, 8, payloads[index], budget, one_message_transaction, record);
                     if (Session::status(response) == 0x101) throw Error(ERR_BUFFER_FULL, "adapter transmit buffer full");
                     accepted(response, Allow::Queued);
                 }

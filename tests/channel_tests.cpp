@@ -878,10 +878,11 @@ void transmit() {
     // A zero timeout is J2534's queue-and-return write, so these need no tx confirmation.
     script->add(8, unhex("000000000000000006000000000007df0902"), channel_node(CAN), 0x100, data_chan);
     // Status zero is equally acceptable; only 0x100 is the documented queued case.
-    // The three-message call tags its commands with the messages still to send: 3, 2, 1.
-    script->add(8, unhex("00000000000000000a00080000012345010200000000"), channel_node(CAN), 0, 3);
-    script->add(8, unhex("000100000000000006000000000007df0902"), channel_node(CAN), 0x100, 2);
-    script->add(8, unhex("000000000000000005000000000007e001"), channel_node(CAN), 0x203, 1);
+    // Each message of a three-message call is a one-message transaction (chan 1): the firmware holds its response
+    // to a count above 1 until the rest of the transaction arrives, which a per-command wait never sends.
+    script->add(8, unhex("00000000000000000a00080000012345010200000000"), channel_node(CAN), 0, data_chan);
+    script->add(8, unhex("000100000000000006000000000007df0902"), channel_node(CAN), 0x100, data_chan);
+    script->add(8, unhex("000000000000000005000000000007e001"), channel_node(CAN), 0x203, data_chan);
     script->disconnect(); script->add(5);
     const auto device = open(), channel = connect(device);
 
@@ -962,9 +963,9 @@ void write_batch_validation() {
 }
 void write_partial_confirmation(bool refused) {
     auto script = prepare(); script->connect();
-    script->add(8, unhex("000000001e00000006000000000007df0902"), channel_node(CAN), 0x100, 2);
+    script->add(8, unhex("000000001e00000006000000000007df0902"), channel_node(CAN), 0x100, data_chan);
     script->steps.back().exchange.in.push_back(tx_done_indication(script->sequence));
-    script->add(8, unhex("000000001e00000006000000000007e00902"), channel_node(CAN), refused ? 0x203 : 0x100, 1);
+    script->add(8, unhex("000000001e00000006000000000007e00902"), channel_node(CAN), refused ? 0x203 : 0x100, data_chan);
     script->disconnect(); script->add(5);
     const auto device = open(), channel = connect(device);
     std::array messages{can_message("000007df0902"), can_message("000007e00902")};
