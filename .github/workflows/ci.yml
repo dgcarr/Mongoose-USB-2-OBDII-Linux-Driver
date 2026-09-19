@@ -13,7 +13,7 @@ jobs:
       matrix:
         compiler: [gcc, clang]
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - name: Dependencies
         run: sudo apt-get update && sudo apt-get install -y cmake ninja-build libusb-1.0-0-dev clang
       - name: Configure (warnings are errors)
@@ -39,7 +39,7 @@ jobs:
             flags: -DCMAKE_C_FLAGS=-fsanitize=thread -DCMAKE_CXX_FLAGS=-fsanitize=thread -DCMAKE_EXE_LINKER_FLAGS=-fsanitize=thread -DCMAKE_SHARED_LINKER_FLAGS=-fsanitize=thread
             tsan: true
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - run: sudo apt-get update && sudo apt-get install -y cmake ninja-build libusb-1.0-0-dev
       - run: cmake -S . -B build -G Ninja ${{ matrix.flags }}
       - run: cmake --build build
@@ -52,7 +52,7 @@ jobs:
     name: tty-only build (no libusb)
     runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - run: sudo apt-get update && sudo apt-get install -y cmake ninja-build
       - run: cmake -S . -B build -G Ninja -DMONGOOSE_LIBUSB=OFF -DCMAKE_COMPILE_WARNING_AS_ERROR=ON
       - run: cmake --build build
@@ -64,7 +64,7 @@ jobs:
     name: packaging, install tree and docs
     runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - run: sudo apt-get update && sudo apt-get install -y cmake ninja-build libusb-1.0-0-dev groff pkgconf
       - run: cmake -S . -B build -G Ninja
       - run: cmake --build build
@@ -97,7 +97,7 @@ jobs:
     name: fuzz smoke test
     runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - run: sudo apt-get update && sudo apt-get install -y cmake ninja-build clang libusb-1.0-0-dev
       - run: CC=clang CXX=clang++ cmake -S . -B build -G Ninja -DMONGOOSE_FUZZ=ON -DBUILD_TESTING=OFF
       - run: cmake --build build --target mongoose-fuzz
