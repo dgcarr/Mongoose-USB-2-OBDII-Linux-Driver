@@ -237,9 +237,13 @@ kernel headers here, and a kernel module could crash the machine while it is on 
 
 Rehearsed 2026-09-19 on a throwaway clone; nothing was changed in the real repository or on the remote.
 
-1. **Vendor material out of history.** `git filter-repo --invert-paths --path vendor --path analysis/decompiled
-   --path analysis/disassembly` on a fresh clone: leaves 0 vendor paths in all 53 commits and shrinks `.git` from
-   25 MB to 12 MB. Then force-push, and treat every existing clone or fork as still exposed.
+1. **Vendor material out of history.** Done for `master` (2026-09-20): rewritten with `git filter-repo --invert-paths`,
+   force-pushed, and a fresh mirror clone shows 0 vendor paths in its history; CI is green on the rewritten head.
+   Backups of the old history and of the vendor files are in `~/mongoose_driver-backup-pre-scrub/`. **Still open:**
+   the two merged `cursor/*` branches on the remote still hold the vendor files until they are force-pushed in
+   their rewritten form (they exist locally), and `refs/pull/1/head` and `refs/pull/2/head` cannot be rewritten
+   from here. So when the repository goes public, publish it as a **new repository** from this history (or have
+   GitHub support purge those PR refs); do not just flip this one to public.
 2. **Adapter serial number.** It appears in 59 files at HEAD (53 under `analysis/captures`, plus a test string and
    four docs) and in older commits. It identifies your adapter, not your vehicle. Decide whether to keep it; to remove
    it, `git filter-repo --replace-text` with a replacement of the **same length** (the captures are binary USB
