@@ -206,22 +206,20 @@ kernel headers here, and a kernel module could crash the machine while it is on 
   found one more warning (an always-false `CHECK(!"...")` idiom), fixed.
 - [x] ABI and versioning policy, thread-safety statement (the error text is per thread) in `docs/USING.md` and
   the man page, and a `CHANGELOG.md`.
-- [ ] **CI is red on one job (open, 2026-09-19).** First run (commit `f53d74b`): 6 of 7 jobs passed; the
-  **ThreadSanitizer** job failed 6 of 12 tests on GitHub's Ubuntu 24.04 / GCC 13 with "unlock of an unlocked mutex"
-  in `Session::command` (`std::timed_mutex` unlock; `try_lock_until` on a steady clock at `src/session.cpp:45`).
-  Diagnosis: GCC 13's `libtsan.so.2` has no interceptor for `pthread_mutex_clocklock`, which libstdc++ uses there, so
-  TSan never sees the lock. Local GCC 16 does not show it, and the tests are clean locally. **The first fix, `92d7af4`
-  (`-D_GLIBCXX_USE_PTHREAD_MUTEX_CLOCKLOCK=0`), does not work**: libstdc++'s own `c++config.h` unconditionally
-  `#define`s that macro to 1, which overrides the command-line flag. It was pushed and the run
-  (`35441703039`) failed identically; I only proved it did not break the build, not that it fixed anything.
-  **Fix applied locally, not yet pushed or confirmed on CI (option a):** `tests/tsan.supp` holds
-  `mutex:Session::command`, and the TSan job passes it through `TSAN_OPTIONS=suppressions=`; the `-D_GLIBCXX_...`
-  flag is removed. Checked: a toy program's bad unlock is reported without the file and silenced with it, and the local
-  GCC 16 TSan build passes 12/12 with it. I could not reproduce the GCC 13 report locally, so only the CI run
-  confirms it. Only mutex-misuse reports in that one function are hidden; data races there are still checked.
-  If it fails, the remaining options are (b) clang for the TSan job, (c) `g++-14`, or (d) drop the timed lock (not
-  recommended: wall-clock jumps would then affect command waits). Check with `gh run list` and
-  `gh run view <id> --log-failed`. Also cosmetic: `actions/checkout@v4` warns about Node 20 deprecation.
+- [x] **CI ThreadSanitizer failure: fixed (2026-09-19).** The **ThreadSanitizer** job failed 6 of 12 tests on GitHub's
+  Ubuntu 24.04 / GCC 13 with "unlock of an unlocked mutex" in `Session::command` (`std::timed_mutex` unlock;
+  `try_lock_until` on a steady clock at `src/session.cpp:45`). GCC 13's `libtsan.so.2` has no interceptor for
+  `pthread_mutex_clocklock`, which libstdc++ uses there, so TSan never sees the lock; local GCC 16 does not show it.
+  Two attempts failed before the third worked:
+  1. `92d7af4`, `-D_GLIBCXX_USE_PTHREAD_MUTEX_CLOCKLOCK=0`: no effect, because libstdc++'s `c++config.h`
+     unconditionally `#define`s the macro to 1 (run `35441703039` failed identically).
+  2. `3b183fe`, the suppression file: right idea, but I put `${{ github.workspace }}` in the matrix definition, where
+     it is empty, so TSan aborted on `/tests/tsan.supp` (run `35442499171`).
+  3. `abd187e`: the path is built in the step's `env`. Run `35442631402`: all 7 jobs green, so the suppression
+     matches on GCC 13.
+  The fix is `tests/tsan.supp` (`mutex:Session::command`) plus `TSAN_OPTIONS=suppressions=` in the TSan job. Only
+  mutex-misuse reports in that one function are hidden; data races there are still checked. Drop the file once CI's
+  GCC is 14 or later. Cosmetic and still open: `actions/checkout@v4` warns about Node 20 deprecation.
 - [ ] **Needs you:** no `LICENSE` file exists. Choosing a licence is yours to decide; packages need one.
 
 ## Decision on the remaining protocols (2026-09-19)
