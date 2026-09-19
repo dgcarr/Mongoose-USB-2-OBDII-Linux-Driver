@@ -1,0 +1,39 @@
+PassThruOpen status=0 
+PassThruReadVersion status=0 
+firmware=1.1.16.0 driver=0.1.0-experimental api=04.04
+PassThruConnect 500000 status=0 
+PassThruStartMsgFilter wildcard status=0 
+-- passive listen, 4 s --
+rx rxstatus=0x0 ts=3200 data=0000024300000000fb00000c
+rx rxstatus=0x0 ts=3500 data=0000001009de00008000127f
+rx rxstatus=0x0 ts=3700 data=000002c07fcb89f85a0046c0
+rx rxstatus=0x0 ts=5700 data=000000639032c00060f80289
+rx rxstatus=0x0 ts=7200 data=0000012788106741b7ff0000
+rx rxstatus=0x0 ts=7500 data=000002640000000000000000
+rx rxstatus=0x0 ts=7700 data=000002650000000000000009
+rx rxstatus=0x0 ts=8000 data=00000090780830984c71b800
+rx rxstatus=0x0 ts=8200 data=0000012ae9ffc7f69805e2e2
+rx rxstatus=0x0 ts=8400 data=00000272f3e4e2440002d5c8
+rx rxstatus=0x0 ts=11800 data=000000681000800064600000
+rx rxstatus=0x0 ts=12000 data=00000140e400c400c0009fff
+rx rxstatus=0x0 ts=12200 data=0000002017cf0c5480403400
+rx rxstatus=0x0 ts=12500 data=000000701800000003000000
+rx rxstatus=0x0 ts=12700 data=00000148ee7b00b390000000
+rx rxstatus=0x0 ts=13000 data=000001157d06fc00f805e2df
+rx rxstatus=0x0 ts=13200 data=0000013300002e378e36868e
+rx rxstatus=0x0 ts=13400 data=000000100ace00008000127f
+rx rxstatus=0x0 ts=13700 data=000001340000000000000000
+rx rxstatus=0x0 ts=13900 data=0000015037ff0a07f96cf7ff
+frames=9481 obd_range=0
+drained=0 stale frames
+request 7DF 01 00: PassThruWriteMsgs (blocking) status=0 
+confirmed=1
+request 7DF 09 02: PassThruWriteMsgs (blocking) status=0 
+confirmed=1
+-- after request, 4 s --
+rx rxstatus=0x0 ts=3881500 data=000007e90641008818001300
+rx rxstatus=0x0 ts=3887800 data=000007e8064100983ba01300
+frames=9821 obd_range=2
+PassThruStopMsgFilter status=0 
+PassThruDisconnect status=0 
+PassThruClose status=0 

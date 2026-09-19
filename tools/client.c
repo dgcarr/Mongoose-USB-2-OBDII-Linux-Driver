@@ -1,6 +1,7 @@
 #include "mongoose/j2534.h"
 #include <stdio.h>
 #include <string.h>
+#include <time.h>
 static void report(const char *operation, int32_t status) {
     char error[80] = {0};
     if (status) PassThruGetLastError(error);
@@ -60,15 +61,86 @@ static int32_t check_transmit(uint32_t channel, uint32_t flags) {
     }
     return status ? status : 0;
 }
+// Live-vehicle check on one 500 kbit 11-bit channel. Listening never transmits. With
+// request set it then sends exactly one read-only OBD-II mode 09 PID 02 (VIN) query to
+// the functional address and reports whether the adapter confirmed it reached the bus.
+static int32_t check_vehicle(uint32_t channel, int request) {
+    PASSTHRU_MSG mask = {0}, pattern = {0};
+    mask.ProtocolID = pattern.ProtocolID = CAN;
+    mask.DataSize = pattern.DataSize = 4;
+    uint32_t filter = 0;
+    int32_t status = PassThruStartMsgFilter(channel, PASS_FILTER, &mask, &pattern, NULL, &filter);
+    report("PassThruStartMsgFilter wildcard", status);
+    if (status) return status;
+    for (int phase = 0; phase < (request ? 2 : 1) && !status; ++phase) {
+        if (phase == 1) {
+            // Frames queued by the wildcard phase would look like replies; discard them.
+            unsigned drained = 0;
+            for (;;) {
+                PASSTHRU_MSG stale = {0};
+                uint32_t count = 1;
+                if (PassThruReadMsgs(channel, &stale, &count, 0) || !count) break;
+                drained += count;
+            }
+            printf("drained=%u stale frames\n", drained);
+            static const uint8_t queries[2][2] = {{0x01, 0x00}, {0x09, 0x02}};
+            for (int q = 0; q < 2; ++q) {
+                PASSTHRU_MSG query = {0};
+                // Raw CAN carries no ISO-TP layer, so build the single frame by hand: PCI
+                // 0x02 (two data bytes), service, PID, padded to 8 bytes. The ISO15765 API
+                // takes only service+PID and the adapter adds the PCI, which is why the same
+                // request without it (an earlier draft) drew no reply.
+                query.ProtocolID = CAN; query.DataSize = 12;
+                query.Data[2] = 0x07; query.Data[3] = 0xdf;
+                query.Data[4] = 0x02; query.Data[5] = queries[q][0]; query.Data[6] = queries[q][1];
+                memset(&query.Data[7], 0x55, 5);
+                uint32_t sent = 1;
+                status = PassThruWriteMsgs(channel, &query, &sent, 250);
+                printf("request 7DF %02x %02x: ", queries[q][0], queries[q][1]);
+                report("PassThruWriteMsgs (blocking)", status);
+                printf("confirmed=%u\n", sent);
+                if (status == ERR_TIMEOUT) status = 0;  // report it; the ECUs may simply be asleep
+            }
+        }
+        printf("-- %s, 4 s --\n", phase ? "after request" : "passive listen");
+        const time_t end = time(NULL) + 4;
+        unsigned total = 0, diagnostic = 0;
+        while (time(NULL) < end) {
+            PASSTHRU_MSG in = {0};
+            uint32_t count = 1;
+            const int32_t rd = PassThruReadMsgs(channel, &in, &count, 100);
+            if (rd && rd != ERR_BUFFER_EMPTY && rd != ERR_TIMEOUT) {
+                report("PassThruReadMsgs", rd); status = rd; break;
+            }
+            for (uint32_t i = 0; i < count; ++i, ++total) {
+                const uint32_t id = in.DataSize >= 4
+                    ? (uint32_t)in.Data[0] << 24 | (uint32_t)in.Data[1] << 16 | (uint32_t)in.Data[2] << 8 | in.Data[3] : 0;
+                const int obd = id >= 0x700 && id <= 0x7ff;
+                diagnostic += obd ? 1u : 0u;
+                if (!obd && (phase || total >= 20)) continue;  // print OBD range always, others only when listening
+                printf("rx rxstatus=0x%x ts=%u data=", in.RxStatus, in.Timestamp);
+                for (uint32_t b = 0; b < in.DataSize; ++b) printf("%02x", in.Data[b]);
+                printf("\n");
+            }
+        }
+        printf("frames=%u obd_range=%u\n", total, diagnostic);
+    }
+    const int32_t stopped = PassThruStopMsgFilter(channel, filter);
+    report("PassThruStopMsgFilter", stopped);
+    return status ? status : stopped;
+}
 int main(int argc, char **argv) {
     uint32_t device = 0;
     const int can_lifecycle = argc == 3 && strcmp(argv[2], "--can-lifecycle") == 0;
     const int can_receive = argc == 3 && strcmp(argv[2], "--can-receive-check") == 0;
     const int can_transmit = argc == 3 && strcmp(argv[2], "--can-transmit-check") == 0;
+    const int vehicle_listen = argc == 3 && strcmp(argv[2], "--vehicle-listen") == 0;
+    const int vehicle_check = argc == 3 && strcmp(argv[2], "--vehicle-check") == 0;
     if (argc > 3 || (argc >= 2 && strncmp(argv[1], "serial:", 7)) ||
-        (argc == 3 && !can_lifecycle && !can_receive && !can_transmit)) {
-        fprintf(stderr, "Usage: mongoose-client [serial:SERIAL "
-                        "[--can-lifecycle|--can-receive-check|--can-transmit-check]]\n"); return 2;
+        (argc == 3 && !can_lifecycle && !can_receive && !can_transmit &&
+         !vehicle_listen && !vehicle_check)) {
+        fprintf(stderr, "Usage: mongoose-client [serial:SERIAL [--can-lifecycle|--can-receive-check|"
+                        "--can-transmit-check|--vehicle-listen|--vehicle-check]]\n"); return 2;
     }
     int32_t status = PassThruOpen(argc >= 2 ? argv[1] : NULL, &device);
     report("PassThruOpen", status);
@@ -78,6 +150,17 @@ int main(int argc, char **argv) {
     report("PassThruReadVersion", version);
     if (!version) printf("firmware=%s driver=%s api=%s\n", firmware, driver, api);
     int32_t channel_status = 0;
+    if ((vehicle_listen || vehicle_check) && !version) {
+        uint32_t channel = 0;
+        channel_status = PassThruConnect(device, CAN, 0, 500000, &channel);
+        report("PassThruConnect 500000", channel_status);
+        if (!channel_status) {
+            channel_status = check_vehicle(channel, vehicle_check);
+            const int32_t disconnected = PassThruDisconnect(channel);
+            report("PassThruDisconnect", disconnected);
+            if (!channel_status) channel_status = disconnected;
+        }
+    }
     if ((can_lifecycle || can_receive || can_transmit) && !version) {
         // Reconnect within one process also exercises handle retirement. Receive mode
         // adds pass filters and reads; only transmit mode calls WriteMsgs, and it sends

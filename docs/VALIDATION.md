@@ -100,9 +100,9 @@ libusb figures above:
 | READ_VBATT / READ_PROG_VOLTAGE | Yes | Yes | Raw values retrieved; accuracy pending |
 | ABI and GetLastError | Standard interface | Yes | Native client / offline tests |
 | CAN Connect/Disconnect | Captured vendor frames | Yes | Linux USB-only success; no vehicle/12 V |
-| CAN receive queue / ReadMsgs | Captured vendor frames | Yes | Host-queue path only; no bus traffic yet seen |
-| CAN PASS filters | Captured vendor frames | Yes | Adapter accepts and acknowledges; filtering effect unproven |
-| CAN transmit / WriteMsgs | Captured vendor frames | Yes | Queues on the bench; a timed write correctly reports nothing sent |
+| CAN receive queue / ReadMsgs | Captured vendor frames | Yes | Live Volvo bus: ~2100 frames/s decoded end to end (2026-09-19) |
+| CAN PASS filters | Captured vendor frames | Yes | Live bus: wildcard passes all, `0x7E8`/`0x7F8` mask passes none of the non-matching IDs |
+| CAN transmit / WriteMsgs | Captured vendor frames | Yes | Live bus: timed write confirmed by `iMsgTxDone`; raw frames need ISO-TP PCI by hand; two ECUs replied |
 | ISO15765 receive reassembly | Captured host reassembly / firmware flow control | Yes | Reproduces the captured VIN exchange offline |
 | ISO15765 channel / timing | Captured host reassembly / firmware flow control | No | Windows reference only; timing variations pending |
 | K-line / J1850PWM | Partial | No | Suitable hardware required |
@@ -427,6 +427,56 @@ than none.
 `PassThruConnect(ISO15765, ...)` still returns `ERR_NOT_SUPPORTED`. The reassembler is
 the part that can be proven offline; wiring up the channel means STmin, block size and
 N_Bs, which nothing on the bench can exercise.
+
+## First Linux run on a live vehicle (2026-09-19)
+
+Adapter on a connected car, ignition on (battery ~11.9 V by `cGetValue` selector 3 before
+the run), one 500 kbit 11-bit CAN channel through the production library. The user
+confirmed a car was connected and the ignition on; the make, model and engine state were
+not stated, so nothing below is tied to a particular vehicle. Reproduce with
+`build/mongoose-client serial:SERIAL --vehicle-listen|--vehicle-check`. Listening never
+transmits. `--vehicle-check` sends exactly two read-only OBD-II queries to `0x7DF`
+(mode 01 PID 00, mode 09 PID 02). The older `--can-*` checks also connect at 250 kbit,
+which is wrong for a 500 kbit bus, so they were not used on the car.
+
+- **Receive works end to end.** A wildcard pass filter delivered 8520 frames in a 4 s
+  passive window and 9818 in the next, decoding through the filter table, reader thread,
+  queue and `ReadMsgs` with `RxStatus` 0 and device timestamps. First time a bus frame
+  has crossed the Linux stack.
+- **A timed `WriteMsgs` reports success on a live bus.** Both queries returned status 0
+  with `confirmed=1`, so an `iMsgTxDone` arrived for each. This is the case the bench
+  could only show failing, as `ERR_TIMEOUT` with `confirmed=0`.
+- **A narrow filter filters.** A `0x7E8`/`0x7F8` pass filter reduced the same window from
+  hundreds of frames to none. The one stray frame in an earlier run was ID `0x010`, most
+  likely in flight while the filter was swapped, and did not recur once the queue was
+  drained.
+- **No ECU answered, until the request was framed correctly.** Three runs (ignition on,
+  then engine running, with the same result) drew nothing in `0x700`-`0x7FF`, although
+  both frames were confirmed transmitted. The cause was ours: the Windows OBD requests go
+  through an ISO15765 channel as just `07df 0902` with `ISO15765_FRAME_PAD`, and the
+  adapter adds the ISO-TP length byte. Our raw CAN channel sent `09 02` as the whole CAN
+  payload, which is not a valid ISO-TP frame, so the ECUs ignored it. Sending the single
+  frame by hand as `02 09 02` padded to 8 bytes (`07df` + `020902555555555555`) fixed it.
+- **Two ECUs answered mode 01 PID 00 on the Volvo (engine running).** `0x7E8` returned
+  `06 41 00 98 3B A0 13` and `0x7E9` returned `06 41 00 88 18 00 13`: positive response
+  `0x41`, PID 00, then each ECU's supported-PID bitmask. This is a request out and a reply
+  in on a real vehicle, the first end-to-end diagnostic exchange on Linux.
+- **The VIN request (mode 09 PID 02) drew no first frame.** A multi-frame reply needs a
+  flow-control frame to `0x7E0` from the requester. The adapter generates that only for an
+  ISO15765 channel, and this library still refuses `PassThruConnect(ISO15765)`, so on a raw
+  CAN channel we would have to send it ourselves. No `10 14` first frame was seen at all
+  here, so this is not yet explained and is left open, not treated as a fault.
+- The bench `--transmit-probe` and `check_transmit` send the same un-framed `09 02`. They
+  were harmless with no bus, but they would not draw a reply on a car.
+- The 200-frame cap in the first draft of `--vehicle-check` filled before any reply could
+  land, which is why the first run said nothing; the cap has been removed.
+
+Evidence: `analysis/captures/linux-vehicle-check-20260919T061343Z.txt` (engine running,
+correctly framed request, the two replies). `...T061130Z.txt` and `...T061306Z.txt` are the
+un-framed runs, ignition on and engine running, that drew nothing. `...T061026Z.txt` and
+`...T061104Z.txt` are earlier draft-tool runs with the narrow `0x7E8` filter and the
+200-frame cap; they carry the stray-frame and zero-frame results
+above. A first draft run, which showed the cap problem, was deleted as superseded.
 
 ## Next blocking work
 
