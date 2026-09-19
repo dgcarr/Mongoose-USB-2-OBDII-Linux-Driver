@@ -201,6 +201,7 @@ int32_t J2534_CALL PassThruConnect(uint32_t id, uint32_t protocol, uint32_t flag
         if ((protocol == CAN || protocol == ISO15765) && state.channel)
             throw Error(ERR_CHANNEL_IN_USE, "CAN hardware is already in use");
         if (protocol != CAN && protocol != ISO15765) unsupported("channel protocol");
+        if (!can_baud_supported(baud)) throw Error(ERR_INVALID_BAUDRATE, "unsupported CAN bit rate");
         // 29-bit ISO15765 has no capture, so its filter and addressing layout is unknown.
         const uint32_t allowed = protocol == CAN ? static_cast<uint32_t>(CAN_29BIT_ID) : 0u;
         if (flags & ~allowed) throw Error(ERR_INVALID_FLAGS, protocol == CAN ? "unsupported CAN flags"

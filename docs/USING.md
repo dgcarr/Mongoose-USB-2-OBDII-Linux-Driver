@@ -154,7 +154,8 @@ The non-volatile store IDs (`0xC002`..`0xC00A`) are refused: they write adapter 
 These deviations were reviewed and deliberately kept:
 
 - The `CAN_ID_BOTH` (`0x800`) Connect flag is refused with `ERR_INVALID_FLAGS`; no hardware is available to validate it.
-- An adapter-rejected baud is reported as `ERR_FAILED`, not `ERR_INVALID_BAUDRATE`; only a zero baud is rejected on the host.
+- Connect and `DATA_RATE` accept only the 18 standard CAN rates (33300 to 1000000, the vendor's list, recovered from its DLL); another rate is `ERR_INVALID_BAUDRATE`. An adapter that refuses an accepted rate is reported as `ERR_FAILED`.
+- Sample-point limits (`BIT_SAMPLE_POINT` 68 to 80 on CAN, 80 only on ISO15765) are enforced although the vendor applies neither on a normal open: it is bus timing, and the driver stays on the safe side.
 - Unknown or inapplicable filter types return `ERR_NOT_SUPPORTED` where the vendor returns `ERR_FAILED`.
 - `ERR_NOT_UNIQUE` is never returned; duplicate flow-control filters are accepted, up to 64.
 - `SET_CONFIG` validates the whole list before applying any of it, where the vendor applies entries one by one.

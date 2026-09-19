@@ -165,8 +165,9 @@ New wire evidence the Linux side cannot safely guess. Scripts in `tools/scripts/
   filters/periodic, ioctl/config) against the spec and the vendor decompile, then fixes and a `conformance` CTest.
   Fixed: WriteMsgs partial counts, per-call confirmation counting, one uncapped deadline, `0x101` to
   `ERR_BUFFER_FULL`, periodic teardown after an ambiguous add, NULL flow-control message code. Deviations
-  reviewed and kept are listed in `docs/USING.md` ("J2534 conformance notes"). Open from it: the vendor's
-  baud-rate predicate (`FUN_10037890`, being decompiled) and the `CAN_ID_BOTH` connect flag.
+  reviewed and kept are listed in `docs/USING.md` ("J2534 conformance notes"). The vendor's
+  baud-rate predicate (`FUN_10037890`) was decompiled with Ghidra and is now enforced. Open from it: the
+  `CAN_ID_BOTH` connect flag.
 - Filter-table maximum (stopping short of allocator exhaustion is still the rule) and
   extended-address ISO15765 reassembly only if a capture ever exercises it.
 - Packaging: check `packaging/60-mongoose-j2534.rules`, install target, a `pkg-config`

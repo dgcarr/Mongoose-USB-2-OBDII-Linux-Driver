@@ -79,6 +79,9 @@ void ranges() {
         CHECK(set_error(protocol, cfg_loopback, 0) == 0 && set_error(protocol, cfg_loopback, 1) == 0 && set_error(protocol, cfg_loopback, 2) == ERR_INVALID_IOCTL_VALUE);
         CHECK(set_error(protocol, cfg_data_rate, 500000) == 0 && set_error(protocol, cfg_data_rate, 0) == ERR_INVALID_IOCTL_VALUE);
         CHECK(set_error(protocol, cfg_data_rate, 1000001) == ERR_INVALID_IOCTL_VALUE);
+        // Only the vendor's rate list (predicate 10037890): 1 is inside the numeric range and still refused.
+        CHECK(set_error(protocol, cfg_data_rate, 1) == ERR_INVALID_IOCTL_VALUE && set_error(protocol, cfg_data_rate, 499999) == ERR_INVALID_IOCTL_VALUE);
+        CHECK(set_error(protocol, cfg_data_rate, 125000) == 0 && set_error(protocol, cfg_data_rate, 1000000) == 0);
         // Readable, not settable: electrical settings this driver will not change.
         CHECK(set_error(protocol, cfg_dt_pullup_value, 0) == ERR_NOT_SUPPORTED);
     }

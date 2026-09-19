@@ -28,6 +28,7 @@ The format follows Keep a Changelog. There have been no releases; everything is 
 - An unknown or inapplicable IOCTL ID returns `ERR_INVALID_IOCTL_ID`, as the vendor does.
 
 ### Fixed
+- Connect and `DATA_RATE` refuse a bit rate outside the vendor's list of 18 CAN rates, with `ERR_INVALID_BAUDRATE` / `ERR_INVALID_IOCTL_VALUE`, instead of passing any nonzero rate to the adapter.
 - Script runner: a line longer than its buffer is refused instead of being read as several, so the tail of a long
   comment can no longer run as a command; a line with an embedded NUL is refused too. `--gap` rejects a value that is
   not a whole number or overflows, instead of becoming zero.

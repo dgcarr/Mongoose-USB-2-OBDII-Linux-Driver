@@ -35,4 +35,9 @@ ConfigRoute config_route(uint16_t protocol, uint32_t parameter);
 // on the CAN lines) and DT_HALF_DUPLEX. The vendor allows both; changing either on a live vehicle bus is
 // an electrical act, and no capture shows it done. GET works for both.
 void config_validate_set(uint16_t protocol, uint32_t parameter, uint32_t value);
+// Whether a CAN bit rate is one the vendor accepts, for Connect and for DATA_RATE: the J2534 CAN rate list.
+// Vendor predicate 10037890 has that list (18 rates) and a shorter one (125, 250 and 500 kbit) chosen by a field
+// of the device object, +0xc240; PassThruOpen constructs the device with that field 0, so the long list applies
+// (analysis/decompiled/baud/, PassThruOpen.c:265 and :1000).
+bool can_baud_supported(uint32_t rate);
 }

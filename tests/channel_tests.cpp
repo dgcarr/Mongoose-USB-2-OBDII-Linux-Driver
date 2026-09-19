@@ -148,14 +148,14 @@ void lifecycle() {
 }
 void firmware_rejections() {
     auto script = prepare();
-    // Nonzero, uncaptured baud must reach firmware, not an invented host whitelist.
-    script->add(6, unhex("0000000039300000"), channel_node(CAN), 0x203);
+    // A rate on the vendor's list, never captured, reaches the firmware (which is made to refuse it here).
+    script->add(6, unhex("0000000014820000"), channel_node(CAN), 0x203);
     script->add(6, unhex("0000000020a10700"), channel_node(CAN));
     script->add(0x12, unhex("01000000060000000e000000"), channel_node(CAN), 0x203);
     script->disconnect();
     script->connect(); script->disconnect(); script->add(5);
     const auto device = open(); uint32_t id = 99;
-    CHECK(PassThruConnect(device, CAN, 0, 12345, &id) == ERR_FAILED && id == 0);
+    CHECK(PassThruConnect(device, CAN, 0, 33300, &id) == ERR_FAILED && id == 0);
     char error[80]; PassThruGetLastError(error); CHECK(std::strstr(error, "0x00000203"));
     CHECK(PassThruConnect(device, CAN, 0, 500000, &id) == ERR_FAILED && id == 0);
     PassThruGetLastError(error); CHECK(std::strstr(error, "0x00000203"));
@@ -1029,7 +1029,18 @@ void flow_control_null() {
     CHECK(id == 0);
     CHECK(PassThruClose(device) == 0); script->finished();
 }
+// Connect refuses a rate outside the vendor's list on the host, before the adapter is spoken to: the script has
+// no channel-open step, so any wire traffic would fail the run.
+void connect_rate_list() {
+    auto script = prepare(); script->add(5);
+    const auto device = open();
+    uint32_t channel = 99;
+    for (const uint32_t rate : {1u, 499999u, 500001u, 1000001u, 0xffffffffu})
+        CHECK(PassThruConnect(device, CAN, 0, rate, &channel) == ERR_INVALID_BAUDRATE && channel == 0);
+    CHECK(PassThruClose(device) == 0); script->finished();
+}
 void conformance() {
+    connect_rate_list();
     write_batch_validation(); write_partial_confirmation(false); write_partial_confirmation(true);
     write_confirmation_ownership(); write_buffer_full();
     periodic_missing_handle(false); periodic_missing_handle(true); flow_control_null();

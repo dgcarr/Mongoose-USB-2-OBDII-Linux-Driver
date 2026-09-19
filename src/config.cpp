@@ -13,7 +13,7 @@ constexpr ConfigRoute read_only(uint32_t selector) { return {Where::Firmware, se
 constexpr ConfigRoute host_loopback() { return {Where::HostLoopback, 0, true, 0, 1, false}; }
 // Raw CAN: vendor base class 10018960 (get) and 10018b30 (set).
 constexpr std::array can_table{
-    Entry{cfg_data_rate, fw(0x04, 1, 1000000)},            // vendor validates the rate with a helper; any 1..1 Mbit here
+    Entry{cfg_data_rate, fw(0x04, 1, 1000000)},            // and only the rates of can_baud_supported()
     Entry{cfg_loopback, host_loopback()},
     Entry{cfg_bit_sample_point, fw(0x14, 68, 80)},         // vendor range {0x44, 0x50}
     Entry{cfg_sync_jump_width, fw(0x15, 0, 100)},
@@ -42,6 +42,10 @@ constexpr std::array iso_table{
     Entry{cfg_dt_pullup_value, read_only(0x31)},
     Entry{cfg_dt_half_duplex, read_only(0x2c)},
 };
+constexpr std::array supported_rates{
+    33300u, 33333u, 50000u, 62500u, 83300u, 83333u, 95200u, 95238u, 100000u, 125000u, 166666u, 166667u, 200000u,
+    250000u, 500000u, 666666u, 666667u, 1000000u,
+};
 template<class Table> const ConfigRoute *find(const Table &table, uint32_t parameter) {
     const auto found = std::find_if(table.begin(), table.end(), [&](const Entry &e) { return e.parameter == parameter; });
     return found == table.end() ? nullptr : &found->route;
@@ -55,10 +59,15 @@ ConfigRoute config_route(uint16_t protocol, uint32_t parameter) {
     if (!route) throw Error(ERR_NOT_SUPPORTED, "configuration parameter not supported on this channel");
     return *route;
 }
+bool can_baud_supported(uint32_t rate) {
+    return std::find(supported_rates.begin(), supported_rates.end(), rate) != supported_rates.end();
+}
 void config_validate_set(uint16_t protocol, uint32_t parameter, uint32_t value) {
     const auto route = config_route(protocol, parameter);
     if (!route.settable)
         throw Error(ERR_NOT_SUPPORTED, "this driver reads but does not change that parameter (electrical setting)");
+    if (parameter == cfg_data_rate && !can_baud_supported(value))
+        throw Error(ERR_INVALID_IOCTL_VALUE, "unsupported CAN bit rate");
     if (route.allow_ffff && value == 0xffff) return;
     if (value < route.minimum || value > route.maximum)
         throw Error(ERR_INVALID_IOCTL_VALUE, "configuration value out of range");

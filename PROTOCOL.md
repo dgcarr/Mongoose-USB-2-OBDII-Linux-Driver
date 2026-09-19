@@ -784,8 +784,15 @@ value is `ERR_INVALID_IOCTL_VALUE` (5, "Invalid baudrate %d" for the rate); `J19
 output, is `ERR_FAILED`. The getters return the firmware's value raw: there is no unit conversion.
 `ISO15765_PAD_VALUE` also stores the byte host-side in the channel object, which nothing here uses.
 The 68..80 sample-point range on CAN and the 80-only rule on ISO15765 are gated in the vendor on a
-field of the device object (`+0xc240 == 1`) whose meaning is not known; the driver enforces them
-unconditionally, which can only be stricter than the vendor.
+field of the device object, `+0xc240 == 1`. Ghidra shows its only writer is the device constructor
+`1003cc10`, and `PassThruOpen` passes it 0 (`PassThruOpen.c:265`, `:1000`), so on a normal open the vendor
+applies neither rule and forwards any sample point to the firmware. The driver enforces both regardless: a
+sample point is bus timing, and a value the vendor would allow but the firmware might not tolerate is not worth
+trying on a live vehicle. It is stricter than the vendor, on purpose.
+The same field selects the bit-rate list in the vendor's baud predicate `10037890` (used by Connect and by
+`DATA_RATE`): with 0, the 18 standard J2534 CAN rates, 33300 to 1000000; with 1, only 125000, 250000 and 500000.
+The driver uses the long list (`can_baud_supported`); anything else is `ERR_INVALID_BAUDRATE` on Connect and
+`ERR_INVALID_IOCTL_VALUE` for `DATA_RATE`.
 
 **Hazard, not implemented:** `NON_VOLATILE_STORE_2..10` (`0xC002`-`0xC00A`) appear in the ID table and
 write non-volatile memory. They are in neither route table and `SET_CONFIG` refuses them.
