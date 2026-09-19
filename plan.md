@@ -161,9 +161,12 @@ New wire evidence the Linux side cannot safely guess. Scripts in `tools/scripts/
   sequence-paired receiver) in `tests/fuzz_codec.cpp`. Smoke-tested only; give it a long run.
 - [x] Unit and wire tests for every new form (`channel_tests`, `config_tests`, `isotp_tests`). Note the
   wire forms come from the vendor decompile and the car, not from captured Windows frames.
-- J2534 04.04 conformance pass over the 14 exports: error codes, `GetLastError` strings,
-  `PASSTHRU_MSG` layout and `Timestamp`/`ExtraDataIndex`, ReadMsgs/WriteMsgs count and
-  timeout semantics, `Ioctl` argument structs. Write it as a CTest entry.
+- [x] J2534 04.04 conformance pass over the 14 exports (2026-09-19): a four-lane review (lifecycle, messages,
+  filters/periodic, ioctl/config) against the spec and the vendor decompile, then fixes and a `conformance` CTest.
+  Fixed: WriteMsgs partial counts, per-call confirmation counting, one uncapped deadline, `0x101` to
+  `ERR_BUFFER_FULL`, periodic teardown after an ambiguous add, NULL flow-control message code. Deviations
+  reviewed and kept are listed in `docs/USING.md` ("J2534 conformance notes"). Open from it: the vendor's
+  baud-rate predicate (`FUN_10037890`, being decompiled) and the `CAN_ID_BOTH` connect flag.
 - Filter-table maximum (stopping short of allocator exhaustion is still the rule) and
   extended-address ISO15765 reassembly only if a capture ever exercises it.
 - Packaging: check `packaging/60-mongoose-j2534.rules`, install target, a `pkg-config`
@@ -220,7 +223,13 @@ kernel headers here, and a kernel module could crash the machine while it is on 
   The fix is `tests/tsan.supp` (`mutex:Session::command`) plus `TSAN_OPTIONS=suppressions=` in the TSan job. Only
   mutex-misuse reports in that one function are hidden; data races there are still checked. Drop the file once CI's
   GCC is 14 or later. Cosmetic and still open: `actions/checkout@v4` warns about Node 20 deprecation.
-- [ ] **Needs you:** no `LICENSE` file exists. Choosing a licence is yours to decide; packages need one.
+- [x] **Licence and maintainer (2026-09-19):** LGPL-2.1-or-later (`LICENSE`), maintainer David Carr with the GitHub
+  noreply address, set in the Arch, DEB and RPM metadata; `LICENSE` is installed with the docs.
+- [x] **Vendor material out of git (2026-09-19):** `vendor/`, `analysis/decompiled/` and `analysis/disassembly/` are
+  untracked and ignored; they stay on this machine. **Gate before the repository goes public:** they are still in
+  earlier commits, so the history must be rewritten (for example `git filter-repo --path vendor --path
+  analysis/decompiled --path analysis/disassembly --invert-paths`) and force-pushed, and any fork or clone made
+  before that is still exposed. Do that first, on a fresh clone, then flip the visibility.
 
 ## Decision on the remaining protocols (2026-09-19)
 

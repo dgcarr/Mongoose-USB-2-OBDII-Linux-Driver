@@ -76,12 +76,13 @@ extern "C" int LLVMFuzzerTestOneInput(const uint8_t *data, size_t size) {
         for (const uint16_t protocol : {static_cast<uint16_t>(ISO15765), static_cast<uint16_t>(CAN)}) {
             mongoose::CanReceiver paired(protocol);
             paired.set_loopback(data[0] & 1);
+            const auto call = std::make_shared<mongoose::CanReceiver::TransmitCount>();
             for (size_t i = 1; i + 2 < size; i += 3) {
                 PASSTHRU_MSG sent{};
                 sent.ProtocolID = protocol; sent.TxFlags = data[i] & 1 ? static_cast<uint32_t>(CAN_29BIT_ID) : 0;
                 sent.DataSize = 4 + (data[i + 1] & 0x0f);
                 std::copy_n(data, std::min<size_t>(size, 16), sent.Data);
-                paired.note_transmit(sent, data[i + 2]);
+                paired.note_transmit(sent, data[i + 2], call);
                 mongoose::Bytes body(20, 0);
                 mongoose::put16(body, 2, mongoose::channel_node(protocol)); mongoose::put16(body, 4, 10);
                 mongoose::put16(body, 6, data[(i + 5) % size]); mongoose::put16(body, 12, 0x106);
@@ -92,6 +93,8 @@ extern "C" int LLVMFuzzerTestOneInput(const uint8_t *data, size_t size) {
                 if (data[i] & 32) paired.forget_transmits();
                 if (data[i] & 64) paired.flush_receive();
             }
+            // A call's own count can never exceed what the channel confirmed in total.
+            if (paired.confirmed(call) > paired.transmitted()) std::abort();
             PASSTHRU_MSG drained[8]{}; uint32_t got = 0;
             try { paired.read(drained, 8, got, 0); } catch (const mongoose::Error &) {}
             for (uint32_t i = 0; i < got; ++i)
