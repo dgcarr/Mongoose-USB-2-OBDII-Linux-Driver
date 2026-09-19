@@ -1,0 +1,7 @@
+# ThreadSanitizer suppressions, used only by the CI ThreadSanitizer job (TSAN_OPTIONS=suppressions=...).
+#
+# GCC 13's libtsan (Ubuntu 24.04) has no interceptor for pthread_mutex_clocklock, which libstdc++ calls for
+# std::timed_mutex::try_lock_until on a steady clock. TSan therefore never sees the lock and reports a false
+# "unlock of an unlocked mutex" when Session::command unlocks it. Newer toolchains do not show this.
+# Only mutex-misuse reports from that one function are suppressed; data-race reports there are still checked.
+mutex:Session::command

@@ -35,14 +35,17 @@ jobs:
           - name: ThreadSanitizer
             # GCC 13's libtsan does not intercept pthread_mutex_clocklock, which libstdc++ uses for
             # timed_mutex::try_lock_until on a steady clock, so TSan reports a false "unlock of an unlocked mutex".
-            # Making libstdc++ use pthread_mutex_timedlock instead avoids it without changing the code under test.
-            flags: -DCMAKE_C_FLAGS=-fsanitize=thread "-DCMAKE_CXX_FLAGS=-fsanitize=thread -D_GLIBCXX_USE_PTHREAD_MUTEX_CLOCKLOCK=0" -DCMAKE_EXE_LINKER_FLAGS=-fsanitize=thread -DCMAKE_SHARED_LINKER_FLAGS=-fsanitize=thread
+            # tests/tsan.supp suppresses that one report type in Session::command.
+            flags: -DCMAKE_C_FLAGS=-fsanitize=thread -DCMAKE_CXX_FLAGS=-fsanitize=thread -DCMAKE_EXE_LINKER_FLAGS=-fsanitize=thread -DCMAKE_SHARED_LINKER_FLAGS=-fsanitize=thread
+            tsan_options: suppressions=${{ github.workspace }}/tests/tsan.supp
     steps:
       - uses: actions/checkout@v4
       - run: sudo apt-get update && sudo apt-get install -y cmake ninja-build libusb-1.0-0-dev
       - run: cmake -S . -B build -G Ninja ${{ matrix.flags }}
       - run: cmake --build build
       - run: ctest --test-dir build --output-on-failure
+        env:
+          TSAN_OPTIONS: ${{ matrix.tsan_options }}
 
   no-libusb:
     name: tty-only build (no libusb)
