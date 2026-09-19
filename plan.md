@@ -239,11 +239,12 @@ Rehearsed 2026-09-19 on a throwaway clone; nothing was changed in the real repos
 
 1. **Vendor material out of history.** Done for `master` (2026-09-20): rewritten with `git filter-repo --invert-paths`,
    force-pushed, and a fresh mirror clone shows 0 vendor paths in its history; CI is green on the rewritten head.
-   Backups of the old history and of the vendor files are in `~/mongoose_driver-backup-pre-scrub/`. **Still open:**
-   the two merged `cursor/*` branches on the remote still hold the vendor files until they are force-pushed in
-   their rewritten form (they exist locally), and `refs/pull/1/head` and `refs/pull/2/head` cannot be rewritten
-   from here. So when the repository goes public, publish it as a **new repository** from this history (or have
-   GitHub support purge those PR refs); do not just flip this one to public.
+   The two merged `cursor/*` branches were force-pushed in rewritten form too, so all three branches on the remote
+   are clean. Backups of the old history and of the vendor files are in `~/mongoose_driver-backup-pre-scrub/`.
+   **Still open:** `refs/pull/1/head` and `refs/pull/2/head` are GitHub-managed and cannot be rewritten from here;
+   they still contain the vendor files. So when the repository goes public, publish it as a **new repository** from
+   this history (or have GitHub support purge those PR refs); do not just flip this one to public. A scan of a fresh
+   mirror of the remote (all refs) found no VIN in any form, only the redaction placeholders.
 2. **Adapter serial number.** It appears in 59 files at HEAD (53 under `analysis/captures`, plus a test string and
    four docs) and in older commits. It identifies your adapter, not your vehicle. Decide whether to keep it; to remove
    it, `git filter-repo --replace-text` with a replacement of the **same length** (the captures are binary USB
