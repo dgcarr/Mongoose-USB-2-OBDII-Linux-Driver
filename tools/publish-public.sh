@@ -36,15 +36,33 @@ git rev-parse --show-toplevel >/dev/null 2>&1 || { echo "SKIP: not a git checkou
 cd "$(git rev-parse --show-toplevel)"
 git rev-parse --verify --quiet "$ref^{commit}" >/dev/null || { echo "publish-public: no such ref '$ref'" >&2; exit 1; }
 
-# Every path that ever appears in the history being published. The vendor's driver files and everything decompiled
+# Every path that ever appears in the history being published. The vendor's driver files and everything derived
 # from them belong to their owners and must never leave this machine; they are untracked and ignored here, and the
-# history was rewritten once to remove them, so a hit means something reintroduced one.
+# history was rewritten to remove them, so a hit means something reintroduced one.
+#
+# analysis/ghidra_project/ is on this list because a Ghidra .rep database holds the *imported program*: the
+# vendor DLL's bytes and the whole analysis of it. It was missed when this check was first written and reached
+# the public repository in the v0.1.0 push (2026-09-20), which is why both histories were rewritten again.
 echo "publish-public: checking every path in the history of '$ref'"
-paths=$(git log --format= --name-only "$ref" | sort -u | grep -E '^(vendor/|analysis/decompiled/|analysis/disassembly/)' || true)
+paths=$(git log --format= --name-only "$ref" | sort -u |
+        grep -E '^(vendor/|analysis/decompiled/|analysis/disassembly/|analysis/ghidra_project/)' || true)
 if [ -n "$paths" ]; then
     echo "publish-public: REFUSED: vendor material in the history to be published:" >&2
     echo "$paths" | sed 's/^/  /' >&2
     echo "Rewrite the history (git filter-repo --invert-paths --path vendor ...) before publishing." >&2
+    exit 1
+fi
+
+# Compiled executables and libraries, whoever they belong to. Nothing this project builds is committed, so any of
+# these in the history is either someone else's binary to redistribute (a third-party .exe reached the public
+# repository the same way the Ghidra database did) or a build artefact that should never have been added.
+echo "publish-public: checking the history for compiled binaries"
+binaries=$(git log --format= --name-only "$ref" | sort -u |
+           grep -iE '\.(exe|dll|sys|ocx|so|so\.[0-9]+|a|o|obj|lib|pdb|pkg\.tar\.[a-z]+|deb|rpm)$' || true)
+if [ -n "$binaries" ]; then
+    echo "publish-public: REFUSED: compiled binaries in the history to be published:" >&2
+    echo "$binaries" | sed 's/^/  /' >&2
+    echo "Rewrite the history to remove them before publishing." >&2
     exit 1
 fi
 

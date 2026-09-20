@@ -51,6 +51,35 @@ files. They are managed by GitHub and cannot be rewritten or deleted from here, 
 would expose them. The public repository was created fresh from the scrubbed history instead. Do not make the
 private repository public, and do not push its pull-request refs anywhere.
 
+## What went wrong once, and what now stops it
+
+The first public push (v0.1.0, 2026-09-20) carried two things it should not have, both added in the
+**initial commit** and deleted from the tree later, so neither was visible at HEAD and both were still
+reachable in the published history:
+
+- `analysis/ghidra_project/` -- the Ghidra project database, about 40 MiB. This is vendor material: a
+  `.rep` database holds the **imported program**, so `monpj432.dll`'s bytes and the whole analysis of it
+  were in it. The path check listed `vendor/`, `analysis/decompiled/` and `analysis/disassembly/` but not
+  this one, which was an oversight rather than a decision: the same files are gitignored precisely because
+  they are regenerable vendor-derived material.
+- `reference/openvehiclediag.exe` -- a 10.6 MiB third-party Windows binary, 88% of the repository's size,
+  and not ours to redistribute either.
+
+Both histories were rewritten with `git filter-repo --invert-paths` and force-pushed, and `v0.1.0` was
+re-tagged. The published **tree** never changed: the tree hash at the tip was identical before and after,
+so no released file was affected, only history that should never have been there. The repository went from
+25 MiB to 1.4 MiB.
+
+The checks above now cover both cases -- `analysis/ghidra_project/` is in the path list, and a separate
+check refuses any compiled binary (`.exe`, `.dll`, `.so`, `.a`, `.deb`, a built package, and so on)
+anywhere in the history. Both were verified to fire against the pre-rewrite history.
+
+**The lesson worth keeping:** `git status` and a look at the working tree tell you nothing about this.
+Only a scan of every path in every commit does, which is what these checks do and why they refuse rather
+than warn. Anyone who cloned the public repository between the first push and the rewrite still has the
+old blobs, and GitHub can keep unreferenced objects reachable by hash until it garbage-collects; ask
+GitHub support to purge them if that matters.
+
 ## What is not checked
 
 - **The adapter's serial number** (`AOLHE0000003666A`) appears in the captures, a test string and the docs. It

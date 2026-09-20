@@ -274,6 +274,15 @@ Rehearsed 2026-09-19 on a throwaway clone; nothing was changed in the real repos
    untracked; `tools/publish-public.sh` ships `master` to the public repository
    (<https://github.com/dgcarr/Mongoose-USB-2-OBDII-Linux-Driver>) after refusing on vendor paths anywhere in the
    history or on an unredacted VIN. `ctest -R publishable` runs those checks. See `docs/PUBLISHING.md`.
+1a. **Vendor material out of history, second pass (2026-09-20).** The first scrub missed two things, both added
+   in the initial commit and deleted later, so neither showed at HEAD: `analysis/ghidra_project/` (~40 MiB, and
+   vendor material, since a Ghidra `.rep` holds the imported `monpj432.dll` and its analysis) and
+   `reference/openvehiclediag.exe` (10.6 MiB, a third-party binary). Both reached the public repository in the
+   v0.1.0 push before a fresh-clone audit found them. Both histories were rewritten again and force-pushed, and
+   `v0.1.0` re-tagged; the tree hash at the tip was unchanged, so no released file moved. `tools/publish-public.sh`
+   now refuses on `analysis/ghidra_project/` and on any compiled binary anywhere in the history, and both new
+   checks were verified to fire against the pre-rewrite history. Residual: anyone who cloned in that window has
+   the old blobs, and GitHub keeps unreferenced objects until it collects them.
 1. **Vendor material out of history.** Done for `master` (2026-09-20): rewritten with `git filter-repo --invert-paths`,
    force-pushed, and a fresh mirror clone shows 0 vendor paths in its history; CI is green on the rewritten head.
    The two merged `cursor/*` branches were force-pushed in rewritten form too, so all three branches on the remote
