@@ -1,15 +1,19 @@
 # Changelog
 
-The format follows Keep a Changelog. There have been no releases; everything is under Unreleased.
+The format follows Keep a Changelog.
 
-## Unreleased (0.1.0)
+## 0.1.0 - 2026-09-20
+
+First release.
 
 ### Added
 - `mongoose-socketcan`, a bridge that makes the adapter a SocketCAN interface (normally a `vcan`), so can-utils,
   Wireshark, python-can, udsoncan and the kernel's ISO-TP sockets work with it. Listen-only unless `--transmit` is
   given; remote and error frames are refused. Tested end to end over `vcan` against a simulated ECU (including a
   multi-frame UDS read through a kernel ISO-TP socket), over the real library at the car's frame rate and ten times
-  it with no loss, and on the adapter with no vehicle; not yet run on a car.
+  it with no loss, and on the car itself: ten minutes listen-only at 2462 frames/s with no overflow or drop and an
+  independent `candump` agreeing on the count, then `--transmit` with a real flow-control round trip to the engine
+  ECU.
 - `tools/publish-public.sh` and `docs/PUBLISHING.md`: development stays in the private repository and ships to the
   public one, with checks (run by the `publishable` test) that refuse on vendor material anywhere in the history or
   on an unredacted VIN.
@@ -59,13 +63,24 @@ The format follows Keep a Changelog. There have been no releases; everything is 
 - Multi-frame replies from two ECUs answering one functional request no longer lose one of them.
 - An ISO15765 channel is closed on its own node (`0x0601`), not the CAN node.
 - The bench transmit probes sent an un-framed request that no ECU could answer.
+- A data race in `mongoose-socketcan`: the `stopping` flag was a `volatile sig_atomic_t`, which is
+  async-signal-safe but carries no ordering between threads, so the signal handler's write and the reader
+  thread's load raced. It is now a lock-free `atomic_int`, as `bridge->failed` already was. Found by
+  ThreadSanitizer once a `vcan0` existed to stop the two bridge tests skipping.
 
 ### Validation
 - Live on one 2017 Volvo XC60: an hour of receive and requests on raw CAN and on ISO15765, 100 lifecycle cycles
   on each, configuration and ISO-TP timing, loopback, periodic messages, multi-frame transmit, and an
   ignition-off, bus-sleep and wake cycle. See `docs/VALIDATION.md`.
-- 19 tests, run under ASan/UBSan and ThreadSanitizer, with warnings as errors on GCC and Clang.
+- The SocketCAN bridge on the car: ten minutes listen-only (1477388 frames, no overflow or drop, `candump`
+  agreeing), the guide's two Python examples run verbatim against real ECUs, a USB unplug under load (status 8,
+  "adapter disconnected", exit 1) and vehicle power lost with USB still connected.
+- A 29-bit channel receives none of an 11-bit bus's traffic: receive is filtered by the channel's identifier width.
+- 19 tests, all passing under ASan/UBSan and under ThreadSanitizer (2026-09-20, with a `vcan0` present so
+  none of them skip), with warnings as errors on GCC and Clang.
 
 ### Not done
 - K-line, J1850, the pin-switched `*_PS` protocols, 29-bit ISO15765, programming-voltage output: no hardware.
+- Losing vehicle power raises no error: the adapter stays enumerated and the bus just goes quiet, so a caller that
+  needs to tell the two apart must poll `READ_VBATT` (0 mV means the connector has no power).
 - Use at your own risk; see the README.
