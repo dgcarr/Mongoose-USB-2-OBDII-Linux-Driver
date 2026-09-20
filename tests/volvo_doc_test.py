@@ -7,11 +7,18 @@ import contextlib, io, os, re, socket, subprocess, sys, time
 bridge, guide = sys.argv[1], sys.argv[2]
 interface = sys.argv[3] if len(sys.argv) > 3 else os.environ.get("MONGOOSE_TEST_CANIF", "vcan0")
 try:
+    probe = socket.socket(socket.AF_CAN, socket.SOCK_RAW, socket.CAN_RAW)
+    probe.bind((interface,))
+    probe.close()
+except OSError as error:
+    print(f"SKIP: no CAN interface '{interface}' ({error})")
+    sys.exit(77)
+try:
     probe = socket.socket(socket.AF_CAN, socket.SOCK_DGRAM, socket.CAN_ISOTP)
     probe.bind((interface, 0x7E8, 0x7E0))
     probe.close()
-except OSError as error:
-    print(f"SKIP: no CAN interface '{interface}' with ISO-TP sockets ({error})")
+except (OSError, AttributeError) as error:
+    print(f"SKIP: examples need ISO-TP sockets, which this kernel has not ({error})")
     sys.exit(77)
 
 with open(guide, encoding="utf-8") as text:

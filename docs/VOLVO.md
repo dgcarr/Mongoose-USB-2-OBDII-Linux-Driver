@@ -16,8 +16,8 @@ plain CAN and ISO-TP, so it is not tied to one make.
 # Debian/Ubuntu: sudo apt install build-essential cmake git
 # Fedora:        sudo dnf install gcc-c++ cmake git
 # Arch:          sudo pacman -S base-devel cmake git
-git clone https://github.com/dgcarr/mongoose_driver.git
-cd mongoose_driver
+git clone https://github.com/dgcarr/Mongoose-USB-2-OBDII-Linux-Driver.git
+cd Mongoose-USB-2-OBDII-Linux-Driver
 cmake -S . -B build && cmake --build build
 ctest --test-dir build          # all pass; the SocketCAN test skips until step 4 creates a CAN interface
 ```
