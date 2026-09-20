@@ -1,0 +1,7 @@
+single 0: status 0 count 1 1 ms 
+single 1: status 0 count 1 1 ms 
+single 2: status 0 count 1 1 ms 
+batched: status 0 count 3 1 ms 
+single 0: status 0 count 1 0 ms 
+single 1: status 0 count 1 1 ms 
+single 2: status 0 count 1 1 ms 

@@ -756,7 +756,8 @@ removal from table 1, and that a removed block filter is then an invalid ID.
 
 Not covered: BLOCK filters on an ISO15765 channel (the adapter's flow-control table is separate, and
 J2534 defines no block filter there), combinations of several block filters, and the case of a block
-filter with no pass filter (J2534 says nothing is received without a pass filter; not tested).
+filter with no pass filter (J2534 says nothing is received without a pass filter; confirmed on the car
+2026-09-20, see "Four more live checks").
 
 Evidence: `analysis/captures/linux-script-h6-*.txt` (filtered: bus frames outside `0x700`-`0x7FF`
 removed, with the tally computed from the full log in its header). Script:
@@ -928,8 +929,9 @@ prevent sleep or wake. (2) Battery voltage read 12.6 V with the ignition on and 
 after the ignition went off, and settled at 12.7-12.8 V after the wake. A rise on ignition-off is unusual;
 something charging the battery would explain it, but the cause was not determined.
 
-Not tested: pulling the USB cable with traffic running, and the adapter losing vehicle power while USB stays
-connected (the `eVbattLoss` path).
+Both were later tested, on 2026-09-20: pulling the USB cable with traffic running, and the adapter losing
+vehicle power while USB stays connected (the `eVbattLoss` path). See "The bridge on the car, and the two
+unplugs" at the end of this file.
 
 ## Next blocking work
 
@@ -952,17 +954,20 @@ Still open, and needing something this project does not have or has decided not 
 - **Other protocols:** K-line (ISO9141/14230, `FIVE_BAUD_INIT`, `FAST_INIT`), J1850 VPW/PWM and
   the pin-switched `*_PS` protocols need a vehicle or bench ECU on those buses. There is no wire
   evidence for any of them beyond the vendor's static code.
-- **29-bit ISO15765** and J1939: no capture of the filter layout, and this car has no 29-bit ECU.
+- **29-bit ISO15765** and J1939: no capture of the filter layout, and this car has no 29-bit ECU. What is now
+  known (2026-09-20) is that a 29-bit *raw CAN* channel receives none of this car's 11-bit traffic, so receive is
+  filtered by the channel's identifier width.
 - **Programming voltage output:** electrical, not to be tried on a vehicle; `SetProgrammingVoltage`
   returns `ERR_NOT_SUPPORTED`.
-- **Not exercised on the car:** unplugging USB under load and losing vehicle power under USB (the ignition-off and wake cycle is done, see above), `DATA_RATE` and the sample point/jump width settings (they change the
-  bus timing), the ISO15765 timeouts N_As/N_Ar/N_Bs/N_Cr (settable, never varied), `DT_PULLUP_VALUE` and
-  `DT_HALF_DUPLEX` (readable only here), more than one periodic message on the wire, `CLEAR_TX_BUFFER`
-  with frames waiting, and the flow-control table filled to its 64 limit.
+- **Not exercised on the car:** `DATA_RATE` and the sample point/jump width settings (they change the
+  bus timing), the ISO15765 timeouts `N_As`/`N_Ar`/`N_Bs` (settable, never varied; `N_Cr` was varied on
+  2026-09-20 and had no observable effect), `DT_PULLUP_VALUE` and `DT_HALF_DUPLEX` (readable only here),
+  and `CLEAR_TX_BUFFER` with frames waiting. More than one periodic message and the flow-control table at
+  its 64 limit were both done on 2026-09-20; see "Four more live checks" at the end of this file.
 - **Independent proof of zero receive loss:** nothing counts the frames the bus carried apart from the
   adapter. A second CAN logger would.
-- Live-traffic regression of the rewritten write and periodic paths, when the vehicle is next awake (the conformance
-  pass and packaging are done; see the deployment readiness section below).
+- ~~Live-traffic regression of the rewritten write and periodic paths.~~ Done 2026-09-20: periodic held its
+  period to within 0.4 ms and stopped dead, and a three-message write was accepted on a live bus.
 - The filter-table maximum on the adapter (stopping short of allocator exhaustion) and extended-address
   ISO15765 reassembly, which no capture exercises.
 
@@ -992,8 +997,9 @@ What was checked, and what it does and does not prove.
   ran 1508 s on 10 workers, about 4.3 million executions, coverage 1075, no crash, timeout or out-of-memory. This
   finds crashes, not wrong answers. The target had also stopped compiling under clang after an earlier signature change
   (CI caught it); it builds and runs again.
-- **Sanitizers.** All 15 tests pass under ASan/UBSan and ThreadSanitizer (with the GCC 13 suppression file) locally,
-  and CI was green on the pushes that carried these changes.
+- **Sanitizers.** All 15 tests passed under ASan/UBSan and ThreadSanitizer (with the GCC 13 suppression file)
+  locally, and CI was green on the pushes that carried these changes. Re-run on 2026-09-20 at 19 tests: all pass
+  under both, but see the race below, which only appeared once a `vcan0` existed to stop two tests skipping.
 - **On the adapter.** With the car's bus silent (ignition off), open, version, connect, filter and disconnect worked at
   500 kbit, 250 kbit and 29-bit, and a timed write reported that nothing was confirmed rather than claiming success.
   The write and periodic rewrites have **not** been run against live vehicle traffic this session.
@@ -1040,15 +1046,135 @@ with root. Evidence: `analysis/captures/linux-socketcan-bench-20260919T212830Z.t
   the guide warns against filtering on that. udsoncan 1.26.1 is covered by the `volvo_guide` test above.
 - **A 29-bit channel.** `--29bit` opens and closes cleanly on the adapter, and with `--transmit` it accepted both a
   29-bit frame (`0x18DB33F1`) and an 11-bit one (`0x7DF`) in the same run, since a transmit carries its own
-  identifier width. Nothing confirmed them: there is no bus. What a 29-bit channel *receives* is still untested.
+  identifier width. Nothing confirmed them: there is no bus. What a 29-bit channel *receives* was tested on the car
+  the next day and the answer is "none of an 11-bit bus's traffic"; see the next section.
 - **Installed and run as a service.** `cmake --install` to `/usr/local` and `systemctl start
   mongoose-socketcan@mongoose0`: the unit created the `vcan` interface itself and the bridge came up listen-only on
   the real adapter. It failed first, and that was a defect in the install instructions rather than the unit: without
   `ldconfig`, `/usr/local/lib` is not in the linker's cache, so **every** installed program died with "cannot open
   shared object file: libmongoose_j2534.so.0". `docs/VOLVO.md` and `docs/USING.md` now say to run it. The machine
   was returned to its previous state afterwards (service stopped, files removed, interface deleted).
-- **Not covered.** The bridge has **not** been run on the car: not a flow-control round trip against a real ECU, not
-  a real USB unplug, not bus-off. Whether an 11-bit channel with an all-pass filter also delivers 29-bit frames is
-  unknown. The vendor's pipelined multi-message transaction was not implemented; it would save USB round trips but
+- **Not covered here.** The bridge had not yet been run on the car when this section was written; it since has,
+  on 2026-09-20, including the flow-control round trip against a real ECU and a real USB unplug (see the next
+  section). Still not covered: bus-off, and what a 29-bit channel receives from a car that actually sends 29-bit
+  frames. The vendor's pipelined multi-message transaction was not implemented; it would save USB round trips but
   cannot be checked without a bus that acknowledges frames.
 
+
+## The bridge on the car, and the two unplugs (2026-09-20)
+
+Live 2017 Volvo XC60, ignition on with a battery charger attached, adapter `AOLHE0000003666A` on
+`/dev/ttyACM0`, interface `mongoose0` (a `vcan`). Evidence:
+`analysis/captures/linux-live-socketcan-20260920T070106Z.txt`,
+`linux-live-usb-unplug-20260920T071056Z.txt`, `linux-live-vbattloss-20260920T071424Z.txt`,
+`linux-live-periodic-20260920T064012Z.txt`, `linux-live-write-batch-20260920T064040Z.txt`.
+This is what the offline work of the previous section could not reach: a real ECU, a real bus and
+real hardware removal.
+
+- **The rewritten write and periodic paths, against live traffic.** Both were rewritten after the last
+  vehicle session and had only been exercised offline. Periodic: a mode 01 PID 00 request to `0x7DF`
+  at 1000 ms drew reply pairs from `0x7E8` and `0x7E9` at 813400, 1813400, 2813600, 3813200 and
+  4813100 µs on the adapter's clock, so within 0.4 ms of the period each time, and
+  `StopPeriodicMsg` was followed by seven reads with nothing in them. Batched writes: the
+  `write_batch_probe` three-message `PassThruWriteMsgs` was accepted in 1 ms with count 3, on a bus
+  that acknowledges frames, and the single writes either side of it behaved the same. Neither path
+  regressed.
+- **Listen-only for ten minutes, checked against an independent reader.** `mongoose-socketcan
+  --stats 10`: **1477388 frames**, no adapter overflow, no interface drop, nothing refused. `candump
+  -ta mongoose0`, started two seconds later and stopped with the bridge, logged **1472590** frames
+  over 600.0 s; the 4798-frame difference is those two seconds at this rate (about 4900). 69 distinct
+  identifiers, all 11-bit. So the bridge delivered every frame it took from the adapter to the kernel
+  interface, and a second program read them all. This bounds the bridge and the interface; it still
+  does not prove the *adapter* saw every frame the bus carried, which needs a second CAN logger.
+- **Transmit, and the flow-control round trip.** Restarted with `--transmit`, and the two Python
+  examples of `docs/VOLVO.md` were run **verbatim**. The standard-library one (`AF_CAN`/`CAN_ISOTP`,
+  `txpad` 0x55) read rpm 0.0 and coolant 26 °C (engine not running), reassembled the mode 09 PID 02
+  **VIN** and got `43 00` for mode 03, no stored codes. The udsoncan one read the same VIN through
+  UDS `22 F190`. The VIN replies are multi-frame, so the kernel's flow-control frame went out through
+  the bridge to a real ECU and the consecutive frames came back: the one thing no simulation covered.
+- **A 29-bit channel receives nothing here, and that settles the question.** Opened with `--29bit`
+  while the bus carried its usual traffic: **0 frames** in 25 s, by the bridge's count and by
+  `candump`. An 11-bit channel opened on the same bus in the same minute took 29375 frames in 12 s
+  (2457/s). So **receive is filtered by the channel's identifier width, and one channel does not
+  deliver both**; transmit is not filtered, since a transmit carries its own width (shown offline
+  earlier). A 29-bit car needs `--29bit`, and will then not see 11-bit traffic. What a 29-bit channel
+  does with real 29-bit frames is still unobserved: this car has none (ten minutes, 69 identifiers,
+  zero extended).
+- **USB unplug with traffic running.** The cable was pulled by hand after 1250875 frames in about
+  510 s (2453/s, no overflow or drop for the whole run). The read failed with J2534 status 8,
+  `ERR_DEVICE_NOT_CONNECTED`; the bridge printed "adapter disconnected", shut down and **exited 1**.
+  No hang, no crash. This is the real-hardware counterpart of the `socketcan_load` pty test, which
+  closes a pty to stand in for an unplug: cdc_acm removal behaved exactly as the simulation predicted.
+  On replug the udev rule re-applied the ACL by itself (`crw-rw----+`, `user:dgcarr:rw-`).
+- **Vehicle power lost while USB stays connected (`eVbattLoss`), which is a different thing.** The OBD
+  plug was pulled from the car's port with USB still attached. The adapter **stayed enumerated**
+  (`18e1:0104` still listed, `/dev/ttyACM0` still there), the frame count froze at 35377, and **no
+  error was raised at all**: the bridge ran on for over two minutes reporting zero new frames, with no
+  `eVbattLoss` indication reaching the read path. SIGTERM still stopped it cleanly. To the driver,
+  losing vehicle power is **indistinguishable from a silent bus**. What does distinguish them is
+  `READ_VBATT`, which returned **0 mV** with the plug out against 13800 mV earlier the same session,
+  and the device still opened with no vehicle power. A program that needs to tell the two apart should
+  poll `READ_VBATT`; the adapter does not push the event but reports the voltage truthfully when asked.
+
+## Four more live checks, from the "not exercised on the car" list (2026-09-20)
+
+Same car and session as the section above, after the OBD plug went back in (13.9 V). Each of these was
+listed as settable-but-never-varied or as untested. Scripts are `tools/scripts/h11`-`h14`; evidence is
+`analysis/captures/linux-live-no-filter-*`, `-two-periodics-*`, `-fc-limit-*` and `-ncr-*`.
+
+- **Nothing is received without a pass filter (h11).** J2534 says a channel delivers nothing until a
+  filter admits it, and this file recorded that as untested. On a bus carrying about 2450 frames/s, a
+  raw CAN channel with **no filter at all** returned **zero messages in 20 read rounds over six
+  seconds**. Adding one wildcard PASS filter on the same channel immediately filled every read with the
+  16 messages asked for. So the behaviour matches the specification, and it is the filter, not the
+  adapter's silence, that decides.
+- **Two periodic messages at once (h12).** Only one had ever been on the wire. Two read-only requests to
+  `0x7DF`, mode 01 PID 00 at 1000 ms and mode 01 PID 0C at 500 ms, ran together on one channel: the slow
+  one landed at 818600, 1823800, 2823700, ... µs and the fast one at 1023800, 1522600, 2018600, ... µs,
+  each holding its period to within about 6 ms. Stopping the fast one left the slow one running to
+  10836500 µs, and stopping the slow one ended it. The slots are independent.
+- **The flow-control table filled to its 64 limit (h13).** 64 flow-control filters were added to one
+  ISO15765 channel, the first for the real `0x7E0`/`0x7E8` pair and the rest on unused identifiers so
+  nothing else on the bus was addressed. All 64 were accepted; the **65th** returned result 12
+  (`ERR_EXCEEDED_LIMIT`) with "at most 64 flow-control filters per channel", and the channel then
+  disconnected cleanly. The limit is the driver's own check, but the adapter did hold 64 live entries.
+  Found while doing it: the script runner had only 64 handle slots, one short of what this test needs,
+  so `SLOTS` is now 128.
+- **`N_Cr_MAX` was varied, and did not bite (h14).** The ISO15765 timeouts were settable but had never
+  been changed. `N_Cr_MAX` (J2534 `0x2f`) read back its default of 1000, then 1 and then 150, so
+  `SET_CONFIG` and `GET_CONFIG` carry it correctly. But the mode 09 PID 02 VIN request **completed
+  normally in all three cases**, including at the minimum: the same three messages (TX-done,
+  start-of-message, completed 24-byte reply) and the full VIN. The completed reply arrived 5.8, 9.7 and
+  10.6 ms after its start-of-message indication, so the consecutive frames were spread over several
+  milliseconds and an `N_Cr_MAX` of 1 should have ended it. **It did not.** The value is accepted and
+  stored but has no observable effect on this path; whether the firmware ignores it, applies it
+  elsewhere, or counts in units other than milliseconds is unknown. Do not rely on it.
+
+Still not exercised, and why: `CLEAR_TX_BUFFER` with frames actually waiting (on a live bus the ECU
+acknowledges them too quickly to build a queue by hand; the offline run filled it to 199 with no bus),
+`DATA_RATE` and the sample-point and jump-width settings (they change bus timing on a live car, which
+the ground rules forbid), and `N_As`/`N_Ar`/`N_Bs`, which need an ECU that misbehaves on purpose.
+
+## A data race the sanitizers only found once a `vcan0` existed (2026-09-20)
+
+`socketcan_bridge` and `volvo_guide` **skip** when the machine has no `vcan0`, and this machine had none, so
+every earlier local sanitizer run had been reporting 19/19 while quietly not running two of them. With the
+interface created, ThreadSanitizer failed both at once:
+
+```
+WARNING: ThreadSanitizer: data race
+  Write of size 4 ... on_signal tools/socketcan_bridge.c:43
+  Previous read of size 4 by thread T1 ... vehicle_to_host tools/socketcan_bridge.c:136
+  Location is global 'stopping'
+```
+
+It is a real race, not a toolchain artefact. `stopping` was a `volatile sig_atomic_t`: the right type for a
+signal handler, but `volatile` gives no ordering **between threads**, and the flag is written by the handler
+on the main thread and read by the reader thread's loop. It is now a lock-free `atomic_int`, written with
+`atomic_store` and read with `atomic_load`, which is both permitted in a signal handler and ordered across
+threads, and matches how `bridge->failed` was already handled in the same file.
+
+After the fix: 19/19 under ThreadSanitizer, 19/19 under ASan/UBSan, 19/19 in the ordinary build, and the
+patched bridge re-checked on the car (2458 frames/s, clean SIGTERM, exit 0) since the shutdown path is
+exactly what changed. The lesson is worth keeping: a skipped test reads as a pass in the summary line, so
+`vcan0` now exists on this machine as a systemd unit rather than being created by hand.

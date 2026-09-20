@@ -1,6 +1,6 @@
 # MongoosePro JLR — research status
 
-Updated 2026-09-19. The current technical reference is [PROTOCOL.md](PROTOCOL.md); the ordered
+Updated 2026-09-20. The current technical reference is [PROTOCOL.md](PROTOCOL.md); the ordered
 list of remaining work is [plan.md](plan.md).
 Implementation update: Linux discovery, open/close, firmware version and voltage queries, raw CAN
 and 11-bit ISO15765 channels, pass and flow-control filters, transmit with delivery confirmation
@@ -14,6 +14,14 @@ from the vendor DLL with Ghidra (`analysis/ExtractCallers.java`, `ExtractByName.
 ISO15765, and every protocol other than CAN (K-line, J1850, the `*_PS` pair, programming voltage), which
 need hardware this project does not have. The Windows session in `docs/PHASE2-WINDOWS.md` is an optional
 cross-check now, not a dependency.
+Added 2026-09-20 and released as 0.1.0: `mongoose-socketcan`, which presents the adapter as an ordinary
+SocketCAN interface so can-utils, Wireshark, python-can, udsoncan and the kernel's ISO-TP sockets work with
+it, and [docs/VOLVO.md](docs/VOLVO.md) for car owners. The bridge was then run on the car: ten minutes
+listen-only at about 2460 frames/s with no loss and an independent `candump` agreeing on the count, the
+guide's Python examples answered by real ECUs, and both failure modes exercised on real hardware -- a USB
+unplug under load (status 8, exit 1) and vehicle power lost with USB still attached, which raises **no**
+error at all and is only visible through `READ_VBATT` reading 0 mV. Also settled that day: a 29-bit channel
+receives none of an 11-bit bus's traffic, so receive is filtered by the channel's identifier width.
 The chronological research log, including superseded hypotheses, is preserved in
 [the history archive](analysis/history/NOTES-before-consolidation.md).
 

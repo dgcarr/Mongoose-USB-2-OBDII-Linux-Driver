@@ -165,10 +165,11 @@ with Client(connection, request_timeout=2, config=config) as client:
     print(client.read_data_by_identifier(0xF190).service_data.values[0xF190])      # the VIN
 ```
 
-Both snippets were run through the bridge against a simulated ECU (the `socketcan_bridge` test does the same
-multi-frame VIN read). Through the J2534 API, the XC60 answered the same kinds of request: mode 01, the mode 09 VIN,
-modes 03 and 07 (both `43 00`/`47 00`, no codes stored) and UDS `22 F190`. See [VALIDATION.md](VALIDATION.md).
-The bridge itself has not yet been run on the car.
+Both snippets are run through the bridge against a simulated ECU by the `volvo_guide` test, and both were run
+**verbatim on the car** on 2026-09-20 through the bridge: rpm, coolant, the multi-frame VIN and mode 03 (`43 00`,
+no codes stored) from the standard-library one, and the VIN again from the udsoncan one. The VIN reply is
+multi-frame, so the kernel's flow-control frame went out to a real ECU and the consecutive frames came back.
+See [VALIDATION.md](VALIDATION.md).
 
 ### Staying read-only
 
@@ -192,8 +193,10 @@ help you judge your own car, not tested fact.
   protocols), which this driver does not support yet, so modules on that bus are out of reach.
 - **Older Volvos and 29-bit IDs.** Earlier platforms talk to most modules with Volvo's own diagnostics on 29-bit CAN
   identifiers. The bridge passes 29-bit frames both ways, and transmit takes either width. For receive, start the
-  bridge with `--29bit`. Whether one channel receives both widths at once has not been tested, and neither has any
-  29-bit Volvo.
+  bridge with `--29bit`. **One channel does not receive both widths**: tested on the XC60 (2026-09-20), a `--29bit`
+  channel received nothing at all while the bus was carrying 2457 11-bit frames a second. So choose the width your
+  car uses; if you start with `--29bit` on a car like this one you will see an empty interface. No 29-bit Volvo has
+  been tried, so what such a channel receives from a car that really sends 29-bit frames is still unknown.
 - **VIDA** and other Windows diagnostic programs do not run on this driver. It is a Linux library and bridge, not a
   Windows J2534 DLL.
 
@@ -207,7 +210,8 @@ help you judge your own car, not tested fact.
 | The bridge counts `from vehicle 0` | Ignition off, plug not seated, or the wrong `--bitrate` |
 | Requests get no reply | The bridge is listen-only (it counts them as `refused`): restart it with `--transmit`. Or padding is off: set it as in the snippets |
 | `adapter overflows` rises | Frames were lost because the host fell behind. Rare; say so in an issue with the bus rate |
-| The bridge exits with `ERR_DEVICE_NOT_CONNECTED` | The adapter was unplugged. Replug it and start the bridge again |
+| The bridge exits with `ERR_DEVICE_NOT_CONNECTED` | The adapter was unplugged from USB. Replug it and start the bridge again |
+| `from vehicle` stops rising, but no error | The adapter lost vehicle power (OBD plug out, or the car cut power) while USB stayed connected. It looks exactly like a quiet bus: no error is raised. Stop the bridge and run `mongoose-client --script tools/scripts/f1-vbatt.txt`; `vbatt_mv=0` means the connector has no power |
 | python-can shows every frame as `Tx` | Expected on a virtual interface; see the note in step 4 |
 | An installed program says `cannot open shared object file` | `sudo ldconfig` after installing |
 

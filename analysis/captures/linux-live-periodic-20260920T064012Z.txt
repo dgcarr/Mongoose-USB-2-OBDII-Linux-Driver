@@ -1,0 +1,82 @@
+utc_100ns=134343600128538637 step line=5: open dev
+utc_100ns=134343600128859658 Open result=0 error=
+device=1
+utc_100ns=134343600130861518 step line=6: connect dev CAN NONE 500000 chan
+connect protocol=5 flags=0 baud=500000
+utc_100ns=134343600130882532 Connect result=0 error=
+channel=2
+utc_100ns=134343600132884630 step line=7: filter chan PASS CAN NONE 000007ff 000007e8 pass8
+utc_100ns=134343600132890849 StartMsgFilter result=0 error=
+filter=3
+utc_100ns=134343600134892985 step line=8: filter chan PASS CAN NONE 000007ff 000007e9 pass9
+utc_100ns=134343600134898131 StartMsgFilter result=0 error=
+filter=4
+utc_100ns=134343600136900308 step line=9: periodic chan CAN NONE 000007df0201005555555555 1000 per
+utc_100ns=134343600136906114 StartPeriodicMsg result=0 error=
+periodic=5
+utc_100ns=134343600138907448 step line=10: readfor chan 16 300 4
+utc_100ns=134343600141955931 ReadMsgs result=9 error=CAN read returned fewer messages than requested
+received=2
+message protocol=5 rx=0 tx=0 timestamp=810000 size=12 extra=12 data=000007e90641008818001300
+message protocol=5 rx=0 tx=0 timestamp=813400 size=12 extra=12 data=000007e8064100983ba01300
+utc_100ns=134343600144959467 ReadMsgs result=16 error=zero CAN messages received
+received=0
+utc_100ns=134343600147963215 ReadMsgs result=9 error=CAN read returned fewer messages than requested
+received=2
+message protocol=5 rx=0 tx=0 timestamp=1810000 size=12 extra=12 data=000007e90641008818001300
+message protocol=5 rx=0 tx=0 timestamp=1813400 size=12 extra=12 data=000007e8064100983ba01300
+utc_100ns=134343600150968235 ReadMsgs result=16 error=zero CAN messages received
+received=0
+utc_100ns=134343600153971282 ReadMsgs result=16 error=zero CAN messages received
+received=0
+utc_100ns=134343600156973763 ReadMsgs result=9 error=CAN read returned fewer messages than requested
+received=1
+message protocol=5 rx=0 tx=0 timestamp=2809900 size=12 extra=12 data=000007e90641008818001300
+utc_100ns=134343600159975062 ReadMsgs result=9 error=CAN read returned fewer messages than requested
+received=1
+message protocol=5 rx=0 tx=0 timestamp=2813600 size=12 extra=12 data=000007e8064100983ba01300
+utc_100ns=134343600162977485 ReadMsgs result=16 error=zero CAN messages received
+received=0
+utc_100ns=134343600165980561 ReadMsgs result=16 error=zero CAN messages received
+received=0
+utc_100ns=134343600168983214 ReadMsgs result=9 error=CAN read returned fewer messages than requested
+received=2
+message protocol=5 rx=0 tx=0 timestamp=3809800 size=12 extra=12 data=000007e90641008818001300
+message protocol=5 rx=0 tx=0 timestamp=3813200 size=12 extra=12 data=000007e8064100983ba01300
+utc_100ns=134343600171986422 ReadMsgs result=16 error=zero CAN messages received
+received=0
+utc_100ns=134343600174989602 ReadMsgs result=16 error=zero CAN messages received
+received=0
+utc_100ns=134343600177992689 ReadMsgs result=9 error=CAN read returned fewer messages than requested
+received=2
+message protocol=5 rx=0 tx=0 timestamp=4809700 size=12 extra=12 data=000007e90641008818001300
+message protocol=5 rx=0 tx=0 timestamp=4813100 size=12 extra=12 data=000007e8064100983ba01300
+utc_100ns=134343600180995172 ReadMsgs result=16 error=zero CAN messages received
+received=0
+read_total=10 rounds=14
+utc_100ns=134343600182997710 step line=11: stopperiodic chan per
+utc_100ns=134343600183001609 StopPeriodicMsg result=0 error=
+utc_100ns=134343600185004056 step line=12: readfor chan 16 300 2
+utc_100ns=134343600188007320 ReadMsgs result=16 error=zero CAN messages received
+received=0
+utc_100ns=134343600191010046 ReadMsgs result=16 error=zero CAN messages received
+received=0
+utc_100ns=134343600194012721 ReadMsgs result=16 error=zero CAN messages received
+received=0
+utc_100ns=134343600197015725 ReadMsgs result=16 error=zero CAN messages received
+received=0
+utc_100ns=134343600200018713 ReadMsgs result=16 error=zero CAN messages received
+received=0
+utc_100ns=134343600203021610 ReadMsgs result=16 error=zero CAN messages received
+received=0
+utc_100ns=134343600206025877 ReadMsgs result=16 error=zero CAN messages received
+received=0
+read_total=0 rounds=7
+utc_100ns=134343600208027936 step line=13: stopfilter chan pass9
+utc_100ns=134343600208032659 StopMsgFilter result=0 error=
+utc_100ns=134343600210034439 step line=14: stopfilter chan pass8
+utc_100ns=134343600210040029 StopMsgFilter result=0 error=
+utc_100ns=134343600212042506 step line=15: disconnect chan
+utc_100ns=134343600212048609 Disconnect result=0 error=
+utc_100ns=134343600214050329 step line=16: close dev
+utc_100ns=134343600214233510 Close result=0 error=

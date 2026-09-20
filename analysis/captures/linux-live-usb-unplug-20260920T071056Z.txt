@@ -1,0 +1,25 @@
+USB unplug with traffic running, on the live car, 20260920T071056Z
+Adapter AOLHE0000003666A; interface mongoose0; driver at cb7d770
+
+mongoose-socketcan --stats 5 mongoose0, listen only, streaming the car's bus. The USB cable
+was pulled from the adapter by hand at about 510 s (the OBD plug was left in the car).
+
+First and last stats lines, and the end:
+mongoose-socketcan: bridging mongoose0 at 500000 bit/s, 11-bit channel, listen only
+mongoose-socketcan: 5s: from vehicle 12288, to vehicle 0, refused 0, adapter overflows 0, interface drops 0
+  ... 5 s apart throughout, every line with overflows 0 and interface drops 0 ...
+mongoose-socketcan: PassThruReadMsgs failed: status 8: adapter disconnected
+mongoose-socketcan: stopped: from vehicle 1250875, to vehicle 0, refused 0, adapter overflows 0, interface drops 0
+EXIT_CODE=1
+stopped at 07:10:25Z
+
+Result: 1250875 frames in about 510 s (2453 frames/s), no adapter overflow and no interface
+drop for the whole run. On the unplug the read failed with J2534 status 8
+(ERR_DEVICE_NOT_CONNECTED), the bridge printed 'adapter disconnected', shut down and exited 1.
+It did not hang, block or crash, and the interface was left in place.
+
+After the pull: lsusb no longer lists 18e1:0104 and /dev/ttyACM0 is gone.
+
+This is the real-hardware counterpart of the socketcan_load pty test, which closes the pty to
+simulate an unplug and expects the same message and exit status. Real cdc_acm removal behaves
+as the simulation predicted.

@@ -1,0 +1,111 @@
+mongoose-socketcan on the live car (2017 Volvo XC60, ignition on, battery charger attached), 20260920T070106Z
+Adapter AOLHE0000003666A on /dev/ttyACM0; interface mongoose0 (vcan); driver at cb7d770
+
+== 1. Listen-only, ten minutes, against candump ==
+mongoose-socketcan: bridging mongoose0 at 500000 bit/s, 11-bit channel, listen only
+mongoose-socketcan: 10s: from vehicle 24565, to vehicle 0, refused 0, adapter overflows 0, interface drops 0
+mongoose-socketcan: 20s: from vehicle 49126, to vehicle 0, refused 0, adapter overflows 0, interface drops 0
+mongoose-socketcan: 30s: from vehicle 73692, to vehicle 0, refused 0, adapter overflows 0, interface drops 0
+mongoose-socketcan: 40s: from vehicle 98256, to vehicle 0, refused 0, adapter overflows 0, interface drops 0
+mongoose-socketcan: 50s: from vehicle 122826, to vehicle 0, refused 0, adapter overflows 0, interface drops 0
+mongoose-socketcan: 60s: from vehicle 147391, to vehicle 0, refused 0, adapter overflows 0, interface drops 0
+mongoose-socketcan: 70s: from vehicle 171954, to vehicle 0, refused 0, adapter overflows 0, interface drops 0
+mongoose-socketcan: 80s: from vehicle 196514, to vehicle 0, refused 0, adapter overflows 0, interface drops 0
+mongoose-socketcan: 90s: from vehicle 221079, to vehicle 0, refused 0, adapter overflows 0, interface drops 0
+mongoose-socketcan: 100s: from vehicle 245640, to vehicle 0, refused 0, adapter overflows 0, interface drops 0
+mongoose-socketcan: 110s: from vehicle 270207, to vehicle 0, refused 0, adapter overflows 0, interface drops 0
+mongoose-socketcan: 120s: from vehicle 294777, to vehicle 0, refused 0, adapter overflows 0, interface drops 0
+mongoose-socketcan: 130s: from vehicle 319336, to vehicle 0, refused 0, adapter overflows 0, interface drops 0
+mongoose-socketcan: 140s: from vehicle 343899, to vehicle 0, refused 0, adapter overflows 0, interface drops 0
+mongoose-socketcan: 150s: from vehicle 368472, to vehicle 0, refused 0, adapter overflows 0, interface drops 0
+mongoose-socketcan: 160s: from vehicle 393046, to vehicle 0, refused 0, adapter overflows 0, interface drops 0
+mongoose-socketcan: 170s: from vehicle 417612, to vehicle 0, refused 0, adapter overflows 0, interface drops 0
+mongoose-socketcan: 180s: from vehicle 442180, to vehicle 0, refused 0, adapter overflows 0, interface drops 0
+mongoose-socketcan: 190s: from vehicle 466743, to vehicle 0, refused 0, adapter overflows 0, interface drops 0
+mongoose-socketcan: 200s: from vehicle 491313, to vehicle 0, refused 0, adapter overflows 0, interface drops 0
+mongoose-socketcan: 210s: from vehicle 515876, to vehicle 0, refused 0, adapter overflows 0, interface drops 0
+mongoose-socketcan: 220s: from vehicle 540438, to vehicle 0, refused 0, adapter overflows 0, interface drops 0
+mongoose-socketcan: 230s: from vehicle 565000, to vehicle 0, refused 0, adapter overflows 0, interface drops 0
+mongoose-socketcan: 240s: from vehicle 589565, to vehicle 0, refused 0, adapter overflows 0, interface drops 0
+mongoose-socketcan: 250s: from vehicle 614126, to vehicle 0, refused 0, adapter overflows 0, interface drops 0
+mongoose-socketcan: 260s: from vehicle 638705, to vehicle 0, refused 0, adapter overflows 0, interface drops 0
+mongoose-socketcan: 270s: from vehicle 663271, to vehicle 0, refused 0, adapter overflows 0, interface drops 0
+mongoose-socketcan: 280s: from vehicle 687840, to vehicle 0, refused 0, adapter overflows 0, interface drops 0
+mongoose-socketcan: 290s: from vehicle 712396, to vehicle 0, refused 0, adapter overflows 0, interface drops 0
+mongoose-socketcan: 300s: from vehicle 736969, to vehicle 0, refused 0, adapter overflows 0, interface drops 0
+mongoose-socketcan: 310s: from vehicle 761530, to vehicle 0, refused 0, adapter overflows 0, interface drops 0
+mongoose-socketcan: 320s: from vehicle 786097, to vehicle 0, refused 0, adapter overflows 0, interface drops 0
+mongoose-socketcan: 330s: from vehicle 810655, to vehicle 0, refused 0, adapter overflows 0, interface drops 0
+mongoose-socketcan: 340s: from vehicle 835227, to vehicle 0, refused 0, adapter overflows 0, interface drops 0
+mongoose-socketcan: 350s: from vehicle 859801, to vehicle 0, refused 0, adapter overflows 0, interface drops 0
+mongoose-socketcan: 360s: from vehicle 884363, to vehicle 0, refused 0, adapter overflows 0, interface drops 0
+mongoose-socketcan: 370s: from vehicle 908921, to vehicle 0, refused 0, adapter overflows 0, interface drops 0
+mongoose-socketcan: 380s: from vehicle 933481, to vehicle 0, refused 0, adapter overflows 0, interface drops 0
+mongoose-socketcan: 390s: from vehicle 958040, to vehicle 0, refused 0, adapter overflows 0, interface drops 0
+mongoose-socketcan: 400s: from vehicle 982599, to vehicle 0, refused 0, adapter overflows 0, interface drops 0
+mongoose-socketcan: 410s: from vehicle 1007162, to vehicle 0, refused 0, adapter overflows 0, interface drops 0
+mongoose-socketcan: 420s: from vehicle 1031725, to vehicle 0, refused 0, adapter overflows 0, interface drops 0
+mongoose-socketcan: 430s: from vehicle 1056294, to vehicle 0, refused 0, adapter overflows 0, interface drops 0
+mongoose-socketcan: 440s: from vehicle 1080857, to vehicle 0, refused 0, adapter overflows 0, interface drops 0
+mongoose-socketcan: 450s: from vehicle 1105419, to vehicle 0, refused 0, adapter overflows 0, interface drops 0
+mongoose-socketcan: 460s: from vehicle 1129979, to vehicle 0, refused 0, adapter overflows 0, interface drops 0
+mongoose-socketcan: 470s: from vehicle 1154543, to vehicle 0, refused 0, adapter overflows 0, interface drops 0
+mongoose-socketcan: 480s: from vehicle 1179116, to vehicle 0, refused 0, adapter overflows 0, interface drops 0
+mongoose-socketcan: 490s: from vehicle 1203665, to vehicle 0, refused 0, adapter overflows 0, interface drops 0
+mongoose-socketcan: 500s: from vehicle 1228224, to vehicle 0, refused 0, adapter overflows 0, interface drops 0
+mongoose-socketcan: 510s: from vehicle 1252792, to vehicle 0, refused 0, adapter overflows 0, interface drops 0
+mongoose-socketcan: 520s: from vehicle 1277359, to vehicle 0, refused 0, adapter overflows 0, interface drops 0
+mongoose-socketcan: 530s: from vehicle 1301917, to vehicle 0, refused 0, adapter overflows 0, interface drops 0
+mongoose-socketcan: 540s: from vehicle 1326472, to vehicle 0, refused 0, adapter overflows 0, interface drops 0
+mongoose-socketcan: 550s: from vehicle 1351052, to vehicle 0, refused 0, adapter overflows 0, interface drops 0
+mongoose-socketcan: 560s: from vehicle 1375598, to vehicle 0, refused 0, adapter overflows 0, interface drops 0
+mongoose-socketcan: 570s: from vehicle 1400178, to vehicle 0, refused 0, adapter overflows 0, interface drops 0
+mongoose-socketcan: 580s: from vehicle 1424727, to vehicle 0, refused 0, adapter overflows 0, interface drops 0
+mongoose-socketcan: 590s: from vehicle 1449302, to vehicle 0, refused 0, adapter overflows 0, interface drops 0
+mongoose-socketcan: 600s: from vehicle 1473855, to vehicle 0, refused 0, adapter overflows 0, interface drops 0
+mongoose-socketcan: stopped: from vehicle 1477388, to vehicle 0, refused 0, adapter overflows 0, interface drops 0
+
+candump -ta mongoose0, started 2 s after the bridge and stopped with it:
+  frames logged      : 1472590
+  first timestamp    : (1789886893.121421)
+  last timestamp     : (1789887493.120753)
+  distinct identifiers: 69, all 11-bit
+  extended (29-bit) identifiers seen: 0
+  The bridge counted 1477388 and candump 1472590; the difference is the two seconds
+  candump was not yet running (about 4900 frames at this rate). No overflow, drop or refusal.
+
+== 2. Transmit enabled, the two docs/VOLVO.md examples run verbatim ==
+mongoose-socketcan: bridging mongoose0 at 500000 bit/s, 11-bit channel, TRANSMIT ENABLED: frames written to the interface go to the vehicle
+mongoose-socketcan: 10s: from vehicle 24573, to vehicle 5, refused 0, adapter overflows 0, interface drops 0
+mongoose-socketcan: 20s: from vehicle 49137, to vehicle 7, refused 0, adapter overflows 0, interface drops 0
+mongoose-socketcan: stopped: from vehicle 68768, to vehicle 7, refused 0, adapter overflows 0, interface drops 0
+
+Standard-library example (socket AF_CAN/CAN_ISOTP, txpad 0x55):
+  rpm 0.0                      (engine not running, ignition on)
+  coolant 26 C                 (ambient)
+  VIN REDACTEDVIN000000       (mode 09 PID 02, multi-frame, reassembled by the kernel
+                                over the bridge: the flow-control round trip against a real ECU)
+  []                           (mode 03: no stored trouble codes, as before)
+
+udsoncan example (UDS 22 F190 through IsoTPSocketConnection):
+  REDACTEDVIN000000           (same VIN, read as a UDS data identifier)
+
+== 3. What a 29-bit channel receives ==
+Open with --29bit while the bus carried its usual traffic:
+mongoose-socketcan: bridging mongoose0 at 500000 bit/s, 29-bit channel, listen only
+mongoose-socketcan: 10s: from vehicle 0, to vehicle 0, refused 0, adapter overflows 0, interface drops 0
+mongoose-socketcan: 20s: from vehicle 0, to vehicle 0, refused 0, adapter overflows 0, interface drops 0
+mongoose-socketcan: stopped: from vehicle 0, to vehicle 0, refused 0, adapter overflows 0, interface drops 0
+candump on the interface over the same 25 s: 0 frames.
+
+Control, 11-bit channel immediately afterwards, same bus, same minute:
+mongoose-socketcan: bridging mongoose0 at 500000 bit/s, 11-bit channel, listen only
+mongoose-socketcan: 10s: from vehicle 24576, to vehicle 0, refused 0, adapter overflows 0, interface drops 0
+mongoose-socketcan: stopped: from vehicle 29375, to vehicle 0, refused 0, adapter overflows 0, interface drops 0
+
+Conclusion: a channel opened for 29-bit identifiers receives none of this bus's 11-bit
+traffic, while an 11-bit channel receives it at 2457 frames/s. Receive is filtered by the
+channel's identifier width; transmit is not (a transmit carries its own width). So one
+channel does NOT deliver both widths, and a 29-bit car needs --29bit.
+This car carries no 29-bit traffic at all (10 minutes, 69 identifiers, zero extended),
+so what a 29-bit channel does with real 29-bit frames is still unobserved.

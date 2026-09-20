@@ -1,0 +1,35 @@
+Vehicle power lost while USB stays connected (the eVbattLoss path), 20260920T071424Z
+Adapter AOLHE0000003666A; interface mongoose0; driver at cb7d770
+
+mongoose-socketcan --stats 5 mongoose0, listen only, streaming the car's bus. The OBD plug was
+pulled out of the car's port by hand at about 15 s; the USB cable was left connected.
+
+mongoose-socketcan: bridging mongoose0 at 500000 bit/s, 11-bit channel, listen only
+mongoose-socketcan: 5s: from vehicle 12287, to vehicle 0, refused 0, adapter overflows 0, interface drops 0
+mongoose-socketcan: 10s: from vehicle 24574, to vehicle 0, refused 0, adapter overflows 0, interface drops 0
+mongoose-socketcan: 15s: from vehicle 35377, to vehicle 0, refused 0, adapter overflows 0, interface drops 0
+mongoose-socketcan: 20s: from vehicle 35377, to vehicle 0, refused 0, adapter overflows 0, interface drops 0
+mongoose-socketcan: 25s: from vehicle 35377, to vehicle 0, refused 0, adapter overflows 0, interface drops 0
+  ... every further line identical: 'from vehicle 35377', overflows 0, drops 0 ...
+mongoose-socketcan: 130s: from vehicle 35377, to vehicle 0, refused 0, adapter overflows 0, interface drops 0
+mongoose-socketcan: stopped: from vehicle 35377, to vehicle 0, refused 0, adapter overflows 0, interface drops 0
+
+What happened, and it is NOT what a USB unplug does:
+  * The adapter stayed enumerated: lsusb still listed 18e1:0104 and /dev/ttyACM0 remained.
+  * The frame count froze at 35377 and never moved again.
+  * No error was raised. The bridge ran on for over two minutes reporting zero new frames,
+    with no eVbattLoss indication reaching the read path and no nonzero exit.
+  * SIGTERM still shut it down cleanly ('stopped:' line, exit 0).
+
+So to the driver, losing vehicle power is indistinguishable from a silent bus. There is no
+asynchronous notification. What DOES distinguish them is READ_VBATT, read after the bridge
+was stopped and with the OBD plug still out:
+
+  Open result=0                 (the device still opens with no vehicle power)
+  Ioctl READ_VBATT result=0     vbatt_mv=0
+  Ioctl READ_VBATT result=0     vbatt_mv=0
+
+against vbatt_mv=13800 earlier the same session with the plug in the car. A program that
+wants to tell 'vehicle power gone' from 'quiet bus' should poll READ_VBATT; zero means the
+connector lost power. This is the practical answer to the eVbattLoss question: the adapter
+does not push the event, but it reports the voltage truthfully when asked.
