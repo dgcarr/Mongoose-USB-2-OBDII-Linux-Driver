@@ -190,6 +190,12 @@ install(FILES include/mongoose/j2534.h DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/m
 # A packager with another layout passes -DMONGOOSE_UDEV_RULES_DIR=... (absolute or relative).
 set(MONGOOSE_UDEV_RULES_DIR "lib/udev/rules.d" CACHE STRING "Where to install the udev rule")
 install(FILES packaging/60-mongoose-j2534.rules DESTINATION ${MONGOOSE_UDEV_RULES_DIR})
+# systemd unit: `systemctl start mongoose-socketcan@mongoose0` creates the interface and runs the bridge, so a user
+# need not repeat the ip link commands after every boot. Relative by default, so --prefix and DESTDIR work.
+set(MONGOOSE_SYSTEMD_UNIT_DIR "lib/systemd/system" CACHE STRING "Where to install the systemd unit")
+set(BINDIR "${CMAKE_INSTALL_FULL_BINDIR}")
+configure_file(packaging/mongoose-socketcan@.service ${CMAKE_CURRENT_BINARY_DIR}/mongoose-socketcan@.service @ONLY)
+install(FILES ${CMAKE_CURRENT_BINARY_DIR}/mongoose-socketcan@.service DESTINATION ${MONGOOSE_SYSTEMD_UNIT_DIR})
 install(FILES docs/man/mongoose-client.1 docs/man/mongoose-diag.1 docs/man/mongoose-socketcan.1 DESTINATION ${CMAKE_INSTALL_MANDIR}/man1)
 install(FILES docs/man/libmongoose_j2534.7 DESTINATION ${CMAKE_INSTALL_MANDIR}/man7)
 install(FILES LICENSE README.md docs/VOLVO.md docs/USING.md docs/VALIDATION.md docs/CAPTURING.md PROTOCOL.md DESTINATION ${CMAKE_INSTALL_DOCDIR})

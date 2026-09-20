@@ -22,8 +22,13 @@ cmake -S . -B build && cmake --build build
 ctest --test-dir build          # all pass; the SocketCAN test skips until step 4 creates a CAN interface
 ```
 
-libusb is optional and not needed. `sudo cmake --install build` installs the library, the programs, man pages and
-the udev rule under `/usr/local`, but everything below runs straight from `build/`.
+libusb is optional and not needed. Everything below runs straight from `build/`. To install instead:
+
+```sh
+sudo cmake --install build && sudo ldconfig    # without ldconfig the programs cannot find the library
+```
+
+That puts the library, the programs, the man pages, the udev rule and a systemd unit under `/usr/local`.
 
 ## 2. Let your user open the adapter
 
@@ -67,6 +72,18 @@ sudo modprobe -a vcan can-isotp
 sudo ip link add dev mongoose0 type vcan
 sudo ip link set mongoose0 up
 ```
+
+If you installed in step 1, systemd can do all of that for you, at boot or on demand, and it creates the interface
+itself:
+
+```sh
+sudo systemctl start mongoose-socketcan@mongoose0     # add `enable` to have it start at every boot
+systemctl status mongoose-socketcan@mongoose0
+```
+
+That service is listen-only. To let programs transmit, `sudo systemctl edit mongoose-socketcan@mongoose0` and give
+it an `ExecStart` with `--transmit`, as the unit's own comments show. The rest of this page assumes you are running
+the bridge by hand:
 
 Then run the bridge, and leave it running while you use the car:
 

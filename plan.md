@@ -255,7 +255,9 @@ with CAN diagnostics. You asked for no new diagnostic tool, and chose a SocketCA
   Then pull the USB cable while it runs, to confirm on real hardware what the pty test shows.
 - [ ] Whether an 11-bit channel with an all-pass filter also delivers 29-bit frames. Matters for older Volvos; this
   car has no 29-bit traffic, so it may stay unknown.
-- [ ] Optional: a persistent `vcan` (systemd-networkd `.netdev` or a unit) so step 4 of the guide is not per boot.
+- [x] A systemd unit (`packaging/mongoose-socketcan@.service`), so the guide's `ip link` steps are not per boot;
+  installed and started on this machine against the real adapter, then removed. It found the missing `ldconfig` in
+  the install instructions.
 - Not reachable without new work and hardware: the Volvo medium-speed CAN on pins 3/11 (the `*_PS` protocols).
 
 ## Before the repository goes public (you said it will, once deployment ready)

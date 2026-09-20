@@ -1033,6 +1033,12 @@ with root. Evidence: `analysis/captures/linux-socketcan-bench-20260919T212830Z.t
   times the headroom this car needs. Closing the pty, as an unplug does, ends the bridge with "adapter
   disconnected" and exit 1 rather than a hang. Both pass under ASan/UBSan and ThreadSanitizer. This bounds what the
   **host** can absorb; it does not exercise the cdc_acm URB path, so it is not parity with the adapter.
+- **Installed and run as a service.** `cmake --install` to `/usr/local` and `systemctl start
+  mongoose-socketcan@mongoose0`: the unit created the `vcan` interface itself and the bridge came up listen-only on
+  the real adapter. It failed first, and that was a defect in the install instructions rather than the unit: without
+  `ldconfig`, `/usr/local/lib` is not in the linker's cache, so **every** installed program died with "cannot open
+  shared object file: libmongoose_j2534.so.0". `docs/VOLVO.md` and `docs/USING.md` now say to run it. The machine
+  was returned to its previous state afterwards (service stopped, files removed, interface deleted).
 - **Not covered.** The bridge has **not** been run on the car: not a flow-control round trip against a real ECU, not
   a real USB unplug, not bus-off. Whether an 11-bit channel with an all-pass filter also delivers 29-bit frames is
   unknown. The vendor's pipelined multi-message transaction was not implemented; it would save USB round trips but

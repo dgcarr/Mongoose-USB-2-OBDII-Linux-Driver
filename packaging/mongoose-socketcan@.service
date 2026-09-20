@@ -1,0 +1,36 @@
+[Unit]
+# Bridge the MongoosePro adapter to a CAN interface named after the instance:
+#   systemctl start mongoose-socketcan@mongoose0
+# It creates the vcan interface if it is not there, so nothing has to be set up by hand after a reboot.
+# Listen-only: nothing reaches the vehicle. To let programs transmit, override the command:
+#   systemctl edit mongoose-socketcan@mongoose0     # [Service] / ExecStart= / ExecStart=... --transmit %i
+# Read the warning in the README before you do.
+Description=MongoosePro adapter bridged to CAN interface %i (listen only)
+Documentation=man:mongoose-socketcan(1)
+After=network.target
+
+[Service]
+Type=exec
+# Runs as root: creating a network interface needs CAP_NET_ADMIN, and modprobe needs root.
+ExecStartPre=/bin/sh -c 'modprobe -a vcan can-isotp || true; ip link show %i >/dev/null 2>&1 || ip link add dev %i type vcan; ip link set %i up'
+ExecStart=@BINDIR@/mongoose-socketcan --stats 300 %i
+Restart=on-failure
+RestartSec=5s
+# The adapter is a USB serial port and the interface is a virtual one; nothing else is needed.
+ProtectSystem=strict
+ProtectHome=yes
+PrivateTmp=yes
+NoNewPrivileges=yes
+ProtectKernelLogs=yes
+ProtectControlGroups=yes
+RestrictAddressFamilies=AF_UNIX AF_CAN AF_NETLINK
+RestrictNamespaces=yes
+RestrictRealtime=yes
+LockPersonality=yes
+MemoryDenyWriteExecute=yes
+SystemCallFilter=@system-service @module
+SystemCallErrorNumber=EPERM
+DeviceAllow=char-ttyACM rw
+
+[Install]
+WantedBy=multi-user.target

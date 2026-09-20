@@ -25,9 +25,12 @@ readings. **What it does not do:** K-line (ISO 9141/14230), J1850, the pin-switc
 ## Building against it
 
 ```sh
-cmake -S . -B build && cmake --build build && sudo cmake --install build
+cmake -S . -B build && cmake --build build && sudo cmake --install build && sudo ldconfig
 cc app.c $(pkg-config --cflags --libs mongoose-j2534) -o app
 ```
+
+`ldconfig` matters: a distribution's linker does not search `/usr/local/lib` until its cache is refreshed, and
+without it a program built against the library fails to start with "cannot open shared object file".
 
 or `dlopen("libmongoose_j2534.so.0", RTLD_NOW)` and resolve the `PassThru*` symbols. If you want SocketCAN rather
 than J2534, run `mongoose-socketcan` instead (see `docs/VOLVO.md`): it makes the adapter a CAN interface for

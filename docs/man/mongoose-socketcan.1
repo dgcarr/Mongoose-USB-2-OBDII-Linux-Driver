@@ -68,6 +68,21 @@ sudo ip link set mongoose0 up
 mongoose\-socketcan \-\-stats 10 mongoose0
 candump \-ta mongoose0
 .fi
+.SS Starting it with systemd
+An installed
+.B mongoose-socketcan@.service
+creates the interface named by the instance and runs the bridge on it, listen-only:
+.PP
+.nf
+sudo systemctl start mongoose\-socketcan@mongoose0
+.fi
+.PP
+Add
+.B enable
+to start it at boot, or
+.B systemctl edit
+it to add
+.BR \-\-transmit .
 .SH EXIT STATUS
 0 after SIGINT or SIGTERM; 1 if the interface or the adapter could not be opened, or the adapter was lost while
 running; 2 for a bad command line.

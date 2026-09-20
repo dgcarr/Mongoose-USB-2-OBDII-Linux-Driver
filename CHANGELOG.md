@@ -13,6 +13,8 @@ The format follows Keep a Changelog. There have been no releases; everything is 
 - `tools/publish-public.sh` and `docs/PUBLISHING.md`: development stays in the private repository and ships to the
   public one, with checks (run by the `publishable` test) that refuse on vendor material anywhere in the history or
   on an unredacted VIN.
+- A systemd unit, `mongoose-socketcan@.service`: `systemctl start mongoose-socketcan@mongoose0` creates the CAN
+  interface and bridges to it, listen-only, so nothing has to be set up by hand after a reboot.
 - `docs/VOLVO.md`: from clone to reading live data, trouble codes and the VIN, with notes for Volvo owners. A test
   runs its Python examples verbatim through the bridge.
 - Licensed under LGPL-2.1-or-later (`LICENSE`); the Arch, DEB and RPM metadata name the licence and maintainer.
@@ -37,6 +39,8 @@ The format follows Keep a Changelog. There have been no releases; everything is 
 - An unknown or inapplicable IOCTL ID returns `ERR_INVALID_IOCTL_ID`, as the vendor does.
 
 ### Fixed
+- The install instructions missed `ldconfig`, so every installed program failed to start with "cannot open shared
+  object file: libmongoose_j2534.so.0" until the linker cache was refreshed. Found by running the systemd unit.
 - A `PassThruWriteMsgs` of more than one message timed out on the adapter and left the device needing a reopen. The
   data commands counted down the messages still to send (3, 2, 1), as the vendor does, but the vendor sends a
   whole call before waiting for the firmware's single answer, and the driver waited after each command; a count
