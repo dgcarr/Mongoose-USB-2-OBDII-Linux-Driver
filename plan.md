@@ -258,6 +258,10 @@ with CAN diagnostics. You asked for no new diagnostic tool, and chose a SocketCA
 
 Rehearsed 2026-09-19 on a throwaway clone; nothing was changed in the real repository or on the remote.
 
+0. **How publishing works (2026-09-20).** The private repository stays private and keeps the vendor material
+   untracked; `tools/publish-public.sh` ships `master` to the public repository
+   (<https://github.com/dgcarr/Mongoose-USB-2-OBDII-Linux-Driver>) after refusing on vendor paths anywhere in the
+   history or on an unredacted VIN. `ctest -R publishable` runs those checks. See `docs/PUBLISHING.md`.
 1. **Vendor material out of history.** Done for `master` (2026-09-20): rewritten with `git filter-repo --invert-paths`,
    force-pushed, and a fresh mirror clone shows 0 vendor paths in its history; CI is green on the rewritten head.
    The two merged `cursor/*` branches were force-pushed in rewritten form too, so all three branches on the remote
@@ -266,15 +270,17 @@ Rehearsed 2026-09-19 on a throwaway clone; nothing was changed in the real repos
    they still contain the vendor files. So when the repository goes public, publish it as a **new repository** from
    this history (or have GitHub support purge those PR refs); do not just flip this one to public. A scan of a fresh
    mirror of the remote (all refs) found no VIN in any form, only the redaction placeholders.
-2. **Adapter serial number.** It appears in 59 files at HEAD (53 under `analysis/captures`, plus a test string and
+2. **Adapter serial number.** **Decided 2026-09-20: keep it.** It identifies the adapter, not the vehicle. The
+   rest of this item is the record of what removing it would have taken. It appears in 59 files at HEAD (53 under `analysis/captures`, plus a test string and
    four docs) and in older commits. It identifies your adapter, not your vehicle. Decide whether to keep it; to remove
    it, `git filter-repo --replace-text` with a replacement of the **same length** (the captures are binary USB
    traces, where the string sits inside length-prefixed descriptors), applied to the whole history so the test and
    docs stay consistent.
 3. **Already checked and clean:** no VINs (the captures were redacted with `analysis/redact_vin.py`), no
    credentials or tokens. `/home/dgcarr` paths appear in notes and scripts; cosmetic.
-4. **Then:** flip visibility, re-run CI on the rewritten history, tag `v0.1.0`, and let the CHANGELOG's
-   Unreleased section become that release.
+4. **Then:** publish with `tools/publish-public.sh --push` (done for the first time 2026-09-20), and when the
+   Phase 5 car check has run, move the CHANGELOG's Unreleased section under `0.1.0` and
+   `tools/publish-public.sh --push --tag v0.1.0`.
 
 ## Decision on the remaining protocols (2026-09-19)
 

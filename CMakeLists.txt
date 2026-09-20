@@ -143,6 +143,10 @@ if(BUILD_TESTING)
     set_tests_properties(volvo_guide PROPERTIES SKIP_RETURN_CODE 77 TIMEOUT 30 RESOURCE_LOCK can_interface)
     set_tests_properties(socketcan_bridge PROPERTIES RESOURCE_LOCK can_interface)
   endif()
+  # The history that would be published carries no vendor material and no VIN (tools/publish-public.sh).
+  add_test(NAME publishable COMMAND sh ${CMAKE_CURRENT_SOURCE_DIR}/tools/publish-public.sh --check
+           WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})
+  set_tests_properties(publishable PROPERTIES SKIP_RETURN_CODE 77 TIMEOUT 120)
   add_test(NAME captured_discovery COMMAND mongoose-diag --discover --replay ${CMAKE_CURRENT_SOURCE_DIR}/tests/fixtures/discovery.replay)
   add_test(NAME captured_open_close COMMAND mongoose-diag --open-close --replay ${CMAKE_CURRENT_SOURCE_DIR}/tests/fixtures/open-close.replay)
   add_test(NAME captured_inspect COMMAND mongoose-diag --inspect --replay ${CMAKE_CURRENT_SOURCE_DIR}/tests/fixtures/inspect.replay)

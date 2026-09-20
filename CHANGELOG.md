@@ -9,6 +9,9 @@ The format follows Keep a Changelog. There have been no releases; everything is 
   Wireshark, python-can, udsoncan and the kernel's ISO-TP sockets work with it. Listen-only unless `--transmit` is
   given; remote and error frames are refused. Tested end to end over `vcan` against a simulated ECU (including a
   multi-frame UDS read through a kernel ISO-TP socket) and on the adapter with no vehicle; not yet run on a car.
+- `tools/publish-public.sh` and `docs/PUBLISHING.md`: development stays in the private repository and ships to the
+  public one, with checks (run by the `publishable` test) that refuse on vendor material anywhere in the history or
+  on an unredacted VIN.
 - `docs/VOLVO.md`: from clone to reading live data, trouble codes and the VIN, with notes for Volvo owners. A test
   runs its Python examples verbatim through the bridge.
 - Licensed under LGPL-2.1-or-later (`LICENSE`); the Arch, DEB and RPM metadata name the licence and maintainer.
