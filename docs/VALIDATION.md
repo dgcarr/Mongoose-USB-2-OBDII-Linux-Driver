@@ -1033,6 +1033,11 @@ with root. Evidence: `analysis/captures/linux-socketcan-bench-20260919T212830Z.t
   times the headroom this car needs. Closing the pty, as an unplug does, ends the bridge with "adapter
   disconnected" and exit 1 rather than a hang. Both pass under ASan/UBSan and ThreadSanitizer. This bounds what the
   **host** can absorb; it does not exercise the cdc_acm URB path, so it is not parity with the adapter.
+- **The software the guide names.** With captured Volvo frames replayed through the bridge on `vcan0`:
+  `candump -ta` and `cansniffer -c` (can-utils 2023.03), `tshark -i` (so Wireshark, and SavvyCAN, which read the same
+  interface) and python-can 4.6.1 all read them, in the forms the guide gives. Noted while doing it: python-can
+  reports the frames as `Tx` (`is_rx == False`), because the bridge generates them locally on a virtual interface;
+  the guide warns against filtering on that. udsoncan 1.26.1 is covered by the `volvo_guide` test above.
 - **A 29-bit channel.** `--29bit` opens and closes cleanly on the adapter, and with `--transmit` it accepted both a
   29-bit frame (`0x18DB33F1`) and an 11-bit one (`0x7DF`) in the same run, since a transmit carries its own
   identifier width. Nothing confirmed them: there is no bus. What a 29-bit channel *receives* is still untested.

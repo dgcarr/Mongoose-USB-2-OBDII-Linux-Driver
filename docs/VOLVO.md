@@ -98,6 +98,11 @@ candump -ta mongoose0          # every frame
 cansniffer -c mongoose0        # one line per ID, changing bytes highlighted
 ```
 
+Wireshark (`tshark -i mongoose0`), SavvyCAN and python-can read the same interface. One quirk: because the bridge
+writes the car's frames into a virtual interface, they are *locally generated* as far as the kernel is concerned, so
+python-can reports them as `Tx` and `msg.is_rx == False`. Do not filter on that, or you will discard everything the
+car said.
+
 To **ask** the car things, restart the bridge with `--transmit`. From then on, any frame a program writes to
 `mongoose0` goes onto the car's bus, so only run programs you trust:
 
@@ -203,6 +208,8 @@ help you judge your own car, not tested fact.
 | Requests get no reply | The bridge is listen-only (it counts them as `refused`): restart it with `--transmit`. Or padding is off: set it as in the snippets |
 | `adapter overflows` rises | Frames were lost because the host fell behind. Rare; say so in an issue with the bus rate |
 | The bridge exits with `ERR_DEVICE_NOT_CONNECTED` | The adapter was unplugged. Replug it and start the bridge again |
+| python-can shows every frame as `Tx` | Expected on a virtual interface; see the note in step 4 |
+| An installed program says `cannot open shared object file` | `sudo ldconfig` after installing |
 
 What has been tested, and how, is in [VALIDATION.md](VALIDATION.md). The J2534 API for writing your own programs
 is in [USING.md](USING.md).
