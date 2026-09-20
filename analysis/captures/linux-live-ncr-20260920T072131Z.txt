@@ -1,0 +1,62 @@
+utc_100ns=134343624920084909 step line=6: open dev
+utc_100ns=134343624920785761 Open result=0 error=
+device=1
+utc_100ns=134343624923788971 step line=7: connect dev ISO15765 NONE 500000 chan
+connect protocol=6 flags=0 baud=500000
+utc_100ns=134343624923811642 Connect result=0 error=
+channel=2
+utc_100ns=134343624926823557 step line=8: filter chan FLOW ISO15765 ISO15765_FRAME_PAD 0000ffff 000007e8 000007e0 fc
+utc_100ns=134343624926839632 StartMsgFilter result=0 error=
+filter=3
+utc_100ns=134343624929862647 step line=9: mark default-n-cr
+utc_100ns=134343624929863679 step line=10: getconfig chan 0x2f
+utc_100ns=134343624929868216 Ioctl GET_CONFIG result=0 error=
+config parameter=0x2f value=0x3e8
+utc_100ns=134343624932870403 step line=11: write chan ISO15765 ISO15765_FRAME_PAD 000007e00902 1000
+utc_100ns=134343624932885742 WriteMsgs result=0 error=
+written=1
+utc_100ns=134343624935887840 step line=12: read chan 16 3000
+utc_100ns=134343624965978952 ReadMsgs result=9 error=CAN read returned fewer messages than requested
+received=3
+message protocol=6 rx=9 tx=64 timestamp=1213400 size=4 extra=0 data=000007e0
+message protocol=6 rx=2 tx=0 timestamp=1215800 size=4 extra=0 data=000007e8
+message protocol=6 rx=0 tx=0 timestamp=1225500 size=24 extra=24 data=000007e8490201524544414354454456494e303030303030
+read_total=3 rounds=1
+utc_100ns=134343624969009961 step line=13: mark n-cr-set-to-minimum
+utc_100ns=134343624969010979 step line=14: setconfig chan 0x2f=1
+utc_100ns=134343624969094644 Ioctl SET_CONFIG result=0 error=
+utc_100ns=134343624972097466 step line=15: getconfig chan 0x2f
+utc_100ns=134343624972102923 Ioctl GET_CONFIG result=0 error=
+config parameter=0x2f value=0x1
+utc_100ns=134343624975188944 step line=16: write chan ISO15765 ISO15765_FRAME_PAD 000007e00902 1000
+utc_100ns=134343624975250127 WriteMsgs result=0 error=
+written=1
+utc_100ns=134343624978280733 step line=17: read chan 16 3000
+utc_100ns=134343625008299627 ReadMsgs result=9 error=CAN read returned fewer messages than requested
+received=3
+message protocol=6 rx=9 tx=64 timestamp=5445400 size=4 extra=0 data=000007e0
+message protocol=6 rx=2 tx=0 timestamp=5455300 size=4 extra=0 data=000007e8
+message protocol=6 rx=0 tx=0 timestamp=5461100 size=24 extra=24 data=000007e8490201524544414354454456494e303030303030
+read_total=3 rounds=1
+utc_100ns=134343625011301362 step line=18: mark n-cr-restored
+utc_100ns=134343625011301990 step line=19: setconfig chan 0x2f=150
+utc_100ns=134343625011305598 Ioctl SET_CONFIG result=0 error=
+utc_100ns=134343625014323313 step line=20: getconfig chan 0x2f
+utc_100ns=134343625014326804 Ioctl GET_CONFIG result=0 error=
+config parameter=0x2f value=0x96
+utc_100ns=134343625017377166 step line=21: write chan ISO15765 ISO15765_FRAME_PAD 000007e00902 1000
+utc_100ns=134343625017391682 WriteMsgs result=0 error=
+written=1
+utc_100ns=134343625020405434 step line=22: read chan 16 3000
+utc_100ns=134343625050413414 ReadMsgs result=9 error=CAN read returned fewer messages than requested
+received=3
+message protocol=6 rx=9 tx=64 timestamp=9664000 size=4 extra=0 data=000007e0
+message protocol=6 rx=2 tx=0 timestamp=9676400 size=4 extra=0 data=000007e8
+message protocol=6 rx=0 tx=0 timestamp=9687000 size=24 extra=24 data=000007e8490201524544414354454456494e303030303030
+read_total=3 rounds=1
+utc_100ns=134343625053431635 step line=23: stopfilter chan fc
+utc_100ns=134343625053434942 StopMsgFilter result=0 error=
+utc_100ns=134343625056455535 step line=24: disconnect chan
+utc_100ns=134343625056466698 Disconnect result=0 error=
+utc_100ns=134343625059484780 step line=25: close dev
+utc_100ns=134343625059708062 Close result=0 error=

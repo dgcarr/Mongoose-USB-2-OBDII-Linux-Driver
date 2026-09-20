@@ -15,6 +15,10 @@
 It exports the 14 standard `PassThru*` functions with the C ABI in `include/mongoose/j2534.h`, and talks to
 the adapter through the kernel's `cdc_acm` serial device: no vendor SDK, no libusb, no root.
 
+A channel's identifier width filters what it **receives**, not just what it accepts: a channel opened with
+`CAN_29BIT_ID` receives no 11-bit frames at all (measured on a live 11-bit bus, 2026-09-20), while a transmit
+carries its own width. Open the channel for the width the bus uses.
+
 **What it does today:** raw CAN (11-bit and 29-bit) and ISO15765 (11-bit), including multi-frame receive
 and transmit; pass, block and flow-control filters; periodic messages (CAN); `GET_CONFIG`/`SET_CONFIG`
 for the CAN and ISO15765 parameters; the buffer IOCTLs; `LOOPBACK`; battery and programming-voltage
@@ -154,6 +158,12 @@ A `SET_CONFIG` list is checked as a whole before anything is written, so a bad e
 was. An ID the channel does not have is `ERR_NOT_SUPPORTED`; a value out of range is `ERR_INVALID_IOCTL_VALUE`.
 The non-volatile store IDs (`0xC002`..`0xC00A`) are refused: they write adapter memory.
 
+**`N_CR_MAX` is stored but does not appear to act.** It was varied on the car (2026-09-20): set to 1, to 150
+and to its default of 1000, it read back correctly each time, yet a multi-frame reply whose consecutive frames
+were spread over several milliseconds completed normally even at the minimum. Whether the firmware ignores it,
+applies it somewhere this path does not reach, or counts in other units is unknown, so do not rely on it to
+bound a receive. `N_AS_MAX`, `N_AR_MAX` and `N_BS_MAX` have never been varied at all.
+
 ## J2534 conformance notes
 
 These deviations were reviewed and deliberately kept:
@@ -198,8 +208,9 @@ nothing else (a CTest enforces both). The soname is `libmongoose_j2534.so.0`. Wi
 signatures and the structures in `j2534.h` do not change. A new exported function would get a new version node
 (`MONGOOSE_1`) and keep the soname; anything that breaks a signature or structure bumps the soname.
 
-**Versions.** The package version is 0.1.0. Until 1.0 the API and ABI may change with the minor version, so
-`find_package(mongoose-j2534 0.1)` accepts only 0.1.x. There are no releases yet.
+**Versions.** The package version is 0.1.0, which is also the first release (2026-09-20; see `CHANGELOG.md`).
+Until 1.0 the API and ABI may change with the minor version, so `find_package(mongoose-j2534 0.1)` accepts only
+0.1.x.
 
 **Threads.** Any thread may call any function. Commands to one adapter are serialised. A `PassThruReadMsgs` or
 timed `PassThruWriteMsgs` blocked on a channel is woken, with an error, by `PassThruDisconnect` or

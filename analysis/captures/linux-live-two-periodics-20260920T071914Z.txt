@@ -1,0 +1,161 @@
+utc_100ns=134343623550428043 step line=5: open dev
+utc_100ns=134343623550866799 Open result=0 error=
+device=1
+utc_100ns=134343623552869938 step line=6: connect dev CAN NONE 500000 chan
+connect protocol=5 flags=0 baud=500000
+utc_100ns=134343623552886707 Connect result=0 error=
+channel=2
+utc_100ns=134343623554888671 step line=7: filter chan PASS CAN NONE 000007ff 000007e8 pass8
+utc_100ns=134343623554901027 StartMsgFilter result=0 error=
+filter=3
+utc_100ns=134343623556926480 step line=8: filter chan PASS CAN NONE 000007ff 000007e9 pass9
+utc_100ns=134343623556932055 StartMsgFilter result=0 error=
+filter=4
+utc_100ns=134343623558935760 step line=9: periodic chan CAN NONE 000007df0201005555555555 1000 slow
+utc_100ns=134343623558941615 StartPeriodicMsg result=0 error=
+periodic=5
+utc_100ns=134343623560943750 step line=10: periodic chan CAN NONE 000007df02010c5555555555 500 fast
+utc_100ns=134343623560965494 StartPeriodicMsg result=0 error=
+periodic=6
+utc_100ns=134343623562967662 step line=11: readfor chan 16 300 5
+utc_100ns=134343623565973770 ReadMsgs result=9 error=CAN read returned fewer messages than requested
+received=4
+message protocol=5 rx=0 tx=0 timestamp=812800 size=12 extra=12 data=000007e90641008818001300
+message protocol=5 rx=0 tx=0 timestamp=818600 size=12 extra=12 data=000007e8064100983ba01300
+message protocol=5 rx=0 tx=0 timestamp=1012800 size=12 extra=12 data=000007e904410c0000000000
+message protocol=5 rx=0 tx=0 timestamp=1023800 size=12 extra=12 data=000007e804410c0000000000
+utc_100ns=134343623569000751 ReadMsgs result=9 error=CAN read returned fewer messages than requested
+received=3
+message protocol=5 rx=0 tx=0 timestamp=1512700 size=12 extra=12 data=000007e904410c0000000000
+message protocol=5 rx=0 tx=0 timestamp=1522600 size=12 extra=12 data=000007e804410c0000000000
+message protocol=5 rx=0 tx=0 timestamp=1812700 size=12 extra=12 data=000007e90641008818001300
+utc_100ns=134343623572009683 ReadMsgs result=9 error=CAN read returned fewer messages than requested
+received=3
+message protocol=5 rx=0 tx=0 timestamp=1823800 size=12 extra=12 data=000007e8064100983ba01300
+message protocol=5 rx=0 tx=0 timestamp=2012800 size=12 extra=12 data=000007e904410c0000000000
+message protocol=5 rx=0 tx=0 timestamp=2018600 size=12 extra=12 data=000007e804410c0000000000
+utc_100ns=134343623575016436 ReadMsgs result=16 error=zero CAN messages received
+received=0
+utc_100ns=134343623578019879 ReadMsgs result=9 error=CAN read returned fewer messages than requested
+received=2
+message protocol=5 rx=0 tx=0 timestamp=2522700 size=12 extra=12 data=000007e904410c0000000000
+message protocol=5 rx=0 tx=0 timestamp=2523200 size=12 extra=12 data=000007e804410c0000000000
+utc_100ns=134343623581023387 ReadMsgs result=9 error=CAN read returned fewer messages than requested
+received=2
+message protocol=5 rx=0 tx=0 timestamp=2812700 size=12 extra=12 data=000007e90641008818001300
+message protocol=5 rx=0 tx=0 timestamp=2823700 size=12 extra=12 data=000007e8064100983ba01300
+utc_100ns=134343623584027442 ReadMsgs result=9 error=CAN read returned fewer messages than requested
+received=2
+message protocol=5 rx=0 tx=0 timestamp=3032700 size=12 extra=12 data=000007e904410c0000000000
+message protocol=5 rx=0 tx=0 timestamp=3037000 size=12 extra=12 data=000007e804410c0000000000
+utc_100ns=134343623587041267 ReadMsgs result=9 error=CAN read returned fewer messages than requested
+received=2
+message protocol=5 rx=0 tx=0 timestamp=3532600 size=12 extra=12 data=000007e904410c0000000000
+message protocol=5 rx=0 tx=0 timestamp=3543000 size=12 extra=12 data=000007e804410c0000000000
+utc_100ns=134343623590044939 ReadMsgs result=9 error=CAN read returned fewer messages than requested
+received=2
+message protocol=5 rx=0 tx=0 timestamp=3812600 size=12 extra=12 data=000007e90641008818001300
+message protocol=5 rx=0 tx=0 timestamp=3818600 size=12 extra=12 data=000007e8064100983ba01300
+utc_100ns=134343623593048605 ReadMsgs result=9 error=CAN read returned fewer messages than requested
+received=2
+message protocol=5 rx=0 tx=0 timestamp=4032600 size=12 extra=12 data=000007e904410c0000000000
+message protocol=5 rx=0 tx=0 timestamp=4039400 size=12 extra=12 data=000007e804410c0000000000
+utc_100ns=134343623596061460 ReadMsgs result=16 error=zero CAN messages received
+received=0
+utc_100ns=134343623599085630 ReadMsgs result=9 error=CAN read returned fewer messages than requested
+received=2
+message protocol=5 rx=0 tx=0 timestamp=4532600 size=12 extra=12 data=000007e904410c0000000000
+message protocol=5 rx=0 tx=0 timestamp=4538400 size=12 extra=12 data=000007e804410c0000000000
+utc_100ns=134343623602101288 ReadMsgs result=9 error=CAN read returned fewer messages than requested
+received=4
+message protocol=5 rx=0 tx=0 timestamp=4832600 size=12 extra=12 data=000007e90641008818001300
+message protocol=5 rx=0 tx=0 timestamp=4836900 size=12 extra=12 data=000007e8064100983ba01300
+message protocol=5 rx=0 tx=0 timestamp=5032500 size=12 extra=12 data=000007e904410c0000000000
+message protocol=5 rx=0 tx=0 timestamp=5037600 size=12 extra=12 data=000007e804410c0000000000
+utc_100ns=134343623605105428 ReadMsgs result=16 error=zero CAN messages received
+received=0
+utc_100ns=134343623608109133 ReadMsgs result=9 error=CAN read returned fewer messages than requested
+received=2
+message protocol=5 rx=0 tx=0 timestamp=5532500 size=12 extra=12 data=000007e904410c0000000000
+message protocol=5 rx=0 tx=0 timestamp=5542400 size=12 extra=12 data=000007e804410c0000000000
+utc_100ns=134343623611113268 ReadMsgs result=9 error=CAN read returned fewer messages than requested
+received=2
+message protocol=5 rx=0 tx=0 timestamp=5832500 size=12 extra=12 data=000007e90641008818001300
+message protocol=5 rx=0 tx=0 timestamp=5841400 size=12 extra=12 data=000007e8064100983ba01300
+utc_100ns=134343623614117029 ReadMsgs result=9 error=CAN read returned fewer messages than requested
+received=2
+message protocol=5 rx=0 tx=0 timestamp=6032400 size=12 extra=12 data=000007e904410c0000000000
+message protocol=5 rx=0 tx=0 timestamp=6036800 size=12 extra=12 data=000007e804410c0000000000
+read_total=34 rounds=17
+utc_100ns=134343623616147803 step line=12: mark stopping-the-fast-one
+utc_100ns=134343623616148881 step line=13: stopperiodic chan fast
+utc_100ns=134343623616182379 StopPeriodicMsg result=0 error=
+utc_100ns=134343623618184622 step line=14: readfor chan 16 300 4
+utc_100ns=134343623621188055 ReadMsgs result=9 error=CAN read returned fewer messages than requested
+received=4
+message protocol=5 rx=0 tx=0 timestamp=6532400 size=12 extra=12 data=000007e904410c0000000000
+message protocol=5 rx=0 tx=0 timestamp=6541800 size=12 extra=12 data=000007e804410c0000000000
+message protocol=5 rx=0 tx=0 timestamp=6832400 size=12 extra=12 data=000007e90641008818001300
+message protocol=5 rx=0 tx=0 timestamp=6837400 size=12 extra=12 data=000007e8064100983ba01300
+utc_100ns=134343623624192465 ReadMsgs result=16 error=zero CAN messages received
+received=0
+utc_100ns=134343623627215155 ReadMsgs result=16 error=zero CAN messages received
+received=0
+utc_100ns=134343623630220635 ReadMsgs result=9 error=CAN read returned fewer messages than requested
+received=2
+message protocol=5 rx=0 tx=0 timestamp=7836400 size=12 extra=12 data=000007e8064100983ba01300
+message protocol=5 rx=0 tx=0 timestamp=7836600 size=12 extra=12 data=000007e90641008818001300
+utc_100ns=134343623633234793 ReadMsgs result=16 error=zero CAN messages received
+received=0
+utc_100ns=134343623636237830 ReadMsgs result=16 error=zero CAN messages received
+received=0
+utc_100ns=134343623639243898 ReadMsgs result=9 error=CAN read returned fewer messages than requested
+received=2
+message protocol=5 rx=0 tx=0 timestamp=8837900 size=12 extra=12 data=000007e8064100983ba01300
+message protocol=5 rx=0 tx=0 timestamp=8838400 size=12 extra=12 data=000007e90641008818001300
+utc_100ns=134343623642246014 ReadMsgs result=16 error=zero CAN messages received
+received=0
+utc_100ns=134343623645248165 ReadMsgs result=16 error=zero CAN messages received
+received=0
+utc_100ns=134343623648279996 ReadMsgs result=16 error=zero CAN messages received
+received=0
+utc_100ns=134343623651282256 ReadMsgs result=9 error=CAN read returned fewer messages than requested
+received=2
+message protocol=5 rx=0 tx=0 timestamp=9840900 size=12 extra=12 data=000007e8064100983ba01300
+message protocol=5 rx=0 tx=0 timestamp=9841100 size=12 extra=12 data=000007e90641008818001300
+utc_100ns=134343623654284737 ReadMsgs result=16 error=zero CAN messages received
+received=0
+utc_100ns=134343623657287277 ReadMsgs result=16 error=zero CAN messages received
+received=0
+utc_100ns=134343623660289301 ReadMsgs result=9 error=CAN read returned fewer messages than requested
+received=2
+message protocol=5 rx=0 tx=0 timestamp=10836500 size=12 extra=12 data=000007e8064100983ba01300
+message protocol=5 rx=0 tx=0 timestamp=10836700 size=12 extra=12 data=000007e90641008818001300
+read_total=12 rounds=14
+utc_100ns=134343623662291002 step line=15: mark stopping-the-slow-one
+utc_100ns=134343623662291625 step line=16: stopperiodic chan slow
+utc_100ns=134343623662294555 StopPeriodicMsg result=0 error=
+utc_100ns=134343623664306863 step line=17: readfor chan 16 300 2
+utc_100ns=134343623667308717 ReadMsgs result=16 error=zero CAN messages received
+received=0
+utc_100ns=134343623670316294 ReadMsgs result=16 error=zero CAN messages received
+received=0
+utc_100ns=134343623673330476 ReadMsgs result=16 error=zero CAN messages received
+received=0
+utc_100ns=134343623676338944 ReadMsgs result=16 error=zero CAN messages received
+received=0
+utc_100ns=134343623679358268 ReadMsgs result=16 error=zero CAN messages received
+received=0
+utc_100ns=134343623682360406 ReadMsgs result=16 error=zero CAN messages received
+received=0
+utc_100ns=134343623685368851 ReadMsgs result=16 error=zero CAN messages received
+received=0
+read_total=0 rounds=7
+utc_100ns=134343623687370819 step line=18: stopfilter chan pass9
+utc_100ns=134343623687376065 StopMsgFilter result=0 error=
+utc_100ns=134343623689377305 step line=19: stopfilter chan pass8
+utc_100ns=134343623689393411 StopMsgFilter result=0 error=
+utc_100ns=134343623691410462 step line=20: disconnect chan
+utc_100ns=134343623691414323 Disconnect result=0 error=
+utc_100ns=134343623693415438 step line=21: close dev
+utc_100ns=134343623693598977 Close result=0 error=

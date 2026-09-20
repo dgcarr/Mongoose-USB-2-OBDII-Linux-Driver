@@ -130,7 +130,9 @@ static uint32_t lookup_flags(const struct named *table, const char *text) {
     return value;
 }
 
-#define SLOTS 64
+/* More than the adapter's own 64-entry filter tables, so a script can fill one to its limit and still
+ * have slots for the device, the channel and the one add past the end. */
+#define SLOTS 128
 static struct { char name[24]; uint32_t handle; } slots[SLOTS];
 static int slot_count;
 static void slot_set(const char *name, uint32_t handle) {

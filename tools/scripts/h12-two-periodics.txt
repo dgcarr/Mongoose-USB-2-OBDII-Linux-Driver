@@ -1,0 +1,21 @@
+# H12: more than one periodic message on the wire at once. VALIDATION.md listed this as not exercised
+# on the car: step 11 only ever ran one. Two read-only OBD-II requests to 0x7DF at different periods
+# (mode 01 PID 00 at 1000 ms, mode 01 PID 0C at 500 ms), pass filters for the two ECUs that answer.
+# Expect both cadences visible at once, and stopping one to leave the other running.
+open dev
+connect dev CAN NONE 500000 chan
+filter chan PASS CAN NONE 000007ff 000007e8 pass8
+filter chan PASS CAN NONE 000007ff 000007e9 pass9
+periodic chan CAN NONE 000007df0201005555555555 1000 slow
+periodic chan CAN NONE 000007df02010c5555555555 500 fast
+readfor chan 16 300 5
+mark stopping-the-fast-one
+stopperiodic chan fast
+readfor chan 16 300 4
+mark stopping-the-slow-one
+stopperiodic chan slow
+readfor chan 16 300 2
+stopfilter chan pass9
+stopfilter chan pass8
+disconnect chan
+close dev

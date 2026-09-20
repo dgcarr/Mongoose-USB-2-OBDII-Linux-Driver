@@ -1,0 +1,25 @@
+# H14: does N_Cr_MAX (J2534 0x2f), the limit on waiting for the next consecutive frame, actually bite?
+# VALIDATION.md listed the ISO15765 timeouts as settable but never varied. Read the default, ask for the
+# VIN (mode 09 PID 02, a multi-frame reply) so the healthy case is on record, then set N_Cr_MAX to its
+# minimum and ask again: too short to collect the consecutive frames, so the reply should not complete.
+# Finally restore the default and prove the VIN comes back. Read-only throughout.
+open dev
+connect dev ISO15765 NONE 500000 chan
+filter chan FLOW ISO15765 ISO15765_FRAME_PAD 0000ffff 000007e8 000007e0 fc
+mark default-n-cr
+getconfig chan 0x2f
+write chan ISO15765 ISO15765_FRAME_PAD 000007e00902 1000
+read chan 16 3000
+mark n-cr-set-to-minimum
+setconfig chan 0x2f=1
+getconfig chan 0x2f
+write chan ISO15765 ISO15765_FRAME_PAD 000007e00902 1000
+read chan 16 3000
+mark n-cr-restored
+setconfig chan 0x2f=150
+getconfig chan 0x2f
+write chan ISO15765 ISO15765_FRAME_PAD 000007e00902 1000
+read chan 16 3000
+stopfilter chan fc
+disconnect chan
+close dev

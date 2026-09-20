@@ -1,0 +1,14 @@
+# H11: what a raw CAN channel receives with NO filter at all. J2534 says a channel delivers nothing
+# until a PASS filter admits it, and VALIDATION.md recorded that as untested. Connect, read for six
+# seconds without ever calling PassThruStartMsgFilter, then add a wildcard pass filter and read again
+# on the same channel, so the bus is proved busy in the same run. Read-only: nothing is transmitted.
+open dev
+connect dev CAN NONE 500000 chan
+mark no-filter-yet
+readfor chan 16 300 6
+mark wildcard-pass-filter-added
+filter chan PASS CAN NONE 00000000 00000000 wild
+readfor chan 16 300 3
+stopfilter chan wild
+disconnect chan
+close dev
