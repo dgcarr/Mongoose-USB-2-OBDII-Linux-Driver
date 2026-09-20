@@ -31,8 +31,8 @@ public:
     // every request the adapter reports sent: RxStatus TX_MSG_TYPE|TX_DONE, the request's
     // CAN ID alone as data, its TxFlags, and the adapter's own timestamp (Windows captures
     // E1 and E2). The indication carries only the timestamp, so the request is recorded
-    // here before it is sent and paired with the indication in transmit order. Raw CAN
-    // delivers nothing of the kind; no capture shows otherwise.
+    // here before it is sent and paired with the indication by sequence number. Raw CAN
+    // delivers nothing of the kind unless LOOPBACK is set.
     // Record a request under the sequence its cOutboundData will carry. The vendor pairs by sequence
     // and drops older unpaired records ("loopbackBuf head ... didn't match"), so a frame the bus never
     // confirmed cannot shift later confirmations onto the wrong request. Raw CAN records too: it
@@ -95,7 +95,7 @@ Bytes can_periodic(const PASSTHRU_MSG &message, uint32_t interval_ms);
 Bytes isotp_flow_control_filter(const PASSTHRU_MSG &mask, const PASSTHRU_MSG &pattern,
                                 const PASSTHRU_MSG &flow);
 // cOutboundData payload for one ISO15765 request. The message carries the CAN ID and
-// the service bytes only; the adapter adds the ISO-TP PCI byte (Windows capture E2).
-// Single-frame requests only: nothing here has exercised a segmented transmit.
+// the service bytes only; the adapter adds the ISO-TP PCI byte (Windows capture E2) and
+// segments a message of up to 4095 bytes itself.
 Bytes isotp_transmit(const PASSTHRU_MSG &message, uint32_t timeout_ms);
 }

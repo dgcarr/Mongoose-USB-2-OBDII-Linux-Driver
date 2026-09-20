@@ -15,12 +15,14 @@ was set and stay so unless you say otherwise.
 The wire protocol is solved and the library works on a live 2017 Volvo XC60: receive at
 ~2450 frames/s for an hour, timed writes confirmed, ISO15765 single-frame requests with
 multi-frame VIN reassembly, 100 open/close cycles, one-hour soak. Implemented: raw CAN and
-11-bit ISO15765 channels, PASS and FLOW_CONTROL filters, ReadMsgs/WriteMsgs, ReadVersion,
-READ_VBATT/READ_PROG_VOLTAGE.
+11-bit ISO15765 channels, PASS, BLOCK and FLOW_CONTROL filters, ReadMsgs/WriteMsgs (including
+segmented ISO15765 transmit), periodic messages on CAN, GET_CONFIG/SET_CONFIG, the buffer and
+table IOCTLs, ReadVersion, READ_VBATT/READ_PROG_VOLTAGE.
 
-Not implemented (each returns `ERR_NOT_SUPPORTED` today): BLOCK filters, periodic messages,
-`GET_CONFIG`/`SET_CONFIG` and every other IOCTL, 29-bit ISO15765, segmented ISO15765
-transmit, `PASS_FILTER` on an ISO15765 channel, programming voltage, K-line, J1850.
+Not implemented (each returns `ERR_NOT_SUPPORTED` today): 29-bit ISO15765, `PASS_FILTER` and
+`BLOCK_FILTER` on an ISO15765 channel, periodic messages on an ISO15765 channel, programming
+voltage (`PassThruSetProgrammingVoltage`), K-line, J1850. IOCTLs that do not apply to CAN return
+`ERR_INVALID_IOCTL_ID`, as the vendor does. The phase lists below record how each item landed.
 
 Scope decision (2026-09-19): this Volvo is the only vehicle. There will be no second car, so
 "other vehicles" is not a work item; anything that needs a different bus or ECU family goes in the

@@ -136,7 +136,8 @@ public:
             if (waiting.revents & (POLLERR | POLLHUP | POLLNVAL))
                 throw Error(ERR_DEVICE_NOT_CONNECTED, "adapter disconnected during write");
         }
-        // Nothing on the wire only costs the sequence slot; a partial frame does not.
+        // The two failures differ here, but Session::command treats any send exception as ending the session,
+        // so both require a reopen; only the message tells them apart.
         if (sent == 0) throw Error(ERR_TIMEOUT, "tty write timed out; no byte reached the adapter");
         if (sent != data.size()) throw Error(ERR_FAILED, "partial tty write; command delivery is ambiguous");
     }
