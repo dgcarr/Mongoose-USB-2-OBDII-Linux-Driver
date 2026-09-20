@@ -2,6 +2,17 @@
 
 The format follows Keep a Changelog.
 
+## Unreleased
+
+### Fixed
+- `tools/publish-public.sh` refused on three vendor paths but not on `analysis/ghidra_project/`, and did not
+  look for compiled binaries at all. Both gaps let something into the first public push: the Ghidra project
+  database (vendor material, since a `.rep` holds the imported DLL and its analysis) and a third-party
+  Windows executable, each added in the initial commit and deleted later, so neither showed at HEAD. Both
+  histories were rewritten and force-pushed and `v0.1.0` re-tagged; the release tree is byte-for-byte
+  unchanged. The check now covers `analysis/ghidra_project/` and refuses any compiled binary anywhere in the
+  history. See `docs/PUBLISHING.md`.
+
 ## 0.1.0 - 2026-09-20
 
 First release.
