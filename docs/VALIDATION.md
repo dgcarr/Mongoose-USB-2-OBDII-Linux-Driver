@@ -1024,8 +1024,17 @@ with root. Evidence: `analysis/captures/linux-socketcan-bench-20260919T212830Z.t
   answered. Each message is now a one-message transaction (chan 1, the only form any capture or car test had used).
   After the fix the probe's three-message call is accepted in 1 ms. `channel_tests` pins chan 1 for every message
   of a batched write.
-- **Not covered.** The bridge has **not** been run on the car: not receive at the car's ~2450 frames/s, not a
-  flow-control round trip against a real ECU, not bus-off or unplug while running. Whether an 11-bit channel with an
-  all-pass filter also delivers 29-bit frames is unknown. The vendor's pipelined multi-message transaction was not
-  implemented; it would save USB round trips but cannot be checked without a bus that acknowledges frames.
+- **Under load, and when the adapter goes away.** `socketcan_load` runs the bridge over the **real** library
+  (`j2534.cpp`, `Session`, `CanReceiver`, the tty reader thread and the kernel line discipline) with a simulated
+  adapter on a pty, as `load_tests` does for the receiver: the tty backend refuses any node that is not a
+  MongoosePro, so the transport is injected at link time (`tests/socketcan_load_harness.cpp`). At the car's
+  measured 2450 frames/s, 3000 frames reached `vcan0` with none lost, no adapter overflow and nothing refused by the
+  interface; by hand, 20000 frames at 10000/s and 50000 at 25000/s were also lossless, so the host has about ten
+  times the headroom this car needs. Closing the pty, as an unplug does, ends the bridge with "adapter
+  disconnected" and exit 1 rather than a hang. Both pass under ASan/UBSan and ThreadSanitizer. This bounds what the
+  **host** can absorb; it does not exercise the cdc_acm URB path, so it is not parity with the adapter.
+- **Not covered.** The bridge has **not** been run on the car: not a flow-control round trip against a real ECU, not
+  a real USB unplug, not bus-off. Whether an 11-bit channel with an all-pass filter also delivers 29-bit frames is
+  unknown. The vendor's pipelined multi-message transaction was not implemented; it would save USB round trips but
+  cannot be checked without a bus that acknowledges frames.
 

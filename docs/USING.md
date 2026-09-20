@@ -219,5 +219,5 @@ You use this library on a vehicle at your own risk; see the notice at the top of
 
 `mongoose-client --script-check FILE...` parses the capture scripts in `tools/scripts/` without an adapter.
 `mongoose-client [serial:S] --script FILE` runs one against a real adapter, printing the same log as the
-Windows harness so the two can be diffed. CTest runs 17 tests against recorded and scripted adapters; the two SocketCAN bridge tests need a `vcan0`
+Windows harness so the two can be diffed. CTest runs 19 tests against recorded and scripted adapters; the three SocketCAN bridge tests need a `vcan0`
 interface and skip without one.

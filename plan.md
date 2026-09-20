@@ -245,10 +245,14 @@ with CAN diagnostics. You asked for no new diagnostic tool, and chose a SocketCA
 - [x] Fixed on the way: multi-message `PassThruWriteMsgs` never worked on the adapter (one-message transactions now).
 - [x] CI creates `vcan0` and installs udsoncan so the two bridge tests run there, and fails if they skip. Not yet run
   on GitHub.
-- [ ] **On the car (needs you: adapter in the car, ignition on).** Ten minutes of `mongoose-socketcan --stats 10`
-  listen-only against `candump` (rate near 2450 frames/s, no overflows), then `--transmit` with the guide's two Python
-  examples (rpm, coolant, VIN, codes; udsoncan VIN). Pass: all answered, no overflows, clean stop. Then pull the USB
-  cable while it runs: the bridge must exit 1 with `ERR_DEVICE_NOT_CONNECTED`.
+- [x] Load and adapter-loss behaviour, without a car: `socketcan_load` drives the bridge over the real library from
+  a simulated adapter on a pty. Lossless at the car's 2450 frames/s and at ten times that; a closed pty ends it with
+  exit 1. See `VALIDATION.md`.
+- [ ] **On the car (needs you: adapter in the car, ignition on).** What only a car can show, now that load and
+  adapter loss are covered above: ten minutes of `mongoose-socketcan --stats 10` listen-only against `candump` (rate
+  near 2450 frames/s, no overflows), then `--transmit` with the guide's two Python examples (rpm, coolant, VIN,
+  codes; udsoncan VIN) -- the flow-control round trip against a real ECU is the part nothing here can simulate.
+  Then pull the USB cable while it runs, to confirm on real hardware what the pty test shows.
 - [ ] Whether an 11-bit channel with an all-pass filter also delivers 29-bit frames. Matters for older Volvos; this
   car has no 29-bit traffic, so it may stay unknown.
 - [ ] Optional: a persistent `vcan` (systemd-networkd `.netdev` or a unit) so step 4 of the guide is not per boot.

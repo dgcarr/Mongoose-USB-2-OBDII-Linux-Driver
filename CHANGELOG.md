@@ -8,7 +8,8 @@ The format follows Keep a Changelog. There have been no releases; everything is 
 - `mongoose-socketcan`, a bridge that makes the adapter a SocketCAN interface (normally a `vcan`), so can-utils,
   Wireshark, python-can, udsoncan and the kernel's ISO-TP sockets work with it. Listen-only unless `--transmit` is
   given; remote and error frames are refused. Tested end to end over `vcan` against a simulated ECU (including a
-  multi-frame UDS read through a kernel ISO-TP socket) and on the adapter with no vehicle; not yet run on a car.
+  multi-frame UDS read through a kernel ISO-TP socket), over the real library at the car's frame rate and ten times
+  it with no loss, and on the adapter with no vehicle; not yet run on a car.
 - `tools/publish-public.sh` and `docs/PUBLISHING.md`: development stays in the private repository and ships to the
   public one, with checks (run by the `publishable` test) that refuse on vendor material anywhere in the history or
   on an unredacted VIN.
@@ -59,7 +60,7 @@ The format follows Keep a Changelog. There have been no releases; everything is 
 - Live on one 2017 Volvo XC60: an hour of receive and requests on raw CAN and on ISO15765, 100 lifecycle cycles
   on each, configuration and ISO-TP timing, loopback, periodic messages, multi-frame transmit, and an
   ignition-off, bus-sleep and wake cycle. See `docs/VALIDATION.md`.
-- 17 tests, run under ASan/UBSan and ThreadSanitizer, with warnings as errors on GCC and Clang.
+- 19 tests, run under ASan/UBSan and ThreadSanitizer, with warnings as errors on GCC and Clang.
 
 ### Not done
 - K-line, J1850, the pin-switched `*_PS` protocols, 29-bit ISO15765, programming-voltage output: no hardware.

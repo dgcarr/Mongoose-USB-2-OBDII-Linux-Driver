@@ -132,6 +132,10 @@ if(BUILD_TESTING)
   add_executable(mongoose-socketcan-fake tools/socketcan_bridge.c tests/fake_j2534.c)
   target_include_directories(mongoose-socketcan-fake PRIVATE include)
   target_link_libraries(mongoose-socketcan-fake PRIVATE Threads::Threads)
+  # The same bridge over the real library, fed by a simulated adapter on a pty at the car's frame rate.
+  add_executable(mongoose-socketcan-load tools/socketcan_bridge.c src/j2534.cpp tests/socketcan_load_harness.cpp)
+  target_link_libraries(mongoose-socketcan-load PRIVATE mongoose_tty)
+  target_compile_definitions(mongoose-socketcan-load PRIVATE FIXTURE_DIR="${CMAKE_CURRENT_SOURCE_DIR}/tests/fixtures")
   add_executable(mongoose-socketcan-test tests/socketcan_bridge_test.c)
   add_test(NAME socketcan_bridge COMMAND mongoose-socketcan-test $<TARGET_FILE:mongoose-socketcan-fake>)
   set_tests_properties(socketcan_bridge PROPERTIES SKIP_RETURN_CODE 77 TIMEOUT 30)
@@ -140,7 +144,10 @@ if(BUILD_TESTING)
   if(Python3_FOUND)
     add_test(NAME volvo_guide COMMAND Python3::Interpreter ${CMAKE_CURRENT_SOURCE_DIR}/tests/volvo_doc_test.py
              $<TARGET_FILE:mongoose-socketcan-fake> ${CMAKE_CURRENT_SOURCE_DIR}/docs/VOLVO.md)
-    set_tests_properties(volvo_guide PROPERTIES SKIP_RETURN_CODE 77 TIMEOUT 30 RESOURCE_LOCK can_interface)
+    # Keeping up with a busy bus, and stopping when the adapter goes away, over the real library.
+    add_test(NAME socketcan_load COMMAND Python3::Interpreter ${CMAKE_CURRENT_SOURCE_DIR}/tests/socketcan_load_test.py
+             $<TARGET_FILE:mongoose-socketcan-load>)
+    set_tests_properties(volvo_guide socketcan_load PROPERTIES SKIP_RETURN_CODE 77 TIMEOUT 60 RESOURCE_LOCK can_interface)
     set_tests_properties(socketcan_bridge PROPERTIES RESOURCE_LOCK can_interface)
   endif()
   # The history that would be published carries no vendor material and no VIN (tools/publish-public.sh).
