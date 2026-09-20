@@ -5,6 +5,8 @@ The format follows Keep a Changelog.
 ## Unreleased
 
 ### Fixed
+- The `publishable` test failed on GitHub pull_request jobs (`no such ref 'master'`): those checkouts are
+  detached and have no local `master`. It now checks HEAD, which is the history under test.
 - `tools/publish-public.sh` refused on three vendor paths but not on `analysis/ghidra_project/`, and did not
   look for compiled binaries at all. Both gaps let something into the first public push: the Ghidra project
   database (vendor material, since a `.rep` holds the imported DLL and its analysis) and a third-party
