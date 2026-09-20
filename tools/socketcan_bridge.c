@@ -39,8 +39,12 @@ struct bridge {
     atomic_ulong to_bus, to_host, refused, overflows, host_drops;
 };
 
-static volatile sig_atomic_t stopping;
-static void on_signal(int signal_number) { (void)signal_number; stopping = 1; }
+/* Written by the signal handler and read by both the reader thread and main, so a plain
+ * sig_atomic_t is not enough: that is async-signal-safe but says nothing across threads, and
+ * ThreadSanitizer reports the race. A lock-free atomic is safe in a handler and ordered between
+ * threads, and matches how bridge->failed is handled below. */
+static atomic_int stopping;
+static void on_signal(int signal_number) { (void)signal_number; atomic_store(&stopping, 1); }
 
 static void report(const char *operation, int32_t status) {
     char error[80] = {0};
@@ -133,7 +137,7 @@ static int from_socketcan(const struct can_frame *frame, PASSTHRU_MSG *message) 
 static void *vehicle_to_host(void *argument) {
     struct bridge *bridge = argument;
     static PASSTHRU_MSG messages[batch];
-    while (!stopping && !atomic_load(&bridge->failed)) {
+    while (!atomic_load(&stopping) && !atomic_load(&bridge->failed)) {
         uint32_t count = batch;
         int32_t status = PassThruReadMsgs(bridge->channel, messages, &count, 0);
         if (status == ERR_BUFFER_EMPTY) {
@@ -161,7 +165,7 @@ static void *vehicle_to_host(void *argument) {
 static void host_to_vehicle(struct bridge *bridge) {
     static PASSTHRU_MSG messages[batch];
     struct pollfd waiting = {bridge->socket, POLLIN, 0};
-    while (!stopping && !atomic_load(&bridge->failed)) {
+    while (!atomic_load(&stopping) && !atomic_load(&bridge->failed)) {
         const int ready = poll(&waiting, 1, poll_wait_ms);
         if (ready < 0 && errno != EINTR) { perror("mongoose-socketcan: poll"); atomic_store(&bridge->failed, 1); break; }
         if (ready <= 0) continue;
@@ -187,10 +191,10 @@ static void *print_stats(void *argument) {
     struct bridge *bridge = argument;
     const unsigned seconds = bridge->stats_seconds;
     const time_t started = time(NULL);
-    while (!stopping && !atomic_load(&bridge->failed)) {
-        for (unsigned waited = 0; waited < seconds * 10 && !stopping && !atomic_load(&bridge->failed); ++waited)
+    while (!atomic_load(&stopping) && !atomic_load(&bridge->failed)) {
+        for (unsigned waited = 0; waited < seconds * 10 && !atomic_load(&stopping) && !atomic_load(&bridge->failed); ++waited)
             nanosleep(&(struct timespec){0, 100000000}, NULL);
-        if (stopping || atomic_load(&bridge->failed)) break;
+        if (atomic_load(&stopping) || atomic_load(&bridge->failed)) break;
         fprintf(stderr, "mongoose-socketcan: %lds: from vehicle %lu, to vehicle %lu, refused %lu, "
                         "adapter overflows %lu, interface drops %lu\n",
                 (long)(time(NULL) - started), atomic_load(&bridge->to_host), atomic_load(&bridge->to_bus),
