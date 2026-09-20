@@ -1033,6 +1033,9 @@ with root. Evidence: `analysis/captures/linux-socketcan-bench-20260919T212830Z.t
   times the headroom this car needs. Closing the pty, as an unplug does, ends the bridge with "adapter
   disconnected" and exit 1 rather than a hang. Both pass under ASan/UBSan and ThreadSanitizer. This bounds what the
   **host** can absorb; it does not exercise the cdc_acm URB path, so it is not parity with the adapter.
+- **A 29-bit channel.** `--29bit` opens and closes cleanly on the adapter, and with `--transmit` it accepted both a
+  29-bit frame (`0x18DB33F1`) and an 11-bit one (`0x7DF`) in the same run, since a transmit carries its own
+  identifier width. Nothing confirmed them: there is no bus. What a 29-bit channel *receives* is still untested.
 - **Installed and run as a service.** `cmake --install` to `/usr/local` and `systemctl start
   mongoose-socketcan@mongoose0`: the unit created the `vcan` interface itself and the bridge came up listen-only on
   the real adapter. It failed first, and that was a defect in the install instructions rather than the unit: without
