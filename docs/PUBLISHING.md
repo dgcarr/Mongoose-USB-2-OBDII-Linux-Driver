@@ -26,7 +26,8 @@ and GitHub keeps unreferenced commits reachable by hash.
    Volvo VIN (`YV1` and fourteen more characters) fails the check, except `YV1TESTVIN0000000`, the invented one the
    tests use. For another make, set `MONGOOSE_PUBLISH_VIN_RE` to a pattern that matches its VINs.
 
-`ctest -R publishable` runs these checks, so the ordinary test run notices a problem long before a release.
+`ctest -R publishable` runs these checks against HEAD, so the ordinary test run notices a problem long
+before a release. HEAD is used because a GitHub pull_request checkout is detached and has no local `master`.
 
 The script pushes through a named remote, `public`, and refuses to run if that remote already points somewhere
 else, so a slip cannot push private work to the wrong place. It pushes one refspec, `master:refs/heads/master`, and
